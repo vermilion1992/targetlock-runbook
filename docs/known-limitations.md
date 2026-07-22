@@ -7,7 +7,12 @@ Scope: local pilot of Stages 1–6 in `packages/main`
 
 - **Browser-only storage.** Records live in localStorage and IndexedDB on one
   browser profile. Clearing site data loses local work.
-- **No authentication.** Operator identity is seed/local snapshot based.
+- **Railway hosts code only.** A public Railway deployment serves the Next.js
+  app; Runs, photographs and reports still remain local to each browser and are
+  not synchronised or backed up by Railway.
+- **No authentication.** Operator identity is seed/local snapshot based. An
+  optional Railway HTTP Basic pilot-access gate may protect the public URL; it
+  is not user-account authentication.
 - **No cloud database.** There is no server persistence or audit-grade store.
 - **No multi-device sync.** Two devices can diverge silently.
 - **No cross-device locking.** Lock enforcement is local to this browser.

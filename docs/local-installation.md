@@ -74,3 +74,11 @@ npm run build
 - Prepare Email opens a local draft path; TargetLock does not send mail.
 - Export reports before clearing browser data if you need a copy.
 - See `docs/known-limitations.md` for the full pilot constraint list.
+
+## Railway / public hosting note
+
+Railway can host the TargetLock Next.js app on a public domain, but operational
+data, photographs and generated reports remain local to each browser. Deploying
+does not create shared cloud storage or synchronisation between devices.
+
+Deployment steps: `docs/railway-deployment.md`.

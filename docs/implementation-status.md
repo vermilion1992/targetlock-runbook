@@ -1,8 +1,8 @@
 # TargetLock Implementation Status
 
-Status date: 2026-07-22  
-Target: `packages/main` only  
-Stage: Final pilot audit of Runbook V1 Stages 1–6
+Status date: 2026-07-23
+Target: `packages/main` only
+Stage: Final pilot audit of Runbook V1 Stages 1–6 + Railway deployment prep
 
 ## Final pilot audit result
 
@@ -13,6 +13,14 @@ Material defects found during the audit were fixed. The package is ready for
 supervised field pilot use with the limitations in `docs/known-limitations.md`.
 
 **READY FOR FIELD PILOT**
+
+## Railway deployment preparation
+
+`packages/main` is isolated (own lockfile; no root workspace). Railway Root
+Directory is `/packages/main` with config at `/packages/main/railway.json`,
+healthcheck at `/api/health`, and an optional server-side pilot access gate.
+Railway hosts application code only; browser-local Runs, photos and reports are
+not synchronised. See `docs/railway-deployment.md`.
 
 ## Maths authority
 
@@ -55,7 +63,7 @@ completion/lock/reopen, Report Centre/Activity, Timeline, Search, Statistics
 
 Run from `packages/main`:
 
-- [x] `npm run test` — 238 unit tests
+- [x] `npm run test` — 244 unit tests (includes health + pilot-access gate)
 - [x] `npm run test:e2e` — includes `e2e/pilot-end-to-end.spec.ts` plus Stage 2–6 suites
 - [x] `npm run typecheck`
 - [x] `npm run lint` — scoped TargetLock lint
