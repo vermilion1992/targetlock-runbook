@@ -1,0 +1,50 @@
+# TargetLock Known Limitations
+
+Status date: 2026-07-22  
+Scope: local pilot of Stages 1–6 in `packages/main`
+
+## Acceptable local-pilot limitations
+
+- **Browser-only storage.** Records live in localStorage and IndexedDB on one
+  browser profile. Clearing site data loses local work.
+- **No authentication.** Operator identity is seed/local snapshot based.
+- **No cloud database.** There is no server persistence or audit-grade store.
+- **No multi-device sync.** Two devices can diverge silently.
+- **No cross-device locking.** Lock enforcement is local to this browser.
+- **No cloud media backup.** Tray/survey photos are local IndexedDB blobs.
+- **No real email provider.** Prepare Email / share never means sent or
+  delivered.
+- **Browser storage quota.** Large photo/report history can hit quota; there is
+  no retention dashboard or garbage collection.
+- **No physical-device accessibility certification.** Automated checks cover
+  names, focus-ish flows, and widths; gloves, glare, screen readers, and 200%
+  zoom still need manual device review.
+- **Barrel capacity deferred.** Core-barrel capacity remains optional/unset.
+- **TargetLock IQ integration deferred.** No hardware telemetry or IQ sync.
+- **Inherited demo routes remain in the Next.js app.** They are outside
+  TargetLock navigation but are not fully removed from the package build.
+- **Survey photos** do not use the tray staged-recovery envelope.
+- **Boundary-run recovered metres** are estimates when recovery is aggregate.
+
+## Production / cloud blockers
+
+These must be solved before production or multi-device deployment:
+
+- Authenticated identity and authorisation
+- Durable transactional storage with backup/restore
+- Server revision / conflict policy and synchronisation
+- Cross-device hole locking
+- Cloud media and report storage
+- Real SMTP or transactional email if delivery is required
+- Removal or hard isolation of inherited demo routes and unused template deps
+- Production dependency advisory review beyond the local pilot scope
+- Physical-device accessibility sign-off
+
+## Future enhancements
+
+- Survey trajectory / coordinates
+- Tray OCR / annotation
+- Payroll, hours, delays, costs
+- SQLite and service-worker offline packaging
+- Quota / retention controls for photos and report versions
+- Capacitor native share validation on hardware

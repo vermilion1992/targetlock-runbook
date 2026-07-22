@@ -1,0 +1,15 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 900" role="img" aria-labelledby="title description">
+  <title id="title">EZ-TRAC survey result at 425 metres</title>
+  <desc id="description">A local demo instrument screen showing dip minus 62.1 degrees and azimuth 129.8 degrees Grid North.</desc>
+  <rect width="1200" height="900" fill="#14212b"/>
+  <rect x="130" y="100" width="940" height="700" rx="42" fill="#263845" stroke="#7f99a8" stroke-width="12"/>
+  <rect x="220" y="190" width="760" height="430" rx="18" fill="#d9f0df"/>
+  <text x="600" y="275" text-anchor="middle" font-family="Arial, sans-serif" font-size="52" font-weight="700" fill="#17331f">EZ-TRAC RESULT</text>
+  <text x="300" y="390" font-family="Arial, sans-serif" font-size="44" fill="#17331f">DEPTH</text>
+  <text x="900" y="390" text-anchor="end" font-family="Arial, sans-serif" font-size="58" font-weight="700" fill="#17331f">425.0 m</text>
+  <text x="300" y="480" font-family="Arial, sans-serif" font-size="44" fill="#17331f">DIP</text>
+  <text x="900" y="480" text-anchor="end" font-family="Arial, sans-serif" font-size="58" font-weight="700" fill="#17331f">-62.1°</text>
+  <text x="300" y="570" font-family="Arial, sans-serif" font-size="44" fill="#17331f">AZIMUTH</text>
+  <text x="900" y="570" text-anchor="end" font-family="Arial, sans-serif" font-size="58" font-weight="700" fill="#17331f">129.8° GRID</text>
+  <text x="600" y="710" text-anchor="middle" font-family="Arial, sans-serif" font-size="34" fill="#d6e4ea">Local Stage 4 demonstration asset</text>
+</svg>

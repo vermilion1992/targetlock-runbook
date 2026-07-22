@@ -1,0 +1,143 @@
+/*
+ * TargetLock design tokens are intentionally scoped to the runbook shell.
+ * The existing TailwindAdmin demo keeps its original global theme.
+ */
+.target-lock {
+  --tl-primary: #1f6feb;
+  --tl-primary-bright: #3b82f6;
+  --tl-primary-deep: #1e4a8a;
+  --tl-light-ink: #eef3f8;
+  --tl-success: #16845b;
+  --tl-warning: #b86e00;
+  --tl-danger: #d33c45;
+
+  --tl-canvas: #eef3f8;
+  --tl-surface: #ffffff;
+  --tl-surface-raised: #f8fafc;
+  --tl-surface-sunken: #e4ebf2;
+  --tl-ink: #172335;
+  --tl-ink-muted: #5a6b7d;
+  --tl-border: #cbd6e2;
+  --tl-border-strong: #9eafc0;
+  --tl-primary-soft: #e8f1ff;
+  --tl-success-soft: #e6f5ee;
+  --tl-warning-soft: #fff4da;
+  --tl-danger-soft: #fdebec;
+  --tl-overlay: rgb(13 25 42 / 56%);
+  --tl-shadow-sm: 0 1px 2px rgb(18 38 63 / 8%);
+  --tl-shadow-md: 0 12px 30px rgb(18 38 63 / 12%);
+  --tl-radius-sm: 0.5rem;
+  --tl-radius-md: 0.75rem;
+  --tl-radius-lg: 1rem;
+  --tl-header-height: 4rem;
+  --tl-phone-nav-height: 4.5rem;
+
+  min-height: 100dvh;
+  background: var(--tl-canvas);
+  color: var(--tl-ink);
+  color-scheme: light;
+  isolation: isolate;
+}
+
+.dark .target-lock {
+  --tl-primary: #60a5fa;
+  --tl-success: #42d392;
+  --tl-warning: #f5b942;
+  --tl-danger: #ff7b86;
+  --tl-canvas: #0b121c;
+  --tl-surface: #111c29;
+  --tl-surface-raised: #172433;
+  --tl-surface-sunken: #0d1722;
+  --tl-ink: #eef3f8;
+  --tl-ink-muted: #a9b8c8;
+  --tl-border: #2c3e50;
+  --tl-border-strong: #465d73;
+  --tl-primary-soft: #142b4e;
+  --tl-success-soft: #12372d;
+  --tl-warning-soft: #402f12;
+  --tl-danger-soft: #442126;
+  --tl-overlay: rgb(3 9 16 / 72%);
+  --tl-shadow-sm: 0 1px 2px rgb(0 0 0 / 28%);
+  --tl-shadow-md: 0 14px 34px rgb(0 0 0 / 34%);
+  color-scheme: dark;
+}
+
+.target-lock :where(button, input, select, textarea, a[href]) {
+  min-height: 44px;
+}
+
+.target-lock :where(button, input, select, textarea, a[href]):focus-visible {
+  outline: 3px solid var(--tl-primary-bright);
+  outline-offset: 2px;
+}
+
+.target-lock :where(button, input, select, textarea):disabled,
+.target-lock [aria-disabled='true'] {
+  cursor: not-allowed;
+  opacity: 0.55;
+}
+
+.target-lock ::selection {
+  background: var(--tl-primary);
+  color: #ffffff;
+}
+
+.tl-brand-gradient,
+.tl-action-primary {
+  background-color: var(--tl-primary);
+  background-image: linear-gradient(
+    135deg,
+    var(--tl-primary-bright),
+    var(--tl-primary-deep)
+  );
+}
+
+.tl-tabular {
+  font-variant-numeric: tabular-nums lining-nums;
+  font-feature-settings: 'tnum' 1, 'lnum' 1;
+}
+
+.tl-safe-top {
+  padding-top: env(safe-area-inset-top, 0px);
+}
+
+.tl-safe-bottom {
+  padding-bottom: env(safe-area-inset-bottom, 0px);
+}
+
+.tl-field-action {
+  min-height: 52px !important;
+}
+
+.tl-field-action[data-field-size='major'] {
+  min-height: 56px !important;
+}
+
+@media (max-width: 767px) {
+  .target-lock {
+    --tl-header-height: 3.75rem;
+  }
+
+  .tl-mobile-content {
+    padding-bottom: calc(
+      var(--tl-phone-nav-height) + env(safe-area-inset-bottom, 0px) + 1rem
+    );
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .target-lock *,
+  .target-lock *::before,
+  .target-lock *::after {
+    scroll-behavior: auto !important;
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+
+@media (forced-colors: active) {
+  .target-lock :where(button, input, select, textarea, a[href]):focus-visible {
+    outline-color: Highlight;
+  }
+}
