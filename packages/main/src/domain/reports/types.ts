@@ -183,6 +183,77 @@ export interface ReportStatistics {
   readonly shiftCount: number;
 }
 
+/** Serialised HoleAnalytics for Full-Hole / Hole Summary reports. */
+export interface ReportHoleAnalytics {
+  readonly completionId?: string;
+  readonly calculatedAt: string;
+  readonly startingDepthDm: Decimetres;
+  readonly currentOrFinalDepthDm: Decimetres;
+  readonly plannedDepthDm: Decimetres;
+  readonly differenceFromPlannedDm: number;
+  readonly totalDrilledDm: Decimetres;
+  readonly totalRecoveredDm: Decimetres;
+  readonly weightedRecoveryTenths?: number;
+  readonly totalCoreLossDm: Decimetres;
+  readonly totalCoreGainDm: Decimetres;
+  readonly totalCompletedRuns: number;
+  readonly totalVoidedRuns: number;
+  readonly totalCorrectedRuns: number;
+  readonly averageRunLengthDm?: Decimetres;
+  readonly medianRunLengthDm?: Decimetres;
+  readonly completedShifts: number;
+  readonly dayShifts: number;
+  readonly nightShifts: number;
+  readonly sharedRuns: number;
+  readonly averageMetresPerCompletedShiftDm?: Decimetres;
+  readonly medianMetresPerCompletedShiftDm?: Decimetres;
+  readonly rodsAdded3m: number;
+  readonly rodsAdded6m: number;
+  readonly rodsRemoved: number;
+  readonly bitsUsed: number;
+  readonly reamersUsed: number;
+  readonly surveyCount: number;
+  readonly trayCount: number;
+  readonly mixedNorthReferences: boolean;
+  readonly mixedNorthReferenceWarning?: string;
+  readonly completeness: readonly {
+    readonly category: string;
+    readonly status: string;
+    readonly notes: readonly string[];
+  }[];
+  readonly chartSummaries: readonly {
+    readonly chart: string;
+    readonly summary: string;
+  }[];
+  readonly shiftRows: readonly {
+    readonly shiftId: string;
+    readonly shiftType: string;
+    readonly shiftDate: string;
+    readonly metresCompletedDm: Decimetres;
+    readonly endingDepthDm: Decimetres;
+    readonly weightedRecoveryTenths?: number;
+    readonly analyticsAmended: boolean;
+  }[];
+  readonly runRows: readonly {
+    readonly runNumber: number;
+    readonly depthDm: number;
+    readonly drilledLengthDm: number;
+    readonly recoveryPercentTenths: number;
+    readonly lossDm: number;
+    readonly gainDm: number;
+  }[];
+  readonly componentRows: readonly {
+    readonly componentType: string;
+    readonly serialNumber: string;
+    readonly startDepthDm: number;
+    readonly endDepthDm: number;
+    readonly recordedMetresDm: number;
+    readonly observedRecoveryTenths?: number;
+    readonly recoveryEstimateStatus: string;
+    readonly partialBoundaryRuns: number;
+  }[];
+}
+
 /** Serialised ShiftAnalytics for Current-Shift reports (shared calculator). */
 export interface ReportShiftAnalytics {
   readonly shiftId: LocalId;
@@ -271,6 +342,8 @@ export interface ReportDocumentData {
   readonly currentShift?: ReportShiftSection;
   /** Present on Current-Shift reports generated after V2 analytics. */
   readonly shiftAnalytics?: ReportShiftAnalytics;
+  /** Present on Full-Hole and Hole Summary reports after V2 hole analytics. */
+  readonly holeAnalytics?: ReportHoleAnalytics;
   readonly disclosures: readonly string[];
 }
 

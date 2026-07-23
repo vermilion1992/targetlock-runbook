@@ -318,6 +318,24 @@ recovered metres to trays.
   recovery, rod activity counts). Not manually editable. Post-close Run
   corrections update derived current analytics only.
 
+### HoleAnalytics (derived, not stored as an editable entity)
+
+Calculated by `calculateHoleAnalytics` from effective Runs, Shift analytics
+rollups, component usage, casing, Surveys, and Trays:
+
+- Production: starting / current-or-final / planned depth, total drilled /
+  recovered, weighted recovery, loss/gain, Run length stats, void/corrected
+  counts.
+- Shift rollup: Day/Night counts, avg/median metres, shared Runs, gross metres
+  per elapsed Shift hour when timestamps support it.
+- Rods, components (observed recovery + partial-Run labels), casing timeline,
+  Survey spacing / mixed north-reference warning, Tray coverage.
+- Record completeness categories (`Complete` | `Review recommended` |
+  `Incomplete` | `Not applicable`) — no combined Hole score.
+- Chart datasets: metres by Shift, cumulative depth, recovery by depth, Run
+  length, loss/gain, component intervals (each with text summary).
+- Optional `completionId` scopes historical analytics after reopen.
+
 ### ShiftAnalytics (derived, not stored as an editable entity)
 
 Calculated by `calculateShiftAnalytics` from effective Runs, rod events,

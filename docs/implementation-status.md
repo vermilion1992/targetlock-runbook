@@ -2,7 +2,21 @@
 
 Status date: 2026-07-24
 Target: `packages/main` only
-Stage: V2 Implementation 3 — End-of-Shift analytics and handover breakdown
+Stage: V2 Implementation 4 — End-of-Hole analytics and analytical reports
+
+## V2 Implementation 4 — End-of-Hole analytics and analytical reports
+
+Hole Statistics (`/holes/[holeId]/statistics`), completed-Hole teaser, Full-Hole
+and Hole Summary reports share one pure `calculateHoleAnalytics` result via
+`getHoleAnalytics`. Production, Shift rollups, rods, components, casing,
+Surveys, Trays, record completeness, and six chart datasets are derived from
+repository-backed effective records (voids excluded; weighted recovery; shared
+Runs credited to the completing Shift). Live UI charts use Recharts; PDF embeds
+analytical tables and chart text summaries (chart images deferred). Excel adds
+Hole / Shift / Run / Component / Survey / Tray / Completeness analytics sheets.
+Completion versions remain selectable after reopen. Out of scope: survey
+desurveying / 3D trajectory, payroll, downtime costing, employee rankings,
+component causation claims.
 
 ## V2 Implementation 3 — End-of-Shift analytics and handover breakdown
 
@@ -13,8 +27,9 @@ the completing Shift). Weighted recovery is total recovered ÷ total drilled.
 Median Run length uses integer-domain median rules. Close persists an immutable
 `closeAnalyticsSnapshot`; post-close corrections update current analytics while
 preserving the original snapshot (SHIFT ANALYTICS AMENDED). Time metrics are
-labelled as elapsed Shift / recorded Run-cycle values only. Out of scope:
-payroll, downtime, costing, employee rankings, end-of-hole analytics.
+labelled as elapsed Shift / recorded Run-cycle values only. Out of scope for
+Imp 3: payroll, downtime, costing, employee rankings (end-of-hole delivered in
+Imp 4).
 
 ## V2 Implementation 2 — Audited Run corrections and voiding
 

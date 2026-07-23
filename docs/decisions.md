@@ -749,3 +749,34 @@ or rod formulas in React or report adapters would drift.
 
 **Consequences:** One calculator feeds every surface; amended closed Shifts show
 original vs current metres/recovery without silently rewriting the close record.
+
+## ADR-044: Shared HoleAnalytics with Recharts UI and tables-first PDF
+
+- **Date:** 2026-07-24
+- **Status:** Accepted
+
+**Context:** End-of-hole analytics must explain production, Shifts, rods,
+components, casing, Surveys, Trays, and record completeness for Statistics UI,
+completed-Hole teasers, and Full-Hole / Hole Summary reports without duplicating
+formulas or inventing a BI dashboard framework.
+
+**Decision:**
+
+1. Add pure `calculateHoleAnalytics` in `domain/hole-analytics.ts` reusing
+   `calculateShiftAnalytics`, `calculateComponentUsage`, survey/tray statistics,
+   `numeric.ts` helpers, and core loss/gain.
+2. Load via `getHoleAnalytics(holeId, options?)` with optional `completionId` /
+   `asOf` so reopened Holes keep historical completion analytics separate from
+   current activity.
+3. Live charts use already-installed `recharts` with accessible text summaries;
+   short Runs &lt; 1.5 m and long Runs &gt; 6.0 m are documented pilot highlights.
+4. PDF/Excel consume `ReportDocumentData.holeAnalytics` tables and chart text
+   summaries. Deterministic chart-image embedding into pdf-lib is deferred to
+   avoid regressing ADR-035.
+5. Completeness uses per-category statuses only — no combined Hole score.
+6. Exclude trajectory/TVD/DLS, employee rankings, and component causation claims.
+   Observed component recovery retains partial-Run estimate labels.
+
+**Consequences:** One Hole calculator feeds UI and reports; PDF remains
+verifiable without screenshot capture; Excel provides raw analytical sheets for
+offline analysis.

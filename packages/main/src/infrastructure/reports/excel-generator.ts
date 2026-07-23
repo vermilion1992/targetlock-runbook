@@ -182,6 +182,183 @@ export async function generateExcelWorkbook(
     );
   }
 
+  if (data.holeAnalytics) {
+    const hole = data.holeAnalytics;
+    addSheet(
+      workbook,
+      "Hole Analytics",
+      ["metric", "value"],
+      [
+        ["calculated_at", hole.calculatedAt],
+        ["completion_id", hole.completionId ?? ""],
+        ["starting_depth_m", metres(hole.startingDepthDm)],
+        ["current_or_final_depth_m", metres(hole.currentOrFinalDepthDm)],
+        ["planned_depth_m", metres(hole.plannedDepthDm)],
+        ["difference_from_planned_m", hole.differenceFromPlannedDm / 10],
+        ["total_drilled_m", metres(hole.totalDrilledDm)],
+        ["total_recovered_m", metres(hole.totalRecoveredDm)],
+        [
+          "weighted_recovery_percent",
+          hole.weightedRecoveryTenths === undefined
+            ? "Not available"
+            : hole.weightedRecoveryTenths / 10,
+        ],
+        ["core_loss_m", metres(hole.totalCoreLossDm)],
+        ["core_gain_m", metres(hole.totalCoreGainDm)],
+        ["completed_runs", hole.totalCompletedRuns],
+        ["voided_runs", hole.totalVoidedRuns],
+        ["corrected_runs", hole.totalCorrectedRuns],
+        [
+          "average_run_m",
+          hole.averageRunLengthDm === undefined
+            ? "Not available"
+            : metres(hole.averageRunLengthDm),
+        ],
+        [
+          "median_run_m",
+          hole.medianRunLengthDm === undefined
+            ? "Not available"
+            : metres(hole.medianRunLengthDm),
+        ],
+        ["completed_shifts", hole.completedShifts],
+        ["day_shifts", hole.dayShifts],
+        ["night_shifts", hole.nightShifts],
+        ["shared_runs", hole.sharedRuns],
+        [
+          "average_metres_per_shift_m",
+          hole.averageMetresPerCompletedShiftDm === undefined
+            ? "Not available"
+            : metres(hole.averageMetresPerCompletedShiftDm),
+        ],
+        [
+          "median_metres_per_shift_m",
+          hole.medianMetresPerCompletedShiftDm === undefined
+            ? "Not available"
+            : metres(hole.medianMetresPerCompletedShiftDm),
+        ],
+        ["rods_added_3m", hole.rodsAdded3m],
+        ["rods_added_6m", hole.rodsAdded6m],
+        ["rods_removed", hole.rodsRemoved],
+        ["bits_used", hole.bitsUsed],
+        ["reamers_used", hole.reamersUsed],
+        ["surveys", hole.surveyCount],
+        ["trays", hole.trayCount],
+      ],
+    );
+
+    addSheet(
+      workbook,
+      "Shift Analytics Hole",
+      [
+        "shift_id",
+        "shift_type",
+        "shift_date",
+        "metres_completed_m",
+        "ending_depth_m",
+        "weighted_recovery_percent",
+        "amended",
+      ],
+      hole.shiftRows.map((row) => [
+        row.shiftId,
+        row.shiftType,
+        row.shiftDate,
+        metres(row.metresCompletedDm),
+        metres(row.endingDepthDm),
+        row.weightedRecoveryTenths === undefined
+          ? "Not available"
+          : row.weightedRecoveryTenths / 10,
+        row.analyticsAmended ? "yes" : "no",
+      ]),
+    );
+
+    addSheet(
+      workbook,
+      "Run Analytics",
+      [
+        "run_number",
+        "depth_m",
+        "drilled_m",
+        "recovery_percent",
+        "loss_m",
+        "gain_m",
+      ],
+      hole.runRows.map((row) => [
+        row.runNumber,
+        row.depthDm / 10,
+        row.drilledLengthDm / 10,
+        row.recoveryPercentTenths / 10,
+        row.lossDm / 10,
+        row.gainDm / 10,
+      ]),
+    );
+
+    addSheet(
+      workbook,
+      "Component Analytics",
+      [
+        "component_type",
+        "serial_number",
+        "start_depth_m",
+        "end_depth_m",
+        "recorded_metres_m",
+        "observed_recovery_percent",
+        "recovery_estimate_status",
+        "partial_boundary_runs",
+      ],
+      hole.componentRows.map((row) => [
+        row.componentType,
+        row.serialNumber,
+        row.startDepthDm / 10,
+        row.endDepthDm / 10,
+        row.recordedMetresDm / 10,
+        row.observedRecoveryTenths === undefined
+          ? "Not available"
+          : row.observedRecoveryTenths / 10,
+        row.recoveryEstimateStatus,
+        row.partialBoundaryRuns,
+      ]),
+    );
+
+    addSheet(
+      workbook,
+      "Survey Analytics",
+      ["metric", "value"],
+      [
+        ["survey_count", hole.surveyCount],
+        ["mixed_north_references", hole.mixedNorthReferences ? "yes" : "no"],
+        [
+          "mixed_north_reference_warning",
+          hole.mixedNorthReferenceWarning ?? "",
+        ],
+      ],
+    );
+
+    addSheet(
+      workbook,
+      "Tray Analytics",
+      ["metric", "value"],
+      [["tray_count", hole.trayCount]],
+    );
+
+    addSheet(
+      workbook,
+      "Record Completeness",
+      ["category", "status", "notes"],
+      hole.completeness.map((category) => [
+        category.category,
+        category.status,
+        category.notes.join("; "),
+      ]),
+    );
+
+    addSheet(
+      workbook,
+      "Chart Summaries",
+      ["chart", "summary"],
+      hole.chartSummaries.map((item) => [item.chart, item.summary]),
+    );
+  }
+
   addSheet(
     workbook,
     "Runs",

@@ -115,51 +115,56 @@ Domain calculations do not depend on React or browser storage.
    shared `calculateShiftAnalytics` (`domain/shift-analytics.ts`), loaded via
    `shift-analytics-query.ts` for close, handover, detail, history, Current
    Hole, and Current-Shift reports.
-10. Casing use cases append immutable events and update the current projection.
+10. Hole analytics reuse the same effective-record loaders via
+    `calculateHoleAnalytics` / `getHoleAnalytics` for Statistics UI,
+    completed-Hole teasers, and Full-Hole / Hole Summary
+    `ReportDocumentData.holeAnalytics`. Optional `completionId` scopes
+    historical completion analytics after reopen.
+11. Casing use cases append immutable events and update the current projection.
     Component use cases transact an outgoing assignment close and incoming
     assignment open at one exact depth.
-11. The operational timeline reads casing events, component assignments,
+12. The operational timeline reads casing events, component assignments,
     surveys, and trays from their repositories. Audits supply shift events and
     Stage 4 correction/replacement events, preventing create-event duplicates
     after local changes.
-12. Run detail renders start-time component/casing snapshots from the run and
+13. Run detail renders start-time component/casing snapshots from the run and
     reconstructs within-run change disclosure from immutable component-change
     audits rather than mutable current assignment projections.
-13. `LocalSurveyRepository` stores organisation-scoped tool records, hole-
+14. `LocalSurveyRepository` stores organisation-scoped tool records, hole-
     scoped surveys, immutable corrections, and idempotent operation IDs in one
     version-1 localStorage envelope. Survey creation copies the selected tool
     name and serial into the survey.
-14. Survey input parses depth to integer decimetres and angles to integer
+15. Survey input parses depth to integer decimetres and angles to integer
     tenths. Warning assessment uses circular azimuth difference, allows a
     deliberately confirmed repeated depth as a new record, and never performs
     a trajectory or north-reference conversion.
-15. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
+16. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
     and operation stages in localStorage. `IndexedDbMediaRepository` stores the
     original/preview blobs separately. A tray is activated only after its
     original is saved and verified.
-16. Tray detail derives related completed runs by positive interval overlap
+17. Tray detail derives related completed runs by positive interval overlap
     from seed plus local completions. It does not persist run IDs on the tray,
     split a run, include an in-progress run, or allocate run recovery.
-17. Current Hole merges survey/tray repositories into latest-survey, interval-
+18. Current Hole merges survey/tray repositories into latest-survey, interval-
     reminder, and latest-tray summaries. The timeline reads survey/tray
     records directly and correction/replacement audits separately.
-18. `LocalCompletionRepository` stores organisation-scoped hole statuses,
+19. `LocalCompletionRepository` stores organisation-scoped hole statuses,
     reviews, immutable completion snapshots, reopen history, and staged
     completion transactions in a version-1 Zod envelope. Legacy hole statuses
     normalise before lifecycle decisions.
-19. `evaluateHoleCompletion` produces blocking versus advisory checklist
+20. `evaluateHoleCompletion` produces blocking versus advisory checklist
     results. Authoritative final depth is the deepest finished completed-run
     depth; rod projection must reconcile before lock.
-20. Completion use cases progress
+21. Completion use cases progress
     `REVIEW_CREATED` → `SNAPSHOT_PERSISTED` → `COMPONENTS_CLOSED` →
     `HOLE_LOCKED` → `TIMELINE_APPENDED` → `AUDIT_APPENDED` → `COMPLETED`,
     with hydration recovery for interrupted stages.
-21. `HoleMutationGuard` wraps run/shift/casing/component/survey/tray mutators
+22. `HoleMutationGuard` wraps run/shift/casing/component/survey/tray mutators
     and throws `HoleLockedError` for `COMPLETED` / `ABANDONED` / `ARCHIVED`
     holes. Lock enforcement lives below the UI so route omission cannot bypass
     it. Reopen restores `ACTIVE` and appends reopen history without rewriting
     prior snapshots.
-22. Current Hole reads completion lifecycle for locked/completed dashboard
+23. Current Hole reads completion lifecycle for locked/completed dashboard
     variants. Browser services wire Stage 5 seed, completion repository, and
     the mutation guard.
 

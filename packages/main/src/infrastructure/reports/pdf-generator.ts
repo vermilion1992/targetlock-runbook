@@ -72,6 +72,7 @@ function sectionsFor(reportType: ReportType, data: ReportDocumentData): string[]
       return [
         "Hole and Project details",
         "Hole summary",
+        "Analytical overview",
         "Completion details",
         "Shift sections",
         "Runsheet",
@@ -88,6 +89,9 @@ function sectionsFor(reportType: ReportType, data: ReportDocumentData): string[]
       ].filter((section) => {
         if (section === "Completion details" || section === "Completion warnings") {
           return data.completion !== undefined;
+        }
+        if (section === "Analytical overview") {
+          return data.holeAnalytics !== undefined;
         }
         return true;
       });
@@ -106,7 +110,19 @@ function sectionsFor(reportType: ReportType, data: ReportDocumentData): string[]
         "Handover",
       ];
     case "HOLE_SUMMARY":
-      return ["Hole information", "Statistics", "Shifts", "Casing", "Components", "Surveys", "Trays", "Completion"];
+      return [
+        "Hole information",
+        "Analytical overview",
+        "Statistics",
+        "Shifts",
+        "Casing",
+        "Components",
+        "Surveys",
+        "Trays",
+        "Completion",
+      ].filter((section) =>
+        section === "Analytical overview" ? data.holeAnalytics !== undefined : true,
+      );
     case "SURVEY_HISTORY":
       return ["Survey table", "Survey summary", "Corrections", "Duplicate depths"];
     case "TRAY_REGISTER":
@@ -360,6 +376,52 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
     writer.line(
       `Weighted recovery ${percent(data.statistics.weightedRecoveryPercentTenths)}`,
     );
+  }
+
+  if (
+    data.holeAnalytics &&
+    (snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
+      snapshot.reportType === "HOLE_SUMMARY")
+  ) {
+    const analytics = data.holeAnalytics;
+    writer.heading("Analytical overview");
+    writer.line(
+      `Executive summary · Status ${data.holeStatus} · Final/current ${formatMetres(analytics.currentOrFinalDepthDm)} · Planned ${formatMetres(analytics.plannedDepthDm)}`,
+    );
+    if (data.completion) {
+      writer.line(`Completion reason ${data.completion.reason}`);
+    }
+    writer.line(
+      `Runs ${analytics.totalCompletedRuns} · Shifts ${analytics.completedShifts} · Weighted recovery ${analytics.weightedRecoveryTenths === undefined ? "Not available" : percent(analytics.weightedRecoveryTenths)}`,
+    );
+    writer.line(
+      `Average metres per Shift ${analytics.averageMetresPerCompletedShiftDm === undefined ? "Not available" : formatMetres(analytics.averageMetresPerCompletedShiftDm)} · Surveys ${analytics.surveyCount} · Trays ${analytics.trayCount} · Bits ${analytics.bitsUsed} · Reamers ${analytics.reamersUsed}`,
+    );
+    writer.line(
+      `Total drilled ${formatMetres(analytics.totalDrilledDm)} · Recovered ${formatMetres(analytics.totalRecoveredDm)} · Loss ${formatMetres(analytics.totalCoreLossDm)} · Gain ${formatMetres(analytics.totalCoreGainDm)}`,
+    );
+    writer.line(
+      `Day Shifts ${analytics.dayShifts} · Night Shifts ${analytics.nightShifts} · Shared Runs ${analytics.sharedRuns}`,
+    );
+    writer.line(
+      `Rods +3.0 m ${analytics.rodsAdded3m} · +6.0 m ${analytics.rodsAdded6m} · removed ${analytics.rodsRemoved}`,
+    );
+    writer.heading("Chart data summaries");
+    writer.line(
+      "Chart images are not embedded in this PDF version; the following text summaries use the same repository-backed datasets as the Statistics UI.",
+    );
+    for (const chart of analytics.chartSummaries) {
+      writer.line(`${chart.chart}: ${chart.summary}`);
+    }
+    writer.heading("Record completeness");
+    for (const category of analytics.completeness) {
+      writer.line(
+        `${category.category}: ${category.status}${category.notes.length > 0 ? ` · ${category.notes.join("; ")}` : ""}`,
+      );
+    }
+    if (analytics.mixedNorthReferenceWarning) {
+      writer.line(analytics.mixedNorthReferenceWarning);
+    }
   }
 
   if (data.completion) {

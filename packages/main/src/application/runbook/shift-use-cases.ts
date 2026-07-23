@@ -17,6 +17,7 @@ import type {
   CurrentHoleStateDependencies,
 } from "./current-hole-state";
 import { getCurrentHoleState } from "./current-hole-state";
+import type { HoleAnalyticsQueryServices } from "./hole-analytics-query";
 import {
   buildCloseAnalyticsSnapshot,
   type ShiftAnalyticsQueryServices,
@@ -31,6 +32,8 @@ export interface ShiftServices {
   readonly runs: RunRepository;
   /** Optional: when present, close persists a Shift analytics snapshot. */
   readonly shiftAnalytics?: ShiftAnalyticsQueryServices;
+  /** Optional: when present, Hole Statistics and reports load HoleAnalytics. */
+  readonly holeAnalytics?: HoleAnalyticsQueryServices;
 }
 
 interface Actor {

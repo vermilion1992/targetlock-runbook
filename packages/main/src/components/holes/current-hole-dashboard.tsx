@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import {
   createBrowserRunbookServices,
   getCurrentHoleState,
+  getHoleAnalytics,
   loadShiftAnalytics,
   type CurrentHoleState,
 } from "@/application/runbook";
@@ -35,6 +36,7 @@ import {
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { formatOptionalMetres } from "@/components/holes/hole-analytics-format";
 import { formatRecoveryTenths } from "@/components/shifts/shift-analytics-format";
 import {
   addDecimetres,
@@ -43,6 +45,7 @@ import {
   formatMetres,
   formatRecoveryPercentage,
   normalizeHoleStatus,
+  type HoleAnalytics,
   type ShiftAnalytics,
 } from "@/domain";
 import type { TargetLockStage1Seed } from "@/infrastructure/seed";
@@ -66,6 +69,9 @@ export function CurrentHoleDashboard({
   const [state, setState] = useState<CurrentHoleState | null>(null);
   const [lifecycle, setLifecycle] = useState<HoleLifecycleState | null>(null);
   const [shiftAnalytics, setShiftAnalytics] = useState<ShiftAnalytics | null>(
+    null,
+  );
+  const [holeAnalytics, setHoleAnalytics] = useState<HoleAnalytics | null>(
     null,
   );
   const [warning, setWarning] = useState<string | null>(null);
@@ -97,6 +103,20 @@ export function CurrentHoleDashboard({
           setShiftAnalytics(analytics);
         } else {
           setShiftAnalytics(null);
+        }
+        const locked =
+          nextLifecycle?.status === "COMPLETED" ||
+          nextLifecycle?.status === "ABANDONED";
+        if (locked && services.holeAnalytics) {
+          const completionId = nextLifecycle?.latestCompletion?.localId;
+          const analytics = await getHoleAnalytics(
+            holeId,
+            services.holeAnalytics,
+            completionId === undefined ? {} : { completionId },
+          );
+          setHoleAnalytics(analytics);
+        } else {
+          setHoleAnalytics(null);
         }
       })
       .catch((error: unknown) =>
@@ -212,6 +232,59 @@ export function CurrentHoleDashboard({
               : undefined
           }
         />
+      ) : null}
+
+      {holeLocked && holeAnalytics ? (
+        <SectionPanel title="HOLE PERFORMANCE">
+          <div
+            className="grid grid-cols-2 gap-3 md:grid-cols-4"
+            data-testid="hole-performance-teaser"
+          >
+            <MetricDisplay
+              label="Final depth"
+              value={formatMetres(
+                holeAnalytics.production.currentOrFinalDepthDm,
+              )}
+              emphasis="strong"
+            />
+            <MetricDisplay
+              label="Total Runs"
+              value={holeAnalytics.production.totalCompletedRuns}
+            />
+            <MetricDisplay
+              label="Overall recovery"
+              value={formatRecoveryTenths(
+                holeAnalytics.production.weightedRecoveryTenths,
+              )}
+            />
+            <MetricDisplay
+              label="Average metres per Shift"
+              value={formatOptionalMetres(
+                holeAnalytics.shifts.averageMetresPerCompletedShiftDm,
+              )}
+            />
+            <MetricDisplay
+              label="Bits used"
+              value={holeAnalytics.components.bitsUsed}
+            />
+            <MetricDisplay
+              label="Surveys"
+              value={holeAnalytics.surveys.totalSurveys}
+            />
+            <MetricDisplay
+              label="Trays"
+              value={holeAnalytics.trays.totalTrays}
+            />
+          </div>
+          <div className="mt-4">
+            <Link
+              href={runbookRoutes.statistics(holeId)}
+              className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 font-bold text-white no-underline"
+            >
+              VIEW FULL ANALYTICS
+            </Link>
+          </div>
+        </SectionPanel>
       ) : null}
 
       {warning ? (

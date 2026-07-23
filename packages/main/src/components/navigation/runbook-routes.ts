@@ -63,6 +63,7 @@ export const runbookRoutes = {
     `${holeBase(holeId)}/trays/${encodeURIComponent(trayId)}/replace-photo`,
   timeline: (holeId: string) => `${holeBase(holeId)}/timeline`,
   more: (holeId: string) => `${holeBase(holeId)}/more`,
+  statistics: (holeId: string) => `${holeBase(holeId)}/statistics`,
   completeHole: (holeId: string) => `${holeBase(holeId)}/complete`,
   reopenHole: (holeId: string) => `${holeBase(holeId)}/reopen`,
   completedHoles: () => "/holes/completed",

@@ -23,6 +23,7 @@ import {
   stage6DefaultRecipients,
   targetLockStage5Seed,
 } from "@/infrastructure/seed";
+import { createHoleAnalyticsQueryServices } from "./hole-analytics-query";
 import { createShiftAnalyticsQueryServices } from "./shift-analytics-query";
 import { createBrowserShiftRepository } from "@/infrastructure/shifts";
 import {
@@ -200,6 +201,29 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     },
   );
 
+  const holeAnalytics = createHoleAnalyticsQueryServices(
+    {
+      shifts,
+      runs,
+      runCorrections,
+      surveys,
+      trays,
+      casing,
+      components,
+      componentAssignments: components,
+      completion,
+      currentState,
+      shiftAnalytics,
+    },
+    {
+      runs: targetLockStage5Seed.runs,
+      rodEvents: targetLockStage5Seed.rodEvents,
+      plannedDepthDm: Number(targetLockStage5Seed.hole.plannedDepth),
+      preferredSurveyIntervalDm:
+        targetLockStage5Seed.holeConfigurations[0]?.preferredSurveyIntervalDm,
+    },
+  );
+
   return {
     runs,
     shifts,
@@ -221,5 +245,6 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     reportFiles,
     share,
     shiftAnalytics,
+    holeAnalytics,
   };
 }

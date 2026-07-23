@@ -46,6 +46,16 @@ fixtures (`DDH038`, `DDH039`, `DDH042`).
 - [ ] Complete the same run number; confirm **Shared between shifts**.
 - [ ] Refresh; shared ownership remains on Runbook and run detail.
 
+### Hole analytics
+
+- [ ] Open More → Statistics for DDH041; confirm Overview, Production, Shifts,
+      rods, components, Surveys, Trays, completeness, and charts.
+- [ ] Correct a recovered length; weighted recovery changes, depth does not.
+- [ ] Void a test Run; production excludes it and completeness notes the void.
+- [ ] Generate Hole Summary PDF and Excel; confirm analytical section / sheets.
+- [ ] On a reopened Hole, switch Current vs Completion Version analytics.
+- [ ] Check Statistics at 360–1024 px in light and dark modes.
+
 ### Casing
 
 - [ ] Open Casing history and advance an active string.

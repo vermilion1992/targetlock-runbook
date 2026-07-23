@@ -2,6 +2,7 @@ export * from "./browser-services";
 export * from "./casing-use-cases";
 export * from "./component-use-cases";
 export * from "./current-hole-state";
+export * from "./hole-analytics-query";
 export * from "./hole-completion-use-cases";
 export * from "./hole-mutation-guard";
 export * from "./queries";

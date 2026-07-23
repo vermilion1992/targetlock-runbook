@@ -45,8 +45,15 @@ Shift history, Current Hole, and Current-Shift reports. Analytics are derived
 from repositories (not manually edited). Shared Runs credit the completing
 Shift. Closed-Shift amendments after Run corrections preserve the original
 close snapshot. Time metrics use elapsed Shift / recorded Run-cycle wording
-only — not penetration rate, productive hours, or utilisation. Payroll,
-downtime, costing, and employee rankings remain out of scope.
+only — not penetration rate, productive hours, or utilisation.
+
+V2 end-of-Hole analytics provide a repository-backed Hole overview on
+`/holes/[holeId]/statistics`, completed-Hole teasers, and Full-Hole / Hole
+Summary reports (executive summary, operational analysis tables, chart text
+summaries, Excel analytics sheets). Weighted recovery, void exclusion, shared
+Run attribution, observed component recovery (with partial-Run labels), and
+per-category record completeness apply. Survey trajectory / 3D graphics,
+payroll, downtime costing, and employee rankings remain out of scope.
 
 Completed Runs may be corrected or voided only through an audited workflow:
 source values are edited, calculated R/S / depth / drilled / recovery remain

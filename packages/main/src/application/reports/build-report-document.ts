@@ -1,6 +1,7 @@
 import {
   calculateComponentUsage,
   calculateCoreLossOrGain,
+  calculateHoleAnalytics,
   calculateShiftAnalytics,
   decimetres,
   formatMetres,
@@ -9,8 +10,10 @@ import {
   normalizeHoleStatus,
   shiftTypeLabel,
   type Decimetres,
+  type HoleAnalytics,
   type HoleCompletionSnapshot,
   type ReportDocumentData,
+  type ReportHoleAnalytics,
   type ReportShiftAnalytics,
   type ReportSourceVersion,
   type ReportType,
@@ -95,6 +98,114 @@ function runToAnalyticsRun(
         rodNumberAfterEvent: event.rodNumberAfterEvent,
         voided: false,
       })),
+  };
+}
+
+function toReportHoleAnalytics(analytics: HoleAnalytics): ReportHoleAnalytics {
+  const lossByRun = new Map(
+    analytics.charts.coreLossGainByDepth.points.map((point) => [
+      point.runNumber,
+      point,
+    ]),
+  );
+  return {
+    completionId: analytics.completionId,
+    calculatedAt: analytics.calculatedAt,
+    startingDepthDm: analytics.production.startingDepthDm,
+    currentOrFinalDepthDm: analytics.production.currentOrFinalDepthDm,
+    plannedDepthDm: analytics.production.plannedDepthDm,
+    differenceFromPlannedDm: analytics.production.differenceFromPlannedDm,
+    totalDrilledDm: analytics.production.totalDrilledDm,
+    totalRecoveredDm: analytics.production.totalRecoveredDm,
+    weightedRecoveryTenths: analytics.production.weightedRecoveryTenths,
+    totalCoreLossDm: analytics.production.totalCoreLossDm,
+    totalCoreGainDm: analytics.production.totalCoreGainDm,
+    totalCompletedRuns: analytics.production.totalCompletedRuns,
+    totalVoidedRuns: analytics.production.totalVoidedRuns,
+    totalCorrectedRuns: analytics.production.totalCorrectedRuns,
+    averageRunLengthDm: analytics.production.averageRunLengthDm,
+    medianRunLengthDm: analytics.production.medianRunLengthDm,
+    completedShifts: analytics.shifts.completedShifts,
+    dayShifts: analytics.shifts.totalDayShifts,
+    nightShifts: analytics.shifts.totalNightShifts,
+    sharedRuns: analytics.shifts.sharedRuns,
+    averageMetresPerCompletedShiftDm:
+      analytics.shifts.averageMetresPerCompletedShiftDm,
+    medianMetresPerCompletedShiftDm:
+      analytics.shifts.medianMetresPerCompletedShiftDm,
+    rodsAdded3m: analytics.rods.rodsAdded3m,
+    rodsAdded6m: analytics.rods.rodsAdded6m,
+    rodsRemoved: analytics.rods.rodsRemoved,
+    bitsUsed: analytics.components.bitsUsed,
+    reamersUsed: analytics.components.reamersUsed,
+    surveyCount: analytics.surveys.totalSurveys,
+    trayCount: analytics.trays.totalTrays,
+    mixedNorthReferences: analytics.surveys.mixedNorthReferences,
+    mixedNorthReferenceWarning: analytics.surveys.mixedNorthReferenceWarning,
+    completeness: analytics.completeness.categories.map((category) => ({
+      category: category.category,
+      status: category.status,
+      notes: category.notes,
+    })),
+    chartSummaries: [
+      {
+        chart: "metres_by_shift",
+        summary: analytics.charts.metresByShift.summary,
+      },
+      {
+        chart: "cumulative_depth",
+        summary: analytics.charts.cumulativeDepthByShift.summary,
+      },
+      {
+        chart: "recovery_by_depth",
+        summary: analytics.charts.recoveryByDepth.summary,
+      },
+      {
+        chart: "run_length_by_depth",
+        summary: analytics.charts.runLengthByDepth.summary,
+      },
+      {
+        chart: "core_loss_gain",
+        summary: analytics.charts.coreLossGainByDepth.summary,
+      },
+      {
+        chart: "component_intervals",
+        summary: analytics.charts.componentIntervals.summary,
+      },
+    ],
+    shiftRows: analytics.shifts.perShift.map((shift) => ({
+      shiftId: shift.shiftId,
+      shiftType: shift.shiftType,
+      shiftDate: shift.shiftDate,
+      metresCompletedDm: shift.metresCompletedDm,
+      endingDepthDm: shift.endingDepthDm,
+      weightedRecoveryTenths: shift.weightedRecoveryTenths,
+      analyticsAmended: shift.analyticsAmended,
+    })),
+    runRows: analytics.charts.recoveryByDepth.points.map((point) => {
+      const lossGain = lossByRun.get(point.runNumber);
+      const length = analytics.charts.runLengthByDepth.points.find(
+        (item) => item.runNumber === point.runNumber,
+      );
+      return {
+        runNumber: point.runNumber,
+        depthDm: point.depthDm,
+        drilledLengthDm: length?.drilledLengthDm ?? 0,
+        recoveryPercentTenths: point.recoveryPercentTenths,
+        lossDm: lossGain?.lossDm ?? 0,
+        gainDm: lossGain?.gainDm ?? 0,
+      };
+    }),
+    componentRows: analytics.components.assignments.map((assignment) => ({
+      componentType: assignment.componentType,
+      serialNumber: assignment.serialNumber,
+      startDepthDm: Number(assignment.startDepthDm),
+      endDepthDm: Number(assignment.endDepthDm),
+      recordedMetresDm: Number(assignment.recordedMetresDm),
+      observedRecoveryTenths: assignment.observedRecoveryTenths,
+      recoveryEstimateStatus: assignment.recoveryEstimateStatus,
+      partialBoundaryRuns: assignment.partialBoundaryRuns,
+    })),
   };
 }
 
@@ -360,6 +471,10 @@ export async function buildReportDocumentData(
     decimetres(0);
 
   const currentShift = shiftSections.at(-1);
+  const analyticsRuns = [
+    ...context.completedRuns,
+    ...context.runs.filter((run) => run.status === "void"),
+  ].map((run) => runToAnalyticsRun(run, context.rodEvents));
   let shiftAnalytics: ReportShiftAnalytics | undefined;
   if (
     input.reportType === "CURRENT_SHIFT_RUNBOOK" &&
@@ -369,9 +484,6 @@ export async function buildReportDocumentData(
       (shift) => shift.localId === currentShift.shiftId,
     );
     if (shiftEntity !== undefined) {
-      const analyticsRuns = context.completedRuns.map((run) =>
-        runToAnalyticsRun(run, context.rodEvents),
-      );
       shiftAnalytics = toReportShiftAnalytics(
         calculateShiftAnalytics({
           shift: shiftEntity,
@@ -393,6 +505,51 @@ export async function buildReportDocumentData(
         }),
       );
     }
+  }
+
+  let holeAnalytics: ReportHoleAnalytics | undefined;
+  if (
+    input.reportType === "FULL_HOLE_RUNBOOK" ||
+    input.reportType === "HOLE_SUMMARY"
+  ) {
+    const orderedShifts = [...context.shifts].sort((left, right) =>
+      left.startedAt.localeCompare(right.startedAt),
+    );
+    const startingDepthDm =
+      orderedShifts[0]?.startingDepthDm ??
+      (analyticsRuns.length > 0
+        ? decimetres(
+            Math.min(
+              ...analyticsRuns.map((run) => run.previousCompletedDepthDm),
+            ),
+          )
+        : decimetres(0));
+    holeAnalytics = toReportHoleAnalytics(
+      calculateHoleAnalytics({
+        holeId: input.holeId,
+        calculatedAt: new Date().toISOString(),
+        completionId: completionSnapshot
+          ? (
+              await dependencies.completion.getLatestCompletion(input.holeId)
+            )?.localId
+          : undefined,
+        startingDepthDm,
+        plannedDepthDm,
+        currentOrFinalDepthDm: holeDepthSnapshotDm,
+        runs: analyticsRuns,
+        shifts: context.shifts,
+        surveys: context.surveys,
+        trays: context.trays,
+        casingStrings: context.casingStrings,
+        casingEvents,
+        components: context.components,
+        componentAssignments: context.componentAssignments,
+        corrections: [],
+        correctedSurveyIds: new Set(
+          surveyCorrections.map((correction) => correction.surveyId),
+        ),
+      }),
+    );
   }
   const latestSurvey = orderedSurveys.at(-1);
   const currentTray = context.trays
@@ -571,6 +728,7 @@ export async function buildReportDocumentData(
       : undefined,
     currentShift,
     shiftAnalytics,
+    holeAnalytics,
     disclosures,
   };
 

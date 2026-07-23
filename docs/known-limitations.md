@@ -62,9 +62,22 @@ These must be solved before production or multi-device deployment:
 - Production dependency advisory review beyond the local pilot scope
 - Physical-device accessibility sign-off
 
+## Hole analytics limitations (V2 Implementation 4)
+
+- PDF Hole Summary / Full-Hole reports include analytical tables and chart text
+  summaries only; deterministic chart-image embedding is deferred.
+- Survey trajectory, TVD, lateral displacement, target distance, and dogleg
+  severity are not calculated (next trajectory implementation).
+- Observed component recovery does not prove causation; partial boundary Runs
+  remain labelled as run-level estimates.
+- Driller breakdown is an operational record, not a performance leaderboard.
+- Employee rankings, payroll, downtime costing, and predictive scoring remain
+  out of scope.
+
 ## Future enhancements
 
-- Survey trajectory / coordinates
+- Survey desurveying / 3D trajectory graphics / coordinate-system conversion
+- Deterministic PDF chart-image embedding for Hole analytics
 - Tray OCR / annotation
 - Payroll, hours, delays, costs
 - SQLite and service-worker offline packaging

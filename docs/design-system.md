@@ -167,6 +167,10 @@ reason.
   style (not BI dashboards). Phone close/detail may collapse secondary charts
   and time metrics via keyboard-accessible `aria-expanded` sections (≥44×44 px).
   Amended analytics use text status (`SHIFT ANALYTICS AMENDED`), not colour only.
+- Hole Statistics uses the same industrial panels with collapsible sections and
+  Recharts charts that always include visible text summaries (not hover-only).
+  Day/Night and short/long Run meaning is not colour-only. Metric-definition
+  controls are keyboard accessible (≥44×44 px).
 - Shift history uses cards; the runbook uses collapsible phone cards and a
   tablet table. Shared-run text/icon remains visible in both.
 - Safe-area padding and the existing phone tab bar remain unchanged; shifts

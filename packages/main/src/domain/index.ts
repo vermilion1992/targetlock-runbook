@@ -1,5 +1,6 @@
 export * from "./casing";
 export * from "./component-usage";
+export * from "./hole-analytics";
 export * from "./hole-completion";
 export * from "./measurements";
 export * from "./models";

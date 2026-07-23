@@ -136,9 +136,9 @@ export function MorePreview({ holeId }: { holeId: string }) {
     {
       id: "statistics",
       label: "Statistics",
-      description: "Review runbook-focused shift counts, shared runs, and handovers.",
+      description: "Hole production, Shift, recovery, component, Survey and Tray analytics.",
       icon: BarChart3,
-      href: runbookRoutes.shifts(holeId),
+      href: runbookRoutes.statistics(holeId),
     },
     {
       id: "shifts",
