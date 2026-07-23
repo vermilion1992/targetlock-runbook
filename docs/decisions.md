@@ -704,7 +704,7 @@ runs. Close Shift only offered handover, blocking final completion from the UI.
 are coherent for field testing. Seed edits do not rewrite already-persisted
 browser data unless storage is cleared.
 
-## ADR-025: Audited Run corrections preserve original snapshots
+## ADR-042: Audited Run corrections preserve original snapshots
 
 - **Date:** 2026-07-24
 - **Status:** Accepted
