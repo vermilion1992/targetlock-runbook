@@ -14,6 +14,10 @@ import {
   type ReportSnapshot,
   type ReportType,
 } from "@/domain";
+import {
+  buildReportTrajectoryViewModel,
+  drawTrajectoryGraphicsOnPdfPage,
+} from "./trajectory-pdf-graphics";
 
 const PAGE_WIDTH = 841.89; // A4 landscape
 const PAGE_HEIGHT = 595.28;
@@ -230,6 +234,18 @@ class PdfWriter {
     return this.landscape ? PAGE_HEIGHT : PORTRAIT_HEIGHT;
   }
 
+  get currentPage(): PDFPage {
+    return this.page;
+  }
+
+  get cursorY(): number {
+    return this.y;
+  }
+
+  setCursorY(value: number): void {
+    this.y = value;
+  }
+
   newPage(): void {
     this.page = this.doc.addPage([this.width, this.height]);
     this.pages.push(this.page);
@@ -427,7 +443,8 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
   if (
     data.trajectorySummary &&
     (snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
-      snapshot.reportType === "HOLE_SUMMARY")
+      snapshot.reportType === "HOLE_SUMMARY" ||
+      snapshot.reportType === "CURRENT_SHIFT_RUNBOOK")
   ) {
     const trajectory = data.trajectorySummary;
     writer.heading("Trajectory tracking summary");
@@ -486,6 +503,54 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
       );
     }
     writer.line(`Trajectory warnings ${trajectory.warningCount}`);
+
+    const plannedRenderPath = trajectory.plannedRenderPath ?? [];
+    const actualRenderPath = trajectory.actualRenderPath ?? [];
+    if (plannedRenderPath.length > 0 || actualRenderPath.length > 0) {
+      writer.ensureSpace(220);
+      const viewModel = buildReportTrajectoryViewModel({
+        holeId: snapshot.holeId,
+        engineVersion: trajectory.engineVersion,
+        activePlanName: trajectory.activePlanName,
+        plannedPath: plannedRenderPath,
+        actualPath: actualRenderPath,
+        plannedStations: trajectory.plannedStations.map((station) => ({
+          measuredDepthM: station.measuredDepthM,
+          eastingM: station.eastingM,
+          northingM: station.northingM,
+          rlM: station.rlM,
+        })),
+        actualStations: trajectory.actualStations.map((station) => ({
+          measuredDepthM: station.measuredDepthM,
+          eastingM: station.eastingM,
+          northingM: station.northingM,
+          rlM: station.rlM,
+        })),
+        target:
+          trajectory.targetEastingM !== undefined &&
+          trajectory.targetNorthingM !== undefined &&
+          trajectory.targetRlM !== undefined
+            ? {
+                eastingM: trajectory.targetEastingM,
+                northingM: trajectory.targetNorthingM,
+                rlM: trajectory.targetRlM,
+                radiusM: trajectory.targetRadiusM,
+              }
+            : undefined,
+        sectionBearingDegrees: trajectory.sectionBearingDegrees,
+      });
+      const nextY = drawTrajectoryGraphicsOnPdfPage({
+        page: writer.currentPage,
+        font,
+        bold,
+        model: viewModel,
+        x: MARGIN,
+        y: writer.cursorY,
+        width: writer.width - MARGIN * 2,
+        height: 200,
+      });
+      writer.setCursorY(nextY);
+    }
   }
 
   if (data.completion) {

@@ -820,3 +820,30 @@ target distance without steering or anti-collision.
 **Consequences:** Planned and actual paths share identical mathematics; TargetLock
 IQ and Runbook must not diverge on identical inputs; 3D polish and steering remain
 future work.
+
+## ADR-046: Interactive trajectory graphics without recalculating paths
+
+**Status:** Accepted  
+**Date:** 2026-07-24
+
+**Context:** Implementation 5 delivers verified planned/actual coordinates.
+Field users need interactive 3D review and report graphics, but rendering must
+never diverge from `minimum-curvature-v1` outputs or imply certified
+anti-collision capability.
+
+**Decision:**
+
+1. Build a presentation view-model by copying `renderPath`, stations, target,
+   and tracking points from `HoleTrajectoryComparison` ? no desurvey redo.
+2. Use a Canvas 2D interactive viewer (plan / vertical-section / 3D orbit) with
+   rotate, pan, zoom, reset, equal/exaggerated vertical scale, markers, target
+   radius, Survey inspection, current-tracking callout, mobile fallback, and PNG
+   export for client communication.
+3. Embed deterministic PDF trajectory panels via pdf-lib vector drawing from the
+   same stored path coordinates (not live UI screenshots; ADR-035 retained).
+4. Show an explicit disclaimer: not certified anti-collision software.
+5. Do not change Implementation 5 domain mathematics or engine version.
+
+**Consequences:** Rendering may evolve independently; calculated E/N/RL and
+same-depth deviations remain identical to Implementation 5. Steering and
+certified anti-collision stay out of scope.

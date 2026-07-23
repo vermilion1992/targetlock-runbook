@@ -20,6 +20,7 @@ import {
   type ReportType,
   type Run,
   type ShiftAnalyticsRun,
+  buildTrajectoryViewModel,
 } from "@/domain";
 import type { HoleCompletionContext } from "@/application/runbook/hole-completion-use-cases";
 import { getHoleTrajectoryComparison } from "@/application/runbook/trajectory-comparison-query";
@@ -566,7 +567,8 @@ export async function buildReportDocumentData(
   let trajectorySourceVersions: ReportSourceVersion[] = [];
   if (
     (input.reportType === "FULL_HOLE_RUNBOOK" ||
-      input.reportType === "HOLE_SUMMARY") &&
+      input.reportType === "HOLE_SUMMARY" ||
+      input.reportType === "CURRENT_SHIFT_RUNBOOK") &&
     dependencies.trajectory &&
     dependencies.currentState
   ) {
@@ -580,6 +582,7 @@ export async function buildReportDocumentData(
       const activePlan = await dependencies.trajectory.getActivePlan(
         input.holeId,
       );
+      const viewModel = buildTrajectoryViewModel(comparison);
       trajectorySummary = {
         activePlanName: activePlan?.name,
         coordinateMode: comparison.planned?.coordinateMode ??
@@ -608,6 +611,23 @@ export async function buildReportDocumentData(
         closestApproachM:
           comparison.targetTracking?.actualClosestApproachM,
         warningCount: comparison.warnings.length,
+        sectionBearingDegrees: viewModel.sectionBearingDegrees,
+        targetEastingM: comparison.targetTracking?.targetEastingM,
+        targetNorthingM: comparison.targetTracking?.targetNorthingM,
+        targetRlM: comparison.targetTracking?.targetRlM,
+        targetRadiusM: comparison.targetTracking?.targetRadiusM,
+        plannedRenderPath: viewModel.plannedPath.map((point) => ({
+          measuredDepthM: point.measuredDepthM,
+          eastingM: point.eastingM,
+          northingM: point.northingM,
+          rlM: point.rlM,
+        })),
+        actualRenderPath: viewModel.actualPath.map((point) => ({
+          measuredDepthM: point.measuredDepthM,
+          eastingM: point.eastingM,
+          northingM: point.northingM,
+          rlM: point.rlM,
+        })),
         plannedStations: (comparison.planned?.stations ?? []).map(
           (station) => ({
             measuredDepthM: station.measuredDepthM,

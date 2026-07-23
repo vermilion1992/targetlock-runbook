@@ -62,10 +62,10 @@ These must be solved before production or multi-device deployment:
 - Production dependency advisory review beyond the local pilot scope
 - Physical-device accessibility sign-off
 
-## Trajectory limitations (V2 Implementation 5)
+## Trajectory limitations (V2 Implementation 5–6)
 
-- **Polished interactive 3D renderer is deferred** to Implementation 6.
-  Foundation plan view, vertical section, and dip/azimuth trends are available.
+- Interactive 3D / plan / section graphics are **presentation-only** and must
+  not be treated as certified anti-collision software.
 - **No steering recommendations** and **no certified anti-collision**.
 - **Display tolerances are visual only** unless supplied by an authorised
   project source.
@@ -73,13 +73,14 @@ These must be solved before production or multi-device deployment:
   coordinates must already belong to the named grid.
 - **Endpoint dip/azimuth alone do not prove target intersection.** Target
   coordinates are stored and checked separately from the directional plan.
-- **PDF report graphics** for trajectories remain deferred; text/Excel
-  summaries are included.
+- Trajectory PDF panels are deterministic vector graphics from verified path
+  coordinates; they do not screenshot the live WebGL/canvas session.
 
 ## Hole analytics limitations (V2 Implementation 4)
 
 - PDF Hole Summary / Full-Hole reports include analytical tables and chart text
-  summaries only; deterministic chart-image embedding is deferred.
+  summaries; hole-analytics chart-image embedding beyond trajectory panels
+  remains limited to text summaries where images are not yet generated.
 - Observed component recovery does not prove causation; partial boundary Runs
   remain labelled as run-level estimates.
 - Driller breakdown is an operational record, not a performance leaderboard.
@@ -88,8 +89,8 @@ These must be solved before production or multi-device deployment:
 
 ## Future enhancements
 
-- Polished interactive 3D trajectory renderer (Implementation 6)
-- Deterministic PDF chart-image embedding for Hole analytics and trajectories
+- Broader deterministic PDF chart-image embedding for non-trajectory Hole
+  analytics charts
 - Tray OCR / annotation
 - Payroll, hours, delays, costs
 - SQLite and service-worker offline packaging

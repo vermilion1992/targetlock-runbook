@@ -6,8 +6,12 @@ import { useEffect, useState } from "react";
 import { createBrowserRunbookServices } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import type { HoleTrajectoryComparison } from "@/domain";
+import {
+  buildTrajectoryViewModel,
+  type HoleTrajectoryComparison,
+} from "@/domain";
 
+import { TrajectoryGraphicsViewer } from "./trajectory-3d-viewer";
 import {
   formatStationCoordinateRow,
   TrajectoryAzimuthTrend,
@@ -164,6 +168,12 @@ export function TrajectoryDashboard({ holeId }: { holeId: string }) {
       {comparison ? (
         <>
           <TrajectoryLegendNote />
+
+          {!comparison.blocked ? (
+            <TrajectoryGraphicsViewer
+              model={buildTrajectoryViewModel(comparison)}
+            />
+          ) : null}
 
           <section
             className="space-y-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4"

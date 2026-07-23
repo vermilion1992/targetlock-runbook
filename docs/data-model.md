@@ -234,6 +234,11 @@ Hole-scoped trajectory storage holds:
 
 Calculated trajectories and tracking are derived (not stored as authoritative).
 
+Interactive 3D / plan / section graphics and PDF trajectory panels
+(Implementation 6) are presentation-only projections of those derived
+coordinates (`renderPath`, stations, target, tracking). They do not introduce
+a second coordinate store or alternate desurvey path.
+
 ### Completed tray
 
 `Tray` represents a photographed physical completed core tray:

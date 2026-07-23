@@ -287,9 +287,10 @@ reason.
 
 Reports, surveys, completed-tray photography, and final-hole completion are
 implemented workflows and must not be labelled preview-only. Remaining deferred
-items (real SMTP, cloud sync, auth, payroll, polished 3D trajectory) keep
-deferred language. Foundation planned-versus-actual trajectory screens are
-implemented workflows.
+items (real SMTP, cloud sync, auth, payroll) keep deferred language.
+Planned-versus-actual trajectory screens and interactive trajectory graphics
+(plan / section / 3D, PNG export, PDF panels) are implemented workflows and
+must show the non-certified anti-collision disclaimer.
 Shift, casing, component, runbook, and operational timeline workflows remain
 implemented.
 

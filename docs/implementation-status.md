@@ -2,7 +2,21 @@
 
 Status date: 2026-07-24
 Target: `packages/main` only
-Stage: V2 Implementation 5 — Planned versus actual Survey trajectories
+Stage: V2 Implementation 6 — Interactive 3D Trajectory and Report Graphics
+
+## V2 Implementation 6 — Interactive 3D Trajectory and Report Graphics
+
+Presentation-only interactive trajectory graphics consume verified
+Implementation 5 `HoleTrajectoryComparison` / `renderPath` coordinates without
+changing desurvey mathematics. Canvas viewer supports rotate, pan, zoom, reset,
+plan / vertical-section / 3D modes, equal and exaggerated vertical scale,
+collar / planned / Survey / endpoint / target markers, dashed planned vs solid
+actual paths, target radius, Survey inspection with same-depth deviation,
+current tracking callout, phone/tablet fallback, PNG export, and an explicit
+non-certified anti-collision disclaimer. Hole Summary, Full-Hole, and
+Current-Shift PDFs embed deterministic plan / section / 3D vector graphics from
+the same path coordinates. Out of scope: steering recommendations, certified
+anti-collision, geographic reprojection, changing `minimum-curvature-v1`.
 
 ## V2 Implementation 5 — Planned versus actual Survey trajectories
 
@@ -13,9 +27,9 @@ relative and mine-grid modes; optional targets store E/N/RL separately from
 endpoint attitude. Same-MD tracking, target distance / closest approach,
 plan/setup/comparison UI, Current Hole card, Hole Analytics Trajectory
 section, and Hole Summary / Full-Hole / Excel trajectory summaries share one
-comparison query. Polished interactive 3D renderer deferred to Implementation
-6. Out of scope: steering recommendations, certified anti-collision, geographic
-reprojection, PDF chart images.
+comparison query. Interactive 3D and PDF trajectory graphics delivered in
+Implementation 6. Out of scope: steering recommendations, certified
+anti-collision, geographic reprojection.
 
 ## V2 Implementation 4 — End-of-Hole analytics and analytical reports
 
@@ -123,7 +137,8 @@ completion/lock/reopen, Report Centre/Activity, Timeline, Search, Statistics
 
 Run from `packages/main`:
 
-- [x] `npm run test` — 267 unit tests (includes run corrections/voiding + report currency)
+- [x] `npm run test` — unit tests including trajectory engine, view-model
+  coordinate fidelity, and PDF trajectory graphics
 - [x] `npm run test:e2e` — `e2e/reports.spec.ts` V2 workflows 1–5 plus share/email
   and responsive Report Centre checks; other Stage suites retained
 - [x] `npm run typecheck`

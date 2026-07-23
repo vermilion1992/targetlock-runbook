@@ -140,6 +140,9 @@ Domain calculations do not depend on React or browser storage.
     a trajectory or north-reference conversion inside the Survey layer.
     Trajectory comparison is owned by `LocalTrajectoryRepository` plus
     `getHoleTrajectoryComparison` / pure domain desurvey modules.
+15a. Trajectory graphics (Implementation 6) build a presentation view-model
+    from verified comparison coordinates and render Canvas UI / PDF vector
+    panels / PNG exports without recalculating desurvey mathematics.
 16. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
     and operation stages in localStorage. `IndexedDbMediaRepository` stores the
     original/preview blobs separately. A tray is activated only after its

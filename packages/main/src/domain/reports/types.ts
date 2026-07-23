@@ -349,6 +349,13 @@ export interface ReportDocumentData {
   readonly disclosures: readonly string[];
 }
 
+export interface ReportTrajectoryPathPoint {
+  readonly measuredDepthM: number;
+  readonly eastingM: number;
+  readonly northingM: number;
+  readonly rlM: number;
+}
+
 export interface ReportTrajectorySummary {
   readonly activePlanName?: string;
   readonly coordinateMode?: string;
@@ -369,6 +376,14 @@ export interface ReportTrajectorySummary {
   readonly plannedEndpointDistanceToTargetM?: number;
   readonly closestApproachM?: number;
   readonly warningCount: number;
+  readonly sectionBearingDegrees?: number | null;
+  readonly targetEastingM?: number;
+  readonly targetNorthingM?: number;
+  readonly targetRlM?: number;
+  readonly targetRadiusM?: number;
+  /** Dense render-path samples copied from verified comparison (not recalculated). */
+  readonly plannedRenderPath?: readonly ReportTrajectoryPathPoint[];
+  readonly actualRenderPath?: readonly ReportTrajectoryPathPoint[];
   readonly plannedStations: readonly {
     readonly measuredDepthM: number;
     readonly dipDegrees: number;

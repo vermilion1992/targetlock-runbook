@@ -53,6 +53,30 @@ test("Workflow 2 — Curved plan", async ({ page }) => {
   await expect(
     page.getByText("equal-scale Easting / Northing"),
   ).toBeVisible();
+  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
+  await expect(page.getByTestId("trajectory-graphics-disclaimer")).toContainText(
+    /not certified anti-collision/i,
+  );
+});
+
+test("Workflow 2b — Interactive 3D graphics controls", async ({ page }) => {
+  await page.goto("/holes/DDH041/trajectory");
+  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByTestId("trajectory-view-view_3d").click();
+  await expect(page.getByTestId("trajectory-canvas")).toBeVisible();
+  await page.getByTestId("trajectory-vertical-scale-toggle").click();
+  await expect(page.getByTestId("trajectory-vertical-scale-toggle")).toContainText(
+    /Exaggerated/i,
+  );
+  await page.getByTestId("trajectory-camera-reset").click();
+  await page.getByTestId("trajectory-view-plan").click();
+  await page.getByTestId("trajectory-view-vertical_section").click();
+  await expect(page.getByTestId("trajectory-inspection-callout")).toBeVisible();
+  await expect(
+    page.getByTestId("trajectory-current-tracking-callout"),
+  ).toBeVisible();
 });
 
 test("Workflow 3 — Actual tracking", async ({ page }) => {
@@ -212,6 +236,10 @@ test("Workflow 10 — Responsive and theme", async ({ page }) => {
     await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
       timeout: 30_000,
     });
+    await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
+    if (width < 768) {
+      await expect(page.getByTestId("trajectory-mobile-fallback")).toBeVisible();
+    }
     await expectNoHorizontalOverflow(page, `trajectory ${width}px`);
   }
 

@@ -21,3 +21,4 @@ export * from "./trajectory-stations";
 export * from "./trajectory-tracking";
 export * from "./trajectory-validation";
 export * from "./trajectory-comparison";
+export * from "./trajectory-view-model";
