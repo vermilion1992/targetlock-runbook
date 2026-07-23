@@ -183,6 +183,41 @@ export interface ReportStatistics {
   readonly shiftCount: number;
 }
 
+/** Serialised ShiftAnalytics for Current-Shift reports (shared calculator). */
+export interface ReportShiftAnalytics {
+  readonly shiftId: LocalId;
+  readonly startingDepthDm: Decimetres;
+  readonly endingDepthDm: Decimetres;
+  readonly metresCompletedDm: Decimetres;
+  readonly completedRunCount: number;
+  readonly sharedRunCount: number;
+  readonly voidedRunCount: number;
+  readonly runCorrectionCount: number;
+  readonly averageRunLengthDm?: Decimetres;
+  readonly medianRunLengthDm?: Decimetres;
+  readonly totalRecoveredDm: Decimetres;
+  readonly weightedRecoveryTenths?: number;
+  readonly totalCoreLossDm: Decimetres;
+  readonly totalCoreGainDm: Decimetres;
+  readonly startingRodNumber: number;
+  readonly endingRodNumber: number;
+  readonly rodsAdded3m: number;
+  readonly rodsAdded6m: number;
+  readonly rodsRemoved: number;
+  readonly startingRodStringDm: Decimetres;
+  readonly endingRodStringDm: Decimetres;
+  readonly surveyCount: number;
+  readonly trayCount: number;
+  readonly casingEventCount: number;
+  readonly bitChangeCount: number;
+  readonly reamerChangeCount: number;
+  readonly elapsedMinutes?: number;
+  readonly grossMetresPerElapsedHourTenths?: number;
+  readonly averageRecordedRunCycleMinutes?: number;
+  readonly medianRecordedRunCycleMinutes?: number;
+  readonly unresolvedItems: readonly string[];
+}
+
 export interface ReportDocumentData {
   readonly holeId: LocalId;
   readonly holeName: string;
@@ -234,6 +269,8 @@ export interface ReportDocumentData {
   readonly latestSurveySummary?: string;
   readonly currentTraySummary?: string;
   readonly currentShift?: ReportShiftSection;
+  /** Present on Current-Shift reports generated after V2 analytics. */
+  readonly shiftAnalytics?: ReportShiftAnalytics;
   readonly disclosures: readonly string[];
 }
 

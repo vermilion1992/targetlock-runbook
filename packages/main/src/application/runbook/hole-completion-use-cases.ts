@@ -1125,7 +1125,9 @@ export async function closeFinalCompletionShift(
   services: Pick<
     HoleCompletionApplicationServices,
     "context" | "shifts" | "audits"
-  >,
+  > & {
+    readonly shiftAnalytics?: import("./shift-analytics-query").ShiftAnalyticsQueryServices;
+  },
 ): Promise<RunbookShift> {
   const context = await services.context.get(input.holeId);
   if (context.currentState.draft.status === "valid") {
@@ -1140,6 +1142,18 @@ export async function closeFinalCompletionShift(
       "A reconciled completed run and rod projection are required.",
     );
   }
+  const { buildCloseAnalyticsSnapshot } = await import(
+    "./shift-analytics-query"
+  );
+  const closeAnalyticsSnapshot =
+    services.shiftAnalytics === undefined
+      ? undefined
+      : await buildCloseAnalyticsSnapshot(
+          input.holeId,
+          input.shiftId,
+          input.closedAt,
+          services.shiftAnalytics,
+        );
   const result = await services.shifts.closeFinalShift({
     operationId: input.operationId,
     holeId: input.holeId,
@@ -1153,6 +1167,7 @@ export async function closeFinalCompletionShift(
       measuredStickUpDm: context.finalRun.measuredStickUp,
       runNumber: context.finalRun.runNumber,
     },
+    closeAnalyticsSnapshot,
   });
   const shift = result.shift;
   await services.audits.append(

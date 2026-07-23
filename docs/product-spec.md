@@ -39,6 +39,15 @@ The primary user is a driller or supervisor recording a drilling run at the rig.
 
 The interface must clearly distinguish editable observations from calculated values and retain the context needed for a shift handover.
 
+V2 end-of-Shift analytics summarise metres completed, Runs, weighted recovery,
+rod activity, and operational counts on Shift close, handover, Shift detail,
+Shift history, Current Hole, and Current-Shift reports. Analytics are derived
+from repositories (not manually edited). Shared Runs credit the completing
+Shift. Closed-Shift amendments after Run corrections preserve the original
+close snapshot. Time metrics use elapsed Shift / recorded Run-cycle wording
+only — not penetration rate, productive hours, or utilisation. Payroll,
+downtime, costing, and employee rankings remain out of scope.
+
 Completed Runs may be corrected or voided only through an audited workflow:
 source values are edited, calculated R/S / depth / drilled / recovery remain
 derived, original snapshots are retained, impact is previewed before save, and

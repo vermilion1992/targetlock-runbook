@@ -2,7 +2,19 @@
 
 Status date: 2026-07-24
 Target: `packages/main` only
-Stage: V2 Implementation 2 — Audited Run corrections and voiding
+Stage: V2 Implementation 3 — End-of-Shift analytics and handover breakdown
+
+## V2 Implementation 3 — End-of-Shift analytics and handover breakdown
+
+Shift close, handover, Shift detail, Shift history, Current Hole, and
+Current-Shift reports share one pure `calculateShiftAnalytics` result derived
+from repository-backed effective Runs (voids excluded; shared Runs credited to
+the completing Shift). Weighted recovery is total recovered ÷ total drilled.
+Median Run length uses integer-domain median rules. Close persists an immutable
+`closeAnalyticsSnapshot`; post-close corrections update current analytics while
+preserving the original snapshot (SHIFT ANALYTICS AMENDED). Time metrics are
+labelled as elapsed Shift / recorded Run-cycle values only. Out of scope:
+payroll, downtime, costing, employee rankings, end-of-hole analytics.
 
 ## V2 Implementation 2 — Audited Run corrections and voiding
 

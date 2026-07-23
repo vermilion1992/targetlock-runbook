@@ -23,6 +23,7 @@ import {
   stage6DefaultRecipients,
   targetLockStage5Seed,
 } from "@/infrastructure/seed";
+import { createShiftAnalyticsQueryServices } from "./shift-analytics-query";
 import { createBrowserShiftRepository } from "@/infrastructure/shifts";
 import {
   createBrowserSurveyRepository,
@@ -180,6 +181,25 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     },
   });
 
+  const shiftAnalytics = createShiftAnalyticsQueryServices(
+    {
+      shifts,
+      runs,
+      runCorrections,
+      surveys,
+      trays,
+      casing,
+      componentAssignments: components,
+      currentState,
+    },
+    {
+      runs: targetLockStage5Seed.runs,
+      rodEvents: targetLockStage5Seed.rodEvents,
+      preferredSurveyIntervalDm:
+        targetLockStage5Seed.holeConfigurations[0]?.preferredSurveyIntervalDm,
+    },
+  );
+
   return {
     runs,
     shifts,
@@ -200,5 +220,6 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     reports,
     reportFiles,
     share,
+    shiftAnalytics,
   };
 }

@@ -8,6 +8,7 @@ import {
   createBrowserRunbookServices,
   getShiftRunGroups,
   getShiftStatistics,
+  loadAnalyticsForAllShifts,
   type ShiftRunGroup,
   type ShiftStatistics,
 } from "@/application/runbook";
@@ -16,8 +17,10 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import { formatMetres } from "@/domain";
+import { formatMetres, type ShiftAnalytics } from "@/domain";
 import { targetLockStage2Seed } from "@/infrastructure/seed";
+
+import { formatRecoveryTenths } from "./shift-analytics-format";
 
 const emptyStats: ShiftStatistics = {
   dayShiftRuns: 0,
@@ -30,6 +33,9 @@ const emptyStats: ShiftStatistics = {
 export function ShiftHistory({ holeId }: { holeId: string }) {
   const [groups, setGroups] = useState<readonly ShiftRunGroup[]>([]);
   const [stats, setStats] = useState<ShiftStatistics>(emptyStats);
+  const [analyticsByShift, setAnalyticsByShift] = useState<
+    ReadonlyMap<string, ShiftAnalytics>
+  >(new Map());
   const [message, setMessage] = useState("Loading shift history…");
 
   useEffect(() => {
@@ -43,8 +49,11 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
     void Promise.all([
       services.shifts.listByHole(holeId),
       Promise.resolve(services.runs.readCompletedRuns(holeId)),
+      services.shiftAnalytics
+        ? loadAnalyticsForAllShifts(holeId, services.shiftAnalytics)
+        : Promise.resolve(new Map<string, ShiftAnalytics>()),
     ])
-      .then(([shifts, runs]) => {
+      .then(([shifts, runs, analyticsMap]) => {
         if (runs.status === "invalid") throw new Error(runs.reason);
         const nextGroups = getShiftRunGroups({
           shifts,
@@ -53,6 +62,7 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
         });
         setGroups(nextGroups);
         setStats(getShiftStatistics(nextGroups));
+        setAnalyticsByShift(analyticsMap);
         setMessage("");
       })
       .catch((error: unknown) =>
@@ -95,8 +105,9 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
           {groups.map((group) => {
             const shift = group.shift;
             const Icon = shift.shiftType === "DAY" ? Sun : Moon;
+            const analytics = analyticsByShift.get(shift.localId);
             return (
-              <article key={shift.localId} className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)]">
+              <article key={shift.localId} className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)]" data-testid="shift-history-card">
                 <header className="flex items-start justify-between gap-3">
                   <div className="flex gap-3">
                     <span className="flex size-11 items-center justify-center rounded-full bg-[var(--tl-primary-soft)]"><Icon aria-hidden="true" className="size-5" /></span>
@@ -105,15 +116,59 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
                       <p className="text-sm text-[var(--tl-ink-muted)]">{shift.primaryDrillerNameSnapshot}</p>
                     </div>
                   </div>
-                  <StatusPill tone={shift.status === "OPEN" ? "success" : shift.status === "HANDOVER_PENDING" ? "warning" : "neutral"}>
-                    {shift.status.replaceAll("_", " ")}
-                  </StatusPill>
+                  <div className="flex flex-col items-end gap-2">
+                    <StatusPill tone={shift.status === "OPEN" ? "success" : shift.status === "HANDOVER_PENDING" ? "warning" : "neutral"}>
+                      {shift.status.replaceAll("_", " ")}
+                    </StatusPill>
+                    {analytics?.analyticsAmended ? (
+                      <StatusPill tone="warning">Amended</StatusPill>
+                    ) : null}
+                  </div>
                 </header>
                 <dl className="mt-4 grid grid-cols-2 gap-3">
-                  <div><dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Runs</dt><dd className="font-bold">{group.firstRunNumber === undefined ? "None" : `${group.firstRunNumber}–${group.lastRunNumber}`}</dd></div>
-                  <div><dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Shared</dt><dd className="font-bold">{group.sharedRunCount}</dd></div>
-                  <div><dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Starting depth</dt><dd>{formatMetres(shift.startingDepthDm)}</dd></div>
-                  <div><dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Ending depth</dt><dd>{shift.endingDepthDm === undefined ? "Open" : formatMetres(shift.endingDepthDm)}</dd></div>
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Depth</dt>
+                    <dd className="font-bold">
+                      {formatMetres(analytics?.startingDepthDm ?? shift.startingDepthDm)}
+                      {" → "}
+                      {analytics
+                        ? formatMetres(analytics.endingDepthDm)
+                        : shift.endingDepthDm === undefined
+                          ? "Open"
+                          : formatMetres(shift.endingDepthDm)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Metres</dt>
+                    <dd className="font-bold">
+                      {analytics
+                        ? formatMetres(analytics.metresCompletedDm)
+                        : "—"}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Runs</dt>
+                    <dd className="font-bold">
+                      {analytics?.completedRunCount ??
+                        (group.firstRunNumber === undefined
+                          ? "None"
+                          : `${group.firstRunNumber}–${group.lastRunNumber}`)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Recovery</dt>
+                    <dd className="font-bold">
+                      {formatRecoveryTenths(analytics?.weightedRecoveryTenths)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Shared</dt>
+                    <dd className="font-bold">
+                      {(analytics?.sharedRunCount ?? group.sharedRunCount) === 1
+                        ? "1 shared Run"
+                        : `${analytics?.sharedRunCount ?? group.sharedRunCount} shared Runs`}
+                    </dd>
+                  </div>
                 </dl>
                 {shift.handoverNote ? <p className="mt-4 border-t border-[var(--tl-border)] pt-3 text-sm text-[var(--tl-ink-muted)]">{shift.handoverNote}</p> : null}
                 <Link href={runbookRoutes.shiftDetail(holeId, shift.localId)} className="mt-4 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">View shift detail</Link>

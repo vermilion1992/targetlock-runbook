@@ -19,6 +19,7 @@ import { useEffect, useState } from "react";
 import {
   createBrowserRunbookServices,
   getCurrentHoleState,
+  loadShiftAnalytics,
   type CurrentHoleState,
 } from "@/application/runbook";
 import type { HoleLifecycleState } from "@/infrastructure/completion";
@@ -34,6 +35,7 @@ import {
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { formatRecoveryTenths } from "@/components/shifts/shift-analytics-format";
 import {
   addDecimetres,
   calculateRecoveryPercentage,
@@ -41,6 +43,7 @@ import {
   formatMetres,
   formatRecoveryPercentage,
   normalizeHoleStatus,
+  type ShiftAnalytics,
 } from "@/domain";
 import type { TargetLockStage1Seed } from "@/infrastructure/seed";
 
@@ -62,6 +65,9 @@ export function CurrentHoleDashboard({
 }) {
   const [state, setState] = useState<CurrentHoleState | null>(null);
   const [lifecycle, setLifecycle] = useState<HoleLifecycleState | null>(null);
+  const [shiftAnalytics, setShiftAnalytics] = useState<ShiftAnalytics | null>(
+    null,
+  );
   const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
@@ -78,9 +84,20 @@ export function CurrentHoleDashboard({
       getCurrentHoleState(holeId, services.currentState),
       services.completion.getLifecycleState(holeId),
     ])
-      .then(([nextState, nextLifecycle]) => {
+      .then(async ([nextState, nextLifecycle]) => {
         setState(nextState);
         setLifecycle(nextLifecycle);
+        const active = nextState.activeShift;
+        if (active && services.shiftAnalytics) {
+          const analytics = await loadShiftAnalytics(
+            holeId,
+            active.localId,
+            services.shiftAnalytics,
+          );
+          setShiftAnalytics(analytics);
+        } else {
+          setShiftAnalytics(null);
+        }
       })
       .catch((error: unknown) =>
         setWarning(error instanceof Error ? error.message : "Hole state could not be loaded."),
@@ -221,31 +238,51 @@ export function CurrentHoleDashboard({
             </p>
           </div>
         ) : activeShift ? (
-          <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-            <div className="flex items-center gap-3">
-              <span className="flex size-11 items-center justify-center rounded-full bg-[var(--tl-success-soft)] text-[var(--tl-success)]">
-                <UserRound aria-hidden="true" className="size-5" />
-              </span>
-              <div>
-                <h2 id="shift-heading" className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-                  Active shift
-                </h2>
-                <p className="text-lg font-bold text-[var(--tl-ink)]">
-                  {activeShift.shiftType === "DAY" ? "Day Shift" : "Night Shift"} — {activeShift.shiftDate}
-                </p>
-                <p className="text-sm text-[var(--tl-ink-muted)]">
-                  Driller: {activeShift.primaryDrillerNameSnapshot}
-                </p>
+          <div className="space-y-4" data-testid="current-shift-summary">
+            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+              <div className="flex items-center gap-3">
+                <span className="flex size-11 items-center justify-center rounded-full bg-[var(--tl-success-soft)] text-[var(--tl-success)]">
+                  <UserRound aria-hidden="true" className="size-5" />
+                </span>
+                <div>
+                  <h2 id="shift-heading" className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+                    CURRENT SHIFT
+                  </h2>
+                  <p className="text-lg font-bold text-[var(--tl-ink)]">
+                    {activeShift.shiftType === "DAY" ? "Day Shift" : "Night Shift"} — {activeShift.shiftDate}
+                  </p>
+                  <p className="text-sm text-[var(--tl-ink-muted)]">
+                    Driller: {activeShift.primaryDrillerNameSnapshot}
+                  </p>
+                </div>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <Link href={runbookRoutes.shiftDetail(holeId, activeShift.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline">
+                  VIEW SHIFT
+                </Link>
+                <Link href={runbookRoutes.closeShift(holeId, activeShift.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-warning)] px-4 font-bold text-[var(--tl-ink)] no-underline">
+                  Close shift
+                </Link>
               </div>
             </div>
-            <div className="flex flex-wrap gap-2">
-              <Link href={runbookRoutes.shiftDetail(holeId, activeShift.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline">
-                View shift
-              </Link>
-              <Link href={runbookRoutes.closeShift(holeId, activeShift.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-warning)] px-4 font-bold text-[var(--tl-ink)] no-underline">
-                Close shift
-              </Link>
-            </div>
+            {shiftAnalytics ? (
+              <div className="grid grid-cols-3 gap-3">
+                <MetricDisplay
+                  label="Metres completed"
+                  value={formatMetres(shiftAnalytics.metresCompletedDm)}
+                />
+                <MetricDisplay
+                  label="Runs completed"
+                  value={shiftAnalytics.completedRunCount}
+                />
+                <MetricDisplay
+                  label="Weighted recovery"
+                  value={formatRecoveryTenths(
+                    shiftAnalytics.weightedRecoveryTenths,
+                  )}
+                />
+              </div>
+            ) : null}
           </div>
         ) : pending ? (
           <div>

@@ -5,6 +5,7 @@ import {
   isActiveShiftStatus,
   type Decimetres,
   type RunbookShift,
+  type ShiftAnalyticsCloseSnapshot,
   type ShiftCrewMember,
   type ShiftType,
 } from "@/domain";
@@ -66,6 +67,22 @@ const shiftSchema = z.object({
   handoverAcceptedByNameSnapshot: z.string().trim().min(1).optional(),
   handoverAcceptedAt: isoTimestampSchema.optional(),
   status: z.enum(["OPEN", "HANDOVER_PENDING", "CLOSED"]),
+  closeAnalyticsSnapshot: z
+    .object({
+      capturedAt: isoTimestampSchema,
+      startingDepthDm: decimetresSchema,
+      endingDepthDm: decimetresSchema,
+      metresCompletedDm: decimetresSchema,
+      completedRunCount: z.number().int().nonnegative(),
+      totalRecoveredDm: decimetresSchema,
+      weightedRecoveryTenths: z.number().int().nonnegative().optional(),
+      totalCoreLossDm: decimetresSchema,
+      totalCoreGainDm: decimetresSchema,
+      rodsAdded3m: z.number().int().nonnegative(),
+      rodsAdded6m: z.number().int().nonnegative(),
+      rodsRemoved: z.number().int().nonnegative(),
+    })
+    .optional(),
 });
 
 const shiftsEnvelopeSchema = z.object({
@@ -97,6 +114,23 @@ const shiftStateSnapshotSchema = z.object({
   runNumber: z.number().int().nonnegative(),
 });
 
+const closeAnalyticsSnapshotSchema = z
+  .object({
+    capturedAt: isoTimestampSchema,
+    startingDepthDm: decimetresSchema,
+    endingDepthDm: decimetresSchema,
+    metresCompletedDm: decimetresSchema,
+    completedRunCount: z.number().int().nonnegative(),
+    totalRecoveredDm: decimetresSchema,
+    weightedRecoveryTenths: z.number().int().nonnegative().optional(),
+    totalCoreLossDm: decimetresSchema,
+    totalCoreGainDm: decimetresSchema,
+    rodsAdded3m: z.number().int().nonnegative(),
+    rodsAdded6m: z.number().int().nonnegative(),
+    rodsRemoved: z.number().int().nonnegative(),
+  })
+  .optional();
+
 const finalShiftCloseInputSchema = z.object({
   operationId: z.string().min(1),
   holeId: z.string().min(1),
@@ -104,6 +138,7 @@ const finalShiftCloseInputSchema = z.object({
   expectedVersion: z.number().int().positive(),
   closedAt: isoTimestampSchema,
   endingState: shiftStateSnapshotSchema,
+  closeAnalyticsSnapshot: closeAnalyticsSnapshotSchema,
 });
 
 const finalShiftCloseOperationSchema = z.object({
@@ -149,6 +184,7 @@ export interface CloseShiftInput {
   readonly handoverNote?: string;
   readonly handoverRunId?: string;
   readonly handoverRunNumber?: number;
+  readonly closeAnalyticsSnapshot?: ShiftAnalyticsCloseSnapshot;
 }
 
 export interface CloseFinalShiftInput {
@@ -158,6 +194,7 @@ export interface CloseFinalShiftInput {
   readonly expectedVersion: number;
   readonly closedAt: string;
   readonly endingState: ShiftStateSnapshot;
+  readonly closeAnalyticsSnapshot?: ShiftAnalyticsCloseSnapshot;
 }
 
 export interface AcceptHandoverInput {
@@ -244,6 +281,26 @@ function canonicalJson(value: unknown): string {
   return JSON.stringify(value);
 }
 
+function asCloseAnalyticsSnapshot(
+  value: z.infer<typeof shiftSchema>["closeAnalyticsSnapshot"],
+): ShiftAnalyticsCloseSnapshot | undefined {
+  if (value === undefined) return undefined;
+  return {
+    capturedAt: value.capturedAt,
+    startingDepthDm: decimetres(value.startingDepthDm),
+    endingDepthDm: decimetres(value.endingDepthDm),
+    metresCompletedDm: decimetres(value.metresCompletedDm),
+    completedRunCount: value.completedRunCount,
+    totalRecoveredDm: decimetres(value.totalRecoveredDm),
+    weightedRecoveryTenths: value.weightedRecoveryTenths,
+    totalCoreLossDm: decimetres(value.totalCoreLossDm),
+    totalCoreGainDm: decimetres(value.totalCoreGainDm),
+    rodsAdded3m: value.rodsAdded3m,
+    rodsAdded6m: value.rodsAdded6m,
+    rodsRemoved: value.rodsRemoved,
+  };
+}
+
 function asShift(value: z.infer<typeof shiftSchema>): RunbookShift {
   return {
     ...value,
@@ -265,6 +322,9 @@ function asShift(value: z.infer<typeof shiftSchema>): RunbookShift {
       value.endingMeasuredStickUpDm === undefined
         ? undefined
         : decimetres(value.endingMeasuredStickUpDm),
+    closeAnalyticsSnapshot: asCloseAnalyticsSnapshot(
+      value.closeAnalyticsSnapshot,
+    ),
   };
 }
 
@@ -513,6 +573,9 @@ export class LocalShiftRepository implements ShiftRepository {
       handoverNote: input.handoverNote?.trim() || undefined,
       handoverRunId: input.handoverRunId,
       handoverRunNumber: input.handoverRunNumber,
+      // Written once at close; never overwritten by later corrections.
+      closeAnalyticsSnapshot:
+        existing.closeAnalyticsSnapshot ?? input.closeAnalyticsSnapshot,
       status: "HANDOVER_PENDING",
     };
     this.writeEnvelope(
@@ -548,6 +611,9 @@ export class LocalShiftRepository implements ShiftRepository {
             ? undefined
             : decimetres(parsed.data.endingState.measuredStickUpDm),
       },
+      closeAnalyticsSnapshot: asCloseAnalyticsSnapshot(
+        parsed.data.closeAnalyticsSnapshot,
+      ),
     };
     const fingerprint = canonicalJson(parsed.data);
     const operationsEnvelope = this.readFinalCloseOperations(input.holeId);
@@ -840,6 +906,9 @@ export class LocalShiftRepository implements ShiftRepository {
             ? undefined
             : decimetres(input.endingState.measuredStickUpDm),
         endingRunNumber: input.endingState.runNumber,
+        closeAnalyticsSnapshot:
+          current.closeAnalyticsSnapshot ??
+          asCloseAnalyticsSnapshot(input.closeAnalyticsSnapshot),
         status: "CLOSED",
       };
       this.writeEnvelope(

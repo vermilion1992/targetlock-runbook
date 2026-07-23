@@ -7,6 +7,7 @@ export * from "./hole-mutation-guard";
 export * from "./queries";
 export * from "./run-correction-use-cases";
 export * from "./run-use-cases";
+export * from "./shift-analytics-query";
 export * from "./shift-use-cases";
 export * from "./survey-use-cases";
 export * from "./tray-use-cases";

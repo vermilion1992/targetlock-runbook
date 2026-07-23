@@ -45,13 +45,13 @@ test("continues one unfinished run across Day and Night Shift", async ({
   await expect(page.getByRole("heading", { name: "Run 246" })).toBeVisible();
 
   await page.goto("/holes/DDH041/current");
-  await expect(page.getByRole("heading", { name: "Active shift" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /CURRENT SHIFT|Active shift/i })).toBeVisible();
   await page.getByRole("link", { name: "RECORD NEXT RUN" }).click();
   await expect(page.getByRole("heading", { name: "Record run 247" })).toBeVisible();
   await expect(page.getByText(/Draft saved locally/)).toBeVisible();
 
   await page.getByRole("link", { name: "Back to current hole" }).click();
-  await expect(page.getByRole("heading", { name: "Active shift" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /CURRENT SHIFT|Active shift/i })).toBeVisible();
   await page.getByRole("link", { name: "Close shift" }).click();
   await expect(page.getByText("Run 247 is in progress")).toBeVisible();
   await page.getByRole("textbox", { name: "Handover note" }).fill(
@@ -69,7 +69,7 @@ test("continues one unfinished run across Day and Night Shift", async ({
   await expect(
     page.getByText("Handover accepted. The incoming shift now owns new work."),
   ).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Active shift" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: /CURRENT SHIFT|Active shift/i })).toBeVisible();
 
   await page.getByRole("link", { name: "RECORD NEXT RUN" }).click();
   await expect(page.getByRole("heading", { name: "Record run 247" })).toBeVisible();

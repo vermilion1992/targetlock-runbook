@@ -36,7 +36,13 @@ fixtures (`DDH038`, `DDH039`, `DDH042`).
 ### Handover
 
 - [ ] Start a run, leave it unfinished, close shift with a handover note.
-- [ ] Accept Night/Day handover with a new driller.
+- [ ] On Close Shift, confirm SHIFT BREAKDOWN (metres, Runs, average/median,
+      weighted recovery), ROD ACTIVITY, and SHIFT RECORDS before closing.
+- [ ] Accept Night/Day handover with a new driller; confirm Completed work and
+      Outstanding items on the handover screen.
+- [ ] After a post-close Run correction, open Shift Detail and confirm
+      SHIFT ANALYTICS AMENDED with original close snapshot still visible.
+- [ ] Generate a Current-Shift PDF and confirm Shift analytics appear.
 - [ ] Complete the same run number; confirm **Shared between shifts**.
 - [ ] Refresh; shared ownership remains on Runbook and run detail.
 

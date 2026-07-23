@@ -111,7 +111,10 @@ Domain calculations do not depend on React or browser storage.
    repository-backed casing strings, active component assignments and usage,
    surveys, trays, and survey-interval state.
 9. Shift use cases capture start/end snapshots and append audit records without
-   changing drilling arithmetic.
+   changing drilling arithmetic. Close freezes `closeAnalyticsSnapshot` from
+   shared `calculateShiftAnalytics` (`domain/shift-analytics.ts`), loaded via
+   `shift-analytics-query.ts` for close, handover, detail, history, Current
+   Hole, and Current-Shift reports.
 10. Casing use cases append immutable events and update the current projection.
     Component use cases transact an outgoing assignment close and incoming
     assignment open at one exact depth.

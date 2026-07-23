@@ -8,6 +8,7 @@ import { useEffect, useState, type FormEvent } from "react";
 import {
   acceptShiftHandover,
   createBrowserRunbookServices,
+  loadShiftAnalytics,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetricDisplay } from "@/components/field/metric-display";
@@ -19,8 +20,13 @@ import {
   formatMetres,
   shiftTypeLabel,
   type RunbookShift,
+  type ShiftAnalytics,
   type ShiftType,
 } from "@/domain";
+import {
+  HandoverCompletedWorkPanel,
+  HandoverOutstandingPanel,
+} from "./shift-analytics-panels";
 
 interface DrillerOption {
   readonly id: string;
@@ -45,6 +51,7 @@ export function HandoverForm({
 }) {
   const router = useRouter();
   const [pending, setPending] = useState<RunbookShift | null>(null);
+  const [analytics, setAnalytics] = useState<ShiftAnalytics | null>(null);
   const [shiftType, setShiftType] = useState<ShiftType>("NIGHT");
   const [shiftDate, setShiftDate] = useState(localDateValue);
   const [drillerId, setDrillerId] = useState(drillers[0]?.id ?? "");
@@ -64,11 +71,20 @@ export function HandoverForm({
     }
     void services.shifts
       .getPendingHandover(holeId)
-      .then((shift) => {
+      .then(async (shift) => {
         setPending(shift);
         if (shift !== null) {
           setShiftType(shift.shiftType === "DAY" ? "NIGHT" : "DAY");
           setShiftDate(shift.shiftDate);
+          if (services.shiftAnalytics) {
+            const next = await loadShiftAnalytics(
+              holeId,
+              shift.localId,
+              services.shiftAnalytics,
+              { includeActiveComponentHandoverItems: true },
+            );
+            setAnalytics(next);
+          }
         }
       })
       .catch((error: unknown) =>
@@ -157,16 +173,22 @@ export function HandoverForm({
 
       <div className="grid gap-5 lg:grid-cols-[minmax(0,1.4fr)_minmax(18rem,0.8fr)]">
         <div className="space-y-5">
-          <SectionPanel title="Outgoing state" description="The incoming shift inherits this exact saved snapshot.">
+          {analytics ? (
+            <HandoverCompletedWorkPanel analytics={analytics} />
+          ) : null}
+          <SectionPanel title="Current state" description="The incoming shift inherits this exact saved snapshot.">
             <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
-              <MetricDisplay label="Ending depth" value={formatMetres(endingDepth)} emphasis="strong" />
+              <MetricDisplay label="Latest completed depth" value={formatMetres(endingDepth)} emphasis="strong" />
               <MetricDisplay label="Last completed run" value={pending.endingRunNumber ?? "—"} />
               <MetricDisplay label="Run in progress" value={pending.handoverRunNumber ?? "None"} />
-              <MetricDisplay label="Rod number" value={endingRod} />
+              <MetricDisplay label="Current rod number" value={endingRod} />
               <MetricDisplay label="Current R/S" value={formatMetres(endingRodString)} />
-              <MetricDisplay label="Stick-up" value={pending.endingMeasuredStickUpDm === undefined ? "Not entered" : formatMetres(pending.endingMeasuredStickUpDm)} />
+              <MetricDisplay label="Measured stick-up" value={pending.endingMeasuredStickUpDm === undefined ? "Not entered" : formatMetres(pending.endingMeasuredStickUpDm)} />
             </div>
           </SectionPanel>
+          {analytics ? (
+            <HandoverOutstandingPanel analytics={analytics} />
+          ) : null}
 
           <SectionPanel title="Handover note" description="Recorded by the outgoing shift.">
             <p className="leading-6 text-[var(--tl-ink)]">{pending.handoverNote || "No handover note supplied."}</p>

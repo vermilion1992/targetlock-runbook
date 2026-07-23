@@ -386,6 +386,46 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
       if (shift.handoverNote) writer.line(`Handover: ${shift.handoverNote}`);
     }
 
+    if (
+      snapshot.reportType === "CURRENT_SHIFT_RUNBOOK" &&
+      data.shiftAnalytics
+    ) {
+      const analytics = data.shiftAnalytics;
+      writer.heading("Shift analytics");
+      writer.line(
+        `Starting depth ${formatMetres(analytics.startingDepthDm)} · Ending depth ${formatMetres(analytics.endingDepthDm)} · Metres completed ${formatMetres(analytics.metresCompletedDm)}`,
+      );
+      writer.line(
+        `Runs completed ${analytics.completedRunCount} · Shared ${analytics.sharedRunCount} · Voided ${analytics.voidedRunCount} · Corrections ${analytics.runCorrectionCount}`,
+      );
+      writer.line(
+        `Average Run ${analytics.averageRunLengthDm === undefined ? "Not available" : formatMetres(analytics.averageRunLengthDm)} · Median Run ${analytics.medianRunLengthDm === undefined ? "Not available" : formatMetres(analytics.medianRunLengthDm)}`,
+      );
+      writer.line(
+        `Recovered ${formatMetres(analytics.totalRecoveredDm)} · Weighted recovery ${analytics.weightedRecoveryTenths === undefined ? "Not available" : percent(analytics.weightedRecoveryTenths)} · Core loss ${formatMetres(analytics.totalCoreLossDm)} · Core gain ${formatMetres(analytics.totalCoreGainDm)}`,
+      );
+      writer.line(
+        `Rods +3.0 m ${analytics.rodsAdded3m} · +6.0 m ${analytics.rodsAdded6m} · removed ${analytics.rodsRemoved} · Rod ${analytics.startingRodNumber} → ${analytics.endingRodNumber}`,
+      );
+      writer.line(
+        `R/S ${formatMetres(analytics.startingRodStringDm)} → ${formatMetres(analytics.endingRodStringDm)}`,
+      );
+      writer.line(
+        `Surveys ${analytics.surveyCount} · Trays ${analytics.trayCount} · Casing ${analytics.casingEventCount} · Bit changes ${analytics.bitChangeCount} · Reamer changes ${analytics.reamerChangeCount}`,
+      );
+      if (analytics.grossMetresPerElapsedHourTenths !== undefined) {
+        writer.line(
+          `Gross metres per elapsed Shift hour ${(analytics.grossMetresPerElapsedHourTenths / 10).toFixed(1)} m/h (elapsed Shift time includes all recorded activity)`,
+        );
+      }
+      if (analytics.unresolvedItems.length > 0) {
+        writer.line("Unresolved handover items:");
+        for (const item of analytics.unresolvedItems) {
+          writer.line(`- ${item}`);
+        }
+      }
+    }
+
     writer.heading("Runsheet");
     writer.table(
       [

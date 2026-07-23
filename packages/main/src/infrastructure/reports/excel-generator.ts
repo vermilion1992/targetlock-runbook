@@ -123,6 +123,65 @@ export async function generateExcelWorkbook(
     ]),
   );
 
+  if (data.shiftAnalytics) {
+    const analytics = data.shiftAnalytics;
+    addSheet(
+      workbook,
+      "Shift Analytics",
+      ["metric", "value"],
+      [
+        ["starting_depth_m", metres(analytics.startingDepthDm)],
+        ["ending_depth_m", metres(analytics.endingDepthDm)],
+        ["metres_completed_m", metres(analytics.metresCompletedDm)],
+        ["completed_runs", analytics.completedRunCount],
+        ["shared_runs", analytics.sharedRunCount],
+        ["voided_runs", analytics.voidedRunCount],
+        ["corrections", analytics.runCorrectionCount],
+        [
+          "average_run_m",
+          analytics.averageRunLengthDm === undefined
+            ? "Not available"
+            : metres(analytics.averageRunLengthDm),
+        ],
+        [
+          "median_run_m",
+          analytics.medianRunLengthDm === undefined
+            ? "Not available"
+            : metres(analytics.medianRunLengthDm),
+        ],
+        ["total_recovered_m", metres(analytics.totalRecoveredDm)],
+        [
+          "weighted_recovery_percent",
+          analytics.weightedRecoveryTenths === undefined
+            ? "Not available"
+            : analytics.weightedRecoveryTenths / 10,
+        ],
+        ["core_loss_m", metres(analytics.totalCoreLossDm)],
+        ["core_gain_m", metres(analytics.totalCoreGainDm)],
+        ["rods_added_3m", analytics.rodsAdded3m],
+        ["rods_added_6m", analytics.rodsAdded6m],
+        ["rods_removed", analytics.rodsRemoved],
+        ["starting_rod_number", analytics.startingRodNumber],
+        ["ending_rod_number", analytics.endingRodNumber],
+        ["surveys", analytics.surveyCount],
+        ["trays", analytics.trayCount],
+        ["casing_events", analytics.casingEventCount],
+        ["bit_changes", analytics.bitChangeCount],
+        ["reamer_changes", analytics.reamerChangeCount],
+        [
+          "gross_metres_per_elapsed_hour",
+          analytics.grossMetresPerElapsedHourTenths === undefined
+            ? "Not available"
+            : analytics.grossMetresPerElapsedHourTenths / 10,
+        ],
+        [
+          "unresolved_items",
+          analytics.unresolvedItems.join("; ") || "None",
+        ],
+      ],
+    );
+  }
+
   addSheet(
     workbook,
     "Runs",

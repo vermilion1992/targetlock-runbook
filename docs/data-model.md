@@ -314,6 +314,25 @@ recovered metres to trays.
 - Optional `handoverRunId`/`handoverRunNumber` references the same unfinished
   draft continued by the incoming shift.
 - Optimistic `version` detects stale close and acceptance attempts.
+- Optional immutable `closeAnalyticsSnapshot` written once at close (metres,
+  recovery, rod activity counts). Not manually editable. Post-close Run
+  corrections update derived current analytics only.
+
+### ShiftAnalytics (derived, not stored as an editable entity)
+
+Calculated by `calculateShiftAnalytics` from effective Runs, rod events,
+surveys, trays, casing events, component assignments, and corrections:
+
+- Metres completed = ending completed depth − starting completed depth.
+- Completed / shared / voided / corrected Run counts; average, median, shortest,
+  longest positive drilled lengths.
+- Weighted recovery tenths; total core loss and gain.
+- Rod activity: 3.0 m / 6.0 m adds, removals, start/end rod number and R/S.
+- Operational counts attributable to the Shift ID.
+- Optional elapsed minutes and gross metres per elapsed Shift hour; recorded
+  Run-cycle average/median when timestamps are trustworthy.
+- `unresolvedItems` for handover (unfinished Run, survey interval, active bit,
+  etc.) — only when a real issue exists.
 
 Only one `OPEN` or `HANDOVER_PENDING` shift may exist for a hole in a shift
 envelope.

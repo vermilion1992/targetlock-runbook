@@ -163,6 +163,25 @@ export interface ShiftCrewMember {
   readonly role?: string;
 }
 
+/**
+ * Immutable analytics captured at Shift close for amendment comparison.
+ * Derived values only — never manually edited.
+ */
+export interface ShiftAnalyticsCloseSnapshot {
+  readonly capturedAt: IsoTimestamp;
+  readonly startingDepthDm: Decimetres;
+  readonly endingDepthDm: Decimetres;
+  readonly metresCompletedDm: Decimetres;
+  readonly completedRunCount: number;
+  readonly totalRecoveredDm: Decimetres;
+  readonly weightedRecoveryTenths?: number;
+  readonly totalCoreLossDm: Decimetres;
+  readonly totalCoreGainDm: Decimetres;
+  readonly rodsAdded3m: number;
+  readonly rodsAdded6m: number;
+  readonly rodsRemoved: number;
+}
+
 export interface RunbookShift extends SyncMetadata {
   readonly holeId: LocalId;
   readonly rigId: LocalId;
@@ -191,6 +210,11 @@ export interface RunbookShift extends SyncMetadata {
   readonly handoverAcceptedByNameSnapshot?: string;
   readonly handoverAcceptedAt?: IsoTimestamp;
   readonly status: ShiftStatus;
+  /**
+   * Immutable analytics captured at Shift close. Written once; never replaced
+   * by post-close Run corrections. See domain/shift-analytics.ts.
+   */
+  readonly closeAnalyticsSnapshot?: ShiftAnalyticsCloseSnapshot;
 }
 
 export interface Run extends SyncMetadata {

@@ -724,3 +724,28 @@ bumps feed V2 report fingerprints so prior reports become out of date.
 **Consequences:** Original entry values remain inspectable; downstream stick-up
 and rod-event recalculation is explicit and previewable; accidental duplicates
 are voided instead of mass-renumbered.
+
+## ADR-043: Shared ShiftAnalytics derived at read time
+
+- **Date:** 2026-07-24
+- **Status:** Accepted
+
+**Context:** Close, handover, detail, history, Current Hole, and Current-Shift
+reports all need the same operational breakdown. Duplicating metres, recovery,
+or rod formulas in React or report adapters would drift.
+
+**Decision:**
+
+1. Add pure `calculateShiftAnalytics` in `domain/shift-analytics.ts` with
+   `medianInteger` / elapsed helpers in `domain/numeric.ts`.
+2. Credit completed metres to `completedShiftId` (shared Runs stay labelled
+   shared; metres are not split).
+3. Weighted recovery = total recovered ÷ total drilled (not a simple average).
+4. Persist `closeAnalyticsSnapshot` once on Shift close; never overwrite it.
+   Current views always recompute from effective data.
+5. Reports consume the shared result via `ReportDocumentData.shiftAnalytics`;
+   historical report binaries remain immutable.
+6. Exclude payroll, downtime, costing, utilisation, and penetration-rate labels.
+
+**Consequences:** One calculator feeds every surface; amended closed Shifts show
+original vs current metres/recovery without silently rewriting the close record.

@@ -17,6 +17,10 @@ import type {
   CurrentHoleStateDependencies,
 } from "./current-hole-state";
 import { getCurrentHoleState } from "./current-hole-state";
+import {
+  buildCloseAnalyticsSnapshot,
+  type ShiftAnalyticsQueryServices,
+} from "./shift-analytics-query";
 
 const DEVICE_ID = "local-runbook-device";
 
@@ -25,6 +29,8 @@ export interface ShiftServices {
   readonly shifts: ShiftRepository;
   readonly audits: AuditRepository;
   readonly runs: RunRepository;
+  /** Optional: when present, close persists a Shift analytics snapshot. */
+  readonly shiftAnalytics?: ShiftAnalyticsQueryServices;
 }
 
 interface Actor {
@@ -199,6 +205,15 @@ export async function closeRunbookShift(
     throw new Error(readiness.mustResolve.map(({ message }) => message).join(" "));
   }
   const state = readiness.state;
+  const closeAnalyticsSnapshot =
+    services.shiftAnalytics === undefined
+      ? undefined
+      : await buildCloseAnalyticsSnapshot(
+          input.holeId,
+          input.shiftId,
+          input.closedAt,
+          services.shiftAnalytics,
+        );
   const shift = await services.shifts.closeForHandover({
     holeId: input.holeId,
     shiftId: input.shiftId,
@@ -214,6 +229,7 @@ export async function closeRunbookShift(
     handoverNote: input.handoverNote,
     handoverRunId: readiness.unfinishedRunId,
     handoverRunNumber: readiness.unfinishedRunNumber,
+    closeAnalyticsSnapshot,
   });
   await Promise.all([
     services.audits.append(

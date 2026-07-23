@@ -1,6 +1,7 @@
 import {
   calculateComponentUsage,
   calculateCoreLossOrGain,
+  calculateShiftAnalytics,
   decimetres,
   formatMetres,
   HOLE_STATUS_LABELS,
@@ -10,9 +11,11 @@ import {
   type Decimetres,
   type HoleCompletionSnapshot,
   type ReportDocumentData,
+  type ReportShiftAnalytics,
   type ReportSourceVersion,
   type ReportType,
   type Run,
+  type ShiftAnalyticsRun,
 } from "@/domain";
 import type { HoleCompletionContext } from "@/application/runbook/hole-completion-use-cases";
 import type { CasingRepository } from "@/infrastructure/casing";
@@ -50,6 +53,89 @@ function rodAddedDm(run: Run): Decimetres {
     return run.rodAddedLength;
   }
   return decimetres(0);
+}
+
+function runToAnalyticsRun(
+  run: Run,
+  rodEvents: readonly {
+    readonly localId: string;
+    readonly runId: string | null;
+    readonly action: "add" | "remove";
+    readonly rodLength: number;
+    readonly affectedRodNumber: number;
+    readonly rodNumberAfterEvent: number;
+  }[],
+): ShiftAnalyticsRun {
+  return {
+    localId: run.localId,
+    runNumber: run.runNumber,
+    startedShiftId: run.startedShiftId,
+    completedShiftId: run.completedShiftId,
+    startedAt: run.startedAt,
+    completedAt: run.completedAt,
+    drilledLengthDm: run.drilledLength,
+    recoveredLengthDm: run.recoveredLength,
+    holeDepthDm: run.holeDepth,
+    previousCompletedDepthDm: run.previousCompletedDepth,
+    status:
+      run.status === "void"
+        ? "void"
+        : run.status === "corrected"
+          ? "corrected"
+          : run.status === "in_progress"
+            ? "in_progress"
+            : "completed",
+    rodEvents: rodEvents
+      .filter((event) => event.runId === run.localId)
+      .map((event) => ({
+        localId: event.localId,
+        action: event.action,
+        rodLengthDm: (Number(event.rodLength) === 60 ? 60 : 30) as 30 | 60,
+        affectedRodNumber: event.affectedRodNumber,
+        rodNumberAfterEvent: event.rodNumberAfterEvent,
+        voided: false,
+      })),
+  };
+}
+
+function toReportShiftAnalytics(
+  analytics: ReturnType<typeof calculateShiftAnalytics>,
+): ReportShiftAnalytics {
+  return {
+    shiftId: analytics.shiftId,
+    startingDepthDm: analytics.startingDepthDm,
+    endingDepthDm: analytics.endingDepthDm,
+    metresCompletedDm: analytics.metresCompletedDm,
+    completedRunCount: analytics.completedRunCount,
+    sharedRunCount: analytics.sharedRunCount,
+    voidedRunCount: analytics.voidedRunCount,
+    runCorrectionCount: analytics.runCorrectionCount,
+    averageRunLengthDm: analytics.averageRunLengthDm,
+    medianRunLengthDm: analytics.medianRunLengthDm,
+    totalRecoveredDm: analytics.totalRecoveredDm,
+    weightedRecoveryTenths: analytics.weightedRecoveryTenths,
+    totalCoreLossDm: analytics.totalCoreLossDm,
+    totalCoreGainDm: analytics.totalCoreGainDm,
+    startingRodNumber: analytics.startingRodNumber,
+    endingRodNumber: analytics.endingRodNumber,
+    rodsAdded3m: analytics.rodsAdded3m,
+    rodsAdded6m: analytics.rodsAdded6m,
+    rodsRemoved: analytics.rodsRemoved,
+    startingRodStringDm: analytics.startingRodStringDm,
+    endingRodStringDm: analytics.endingRodStringDm,
+    surveyCount: analytics.surveyCount,
+    trayCount: analytics.trayCount,
+    casingEventCount: analytics.casingEventCount,
+    bitChangeCount: analytics.bitChangeCount,
+    reamerChangeCount: analytics.reamerChangeCount,
+    elapsedMinutes: analytics.elapsedMinutes,
+    grossMetresPerElapsedHourTenths:
+      analytics.grossMetresPerElapsedHourTenths,
+    averageRecordedRunCycleMinutes:
+      analytics.averageRecordedRunCycleMinutes,
+    medianRecordedRunCycleMinutes: analytics.medianRecordedRunCycleMinutes,
+    unresolvedItems: analytics.unresolvedItems.map((item) => item.message),
+  };
 }
 
 export async function buildReportDocumentData(
@@ -274,6 +360,40 @@ export async function buildReportDocumentData(
     decimetres(0);
 
   const currentShift = shiftSections.at(-1);
+  let shiftAnalytics: ReportShiftAnalytics | undefined;
+  if (
+    input.reportType === "CURRENT_SHIFT_RUNBOOK" &&
+    currentShift !== undefined
+  ) {
+    const shiftEntity = shifts.find(
+      (shift) => shift.localId === currentShift.shiftId,
+    );
+    if (shiftEntity !== undefined) {
+      const analyticsRuns = context.completedRuns.map((run) =>
+        runToAnalyticsRun(run, context.rodEvents),
+      );
+      shiftAnalytics = toReportShiftAnalytics(
+        calculateShiftAnalytics({
+          shift: shiftEntity,
+          runs: analyticsRuns,
+          surveys: context.surveys,
+          trays: context.trays,
+          casingEvents,
+          componentAssignments: context.componentAssignments,
+          corrections: [],
+          nowIso: new Date().toISOString(),
+          liveEndingDepthDm: context.currentState.currentDepthDm,
+          liveEndingRodNumber: context.currentState.currentRodNumber,
+          liveEndingRodStringDm: context.currentState.currentRodStringDm,
+          unfinishedRunNumber: shiftEntity.handoverRunNumber,
+          includeActiveComponentHandoverItems: true,
+          activeBitSerial: context.currentState.activeBitSerialNumber,
+          activeReamerSerial: context.currentState.activeReamerSerialNumber,
+          surveyIntervalReminder: context.currentState.surveyIntervalReminder,
+        }),
+      );
+    }
+  }
   const latestSurvey = orderedSurveys.at(-1);
   const currentTray = context.trays
     .slice()
@@ -450,6 +570,7 @@ export async function buildReportDocumentData(
       ? `Tray ${currentTray.trayNumber} ${formatMetres(currentTray.startDepthDm ?? decimetres(0))}–${formatMetres(currentTray.endDepthDm ?? currentTray.startDepthDm ?? decimetres(0))}`
       : undefined,
     currentShift,
+    shiftAnalytics,
     disclosures,
   };
 

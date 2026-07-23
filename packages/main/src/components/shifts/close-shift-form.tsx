@@ -10,6 +10,7 @@ import {
   closeRunbookShift,
   createBrowserRunbookServices,
   getShiftCloseReadiness,
+  loadShiftAnalytics,
   type ShiftCloseReadiness,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
@@ -22,7 +23,8 @@ import {
 } from "@/components/holes/completion-support";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import { formatMetres, type RunbookShift } from "@/domain";
+import { formatMetres, type RunbookShift, type ShiftAnalytics } from "@/domain";
+import { CloseShiftAnalyticsPreview } from "./shift-analytics-panels";
 
 export function CloseShiftForm({
   holeId,
@@ -34,6 +36,7 @@ export function CloseShiftForm({
   const router = useRouter();
   const [readiness, setReadiness] = useState<ShiftCloseReadiness | null>(null);
   const [shift, setShift] = useState<RunbookShift | null>(null);
+  const [analytics, setAnalytics] = useState<ShiftAnalytics | null>(null);
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
@@ -49,10 +52,16 @@ export function CloseShiftForm({
     void Promise.all([
       getShiftCloseReadiness(holeId, services),
       services.shifts.getById(shiftId, holeId),
+      services.shiftAnalytics
+        ? loadShiftAnalytics(holeId, shiftId, services.shiftAnalytics, {
+            includeActiveComponentHandoverItems: true,
+          })
+        : Promise.resolve(null),
     ])
-      .then(([nextReadiness, nextShift]) => {
+      .then(([nextReadiness, nextShift, nextAnalytics]) => {
         setReadiness(nextReadiness);
         setShift(nextShift);
+        setAnalytics(nextAnalytics);
       })
       .catch((error: unknown) =>
         setMessage(
@@ -167,6 +176,8 @@ export function CloseShiftForm({
           <p className="font-semibold">{message}</p>
         </div>
       ) : null}
+
+      {analytics ? <CloseShiftAnalyticsPreview analytics={analytics} /> : null}
 
       <SectionPanel
         title="Ending hole state"

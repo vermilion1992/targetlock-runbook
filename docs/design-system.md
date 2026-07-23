@@ -163,6 +163,10 @@ reason.
   only when space permits.
 - Handover uses stacked outgoing/incoming panels on phones and a two-column
   comparison on larger tablets.
+- Shift analytics use `MetricDisplay` + `SectionPanel` in the industrial field
+  style (not BI dashboards). Phone close/detail may collapse secondary charts
+  and time metrics via keyboard-accessible `aria-expanded` sections (≥44×44 px).
+  Amended analytics use text status (`SHIFT ANALYTICS AMENDED`), not colour only.
 - Shift history uses cards; the runbook uses collapsible phone cards and a
   tablet table. Shared-run text/icon remains visible in both.
 - Safe-area padding and the existing phone tab bar remain unchanged; shifts
