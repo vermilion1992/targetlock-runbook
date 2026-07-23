@@ -81,12 +81,16 @@ test("Workflow 2b — Interactive 3D graphics controls", async ({ page }) => {
 
 test("Workflow 3 — Actual tracking", async ({ page }) => {
   await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible({
+  const tracking = page.getByTestId("current-trajectory-tracking");
+  await expect(tracking).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByText("Horizontal deviation")).toBeVisible();
-  await expect(page.getByText("3D deviation")).toBeVisible();
+  await expect(tracking.getByText("Horizontal deviation")).toBeVisible();
+  await expect(tracking.getByText("3D deviation")).toBeVisible();
   await expect(page.getByTestId("trajectory-tracking-table")).toBeVisible();
+  await expect(
+    page.getByTestId("trajectory-current-tracking-callout"),
+  ).toBeVisible();
 });
 
 test("Workflow 4 and 5 — Target and plan reach check", async ({ page }) => {
