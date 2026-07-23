@@ -7,7 +7,9 @@ import { useEffect, useMemo, useState } from "react";
 import {
   createBrowserRunbookServices,
   downloadReport,
+  evaluateGeneratedReportCurrency,
   listGeneratedReports,
+  openReport,
   shareReport,
 } from "@/application/runbook";
 import { StatusPill } from "@/components/field/status-pill";
@@ -21,10 +23,13 @@ import {
   REPORT_FORMATS,
   REPORT_TYPE_LABELS,
   REPORT_TYPES,
+  formatFileSize,
   formatMetres,
   type GeneratedReportRecord,
   type ReportActivityStatus,
+  type ReportCurrencyResult,
   type ReportFormat,
+  type ReportGenerationTransaction,
   type ReportType,
 } from "@/domain";
 
@@ -35,6 +40,12 @@ const ACTOR = {
 
 export function ReportActivity({ holeId }: { holeId: string }) {
   const [reports, setReports] = useState<readonly GeneratedReportRecord[]>([]);
+  const [failedOps, setFailedOps] = useState<
+    readonly ReportGenerationTransaction[]
+  >([]);
+  const [currencyById, setCurrencyById] = useState<
+    ReadonlyMap<string, ReportCurrencyResult>
+  >(new Map());
   const [typeFilter, setTypeFilter] = useState<ReportType | "">("");
   const [formatFilter, setFormatFilter] = useState<ReportFormat | "">("");
   const [statusFilter, setStatusFilter] = useState<ReportActivityStatus | "">(
@@ -44,16 +55,30 @@ export function ReportActivity({ holeId }: { holeId: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
 
-  useEffect(() => {
+  async function refresh() {
     const services = createBrowserRunbookServices();
     if (services === null) {
-      void Promise.resolve().then(() =>
-        setError("Browser storage is unavailable."),
-      );
+      setError("Browser storage is unavailable.");
       return;
     }
-    void listGeneratedReports(holeId, services)
-      .then(setReports)
+    const [list, failed] = await Promise.all([
+      listGeneratedReports(holeId, services),
+      services.reports.listFailedTransactions(holeId),
+    ]);
+    setReports(list);
+    setFailedOps(failed);
+    const currencyEntries = await Promise.all(
+      list.map(async (report) => {
+        const result = await evaluateGeneratedReportCurrency(report, services);
+        return [report.localId, result] as const;
+      }),
+    );
+    setCurrencyById(new Map(currencyEntries));
+  }
+
+  useEffect(() => {
+    void Promise.resolve()
+      .then(() => refresh())
       .catch((caught: unknown) =>
         setError(
           caught instanceof Error
@@ -61,6 +86,7 @@ export function ReportActivity({ holeId }: { holeId: string }) {
             : "Report Activity could not be loaded.",
         ),
       );
+    // eslint-disable-next-line react-hooks/exhaustive-deps -- hole load
   }, [holeId]);
 
   const filtered = useMemo(() => {
@@ -73,11 +99,35 @@ export function ReportActivity({ holeId }: { holeId: string }) {
     });
   }, [dateFilter, formatFilter, reports, statusFilter, typeFilter]);
 
+  async function onOpen(report: GeneratedReportRecord) {
+    const services = createBrowserRunbookServices();
+    if (services === null) return;
+    try {
+      const result = await openReport(
+        {
+          operationId: `open-${report.localId}-${crypto.randomUUID()}`,
+          reportId: report.localId,
+          holeId,
+          userId: ACTOR.userId,
+          userName: ACTOR.userName,
+        },
+        services,
+      );
+      setMessage(
+        result.status === "popup_blocked"
+          ? `Popup blocked. Download started for ${result.filename}.`
+          : `Opened ${result.filename}.`,
+      );
+    } catch (caught: unknown) {
+      setError(caught instanceof Error ? caught.message : "Open failed.");
+    }
+  }
+
   async function onDownload(report: GeneratedReportRecord) {
     const services = createBrowserRunbookServices();
     if (services === null) return;
     try {
-      await downloadReport(
+      const result = await downloadReport(
         {
           operationId: `download-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
@@ -87,7 +137,8 @@ export function ReportActivity({ holeId }: { holeId: string }) {
         },
         services,
       );
-      setMessage(`Downloaded ${report.format}. Not sent.`);
+      setMessage(`Download started: ${result.filename}`);
+      await refresh();
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Download failed.");
     }
@@ -114,8 +165,7 @@ export function ReportActivity({ holeId }: { holeId: string }) {
       } else {
         setMessage("Downloaded as share fallback. Not sent.");
       }
-      const next = await listGeneratedReports(holeId, services);
-      setReports(next);
+      await refresh();
     } catch (caught: unknown) {
       setError(caught instanceof Error ? caught.message : "Share failed.");
     }
@@ -124,7 +174,7 @@ export function ReportActivity({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 6 · report activity"
+        eyebrow="Reports"
         title="Report Activity"
         description="Locally generated report versions for this hole. Status means generated, downloaded, shared, or drafted — never delivered."
       />
@@ -203,7 +253,11 @@ export function ReportActivity({ holeId }: { holeId: string }) {
         </label>
       </section>
 
-      <p role="status" aria-live="polite" className="min-h-5 text-sm text-[var(--tl-ink-muted)]">
+      <p
+        role="status"
+        aria-live="polite"
+        className="min-h-5 text-sm text-[var(--tl-ink-muted)]"
+      >
         {message}
       </p>
       {error ? (
@@ -212,52 +266,108 @@ export function ReportActivity({ holeId }: { holeId: string }) {
         </div>
       ) : null}
 
+      {failedOps.length > 0 ? (
+        <section aria-labelledby="failed-heading" className="space-y-2">
+          <h2 id="failed-heading" className="text-base font-bold">
+            Failed operations
+          </h2>
+          <ul className="grid gap-2">
+            {failedOps.map((op) => (
+              <li
+                key={op.operationId}
+                className="rounded-[var(--tl-radius-sm)] border border-amber-600 p-3 text-sm"
+              >
+                <p className="font-bold uppercase tracking-wide">Not generated</p>
+                <p>
+                  {REPORT_TYPE_LABELS[op.reportType]} · {op.format} · failed at{" "}
+                  {op.stage.replaceAll("_", " ")}
+                </p>
+                <p>{op.failureReason ?? "Unknown failure"}</p>
+                <Link
+                  href={runbookRoutes.reports(holeId)}
+                  className="mt-2 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)] no-underline"
+                >
+                  Retry in Report Centre
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+
       <ul className="grid gap-3 lg:hidden">
-        {filtered.map((report) => (
-          <li
-            key={report.localId}
-            className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4"
-          >
-            <p className="font-bold uppercase tracking-wide text-[var(--tl-ink)]">
-              {REPORT_TYPE_LABELS[report.reportType]}
-            </p>
-            <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-              {report.format} · Version {report.version}
-            </p>
-            <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-              Generated {formatFieldDateTime(report.generatedAt)}
-            </p>
-            <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-              Generated by {report.generatedByNameSnapshot}
-            </p>
-            <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-              Hole-depth snapshot {formatMetres(report.holeDepthSnapshotDm)}
-            </p>
-            <div className="mt-2">
-              <StatusPill tone="info">
-                {report.activityStatus.replaceAll("_", " ")}
-              </StatusPill>
-            </div>
-            <div className="mt-3 flex flex-wrap gap-2">
-              <button
-                type="button"
-                className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold"
-                onClick={() => void onDownload(report)}
-                aria-label={`Download ${report.format}`}
-              >
-                Download
-              </button>
-              <button
-                type="button"
-                className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold"
-                onClick={() => void onShare(report)}
-                aria-label={`Share ${report.format} again`}
-              >
-                Share again
-              </button>
-            </div>
-          </li>
-        ))}
+        {filtered.map((report) => {
+          const currency = currencyById.get(report.localId);
+          return (
+            <li
+              key={report.localId}
+              className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4"
+            >
+              <p className="font-bold uppercase tracking-wide text-[var(--tl-ink)]">
+                {REPORT_TYPE_LABELS[report.reportType]}
+              </p>
+              <p className="mt-1 break-all text-sm text-[var(--tl-ink-muted)]">
+                {report.filename}
+              </p>
+              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                {report.format} · Version {report.version} ·{" "}
+                {formatFileSize(report.sizeBytes)}
+              </p>
+              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                Generated {formatFieldDateTime(report.generatedAt)} by{" "}
+                {report.generatedByNameSnapshot}
+              </p>
+              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                Hole-depth snapshot {formatMetres(report.holeDepthSnapshotDm)} ·{" "}
+                {report.holeStatusSnapshot}
+              </p>
+              {currency?.status === "out_of_date" ? (
+                <p className="mt-2 text-sm font-semibold text-amber-800 dark:text-amber-200">
+                  Historical report / Generated before the latest Hole changes
+                </p>
+              ) : null}
+              <div className="mt-2">
+                <StatusPill tone="info">
+                  {report.activityStatus.replaceAll("_", " ")}
+                </StatusPill>
+              </div>
+              <div className="mt-3 flex flex-wrap gap-2">
+                {report.format === "PDF" ? (
+                  <button
+                    type="button"
+                    className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold"
+                    onClick={() => void onOpen(report)}
+                    aria-label={`Open PDF ${report.filename}`}
+                  >
+                    Open PDF
+                  </button>
+                ) : null}
+                <button
+                  type="button"
+                  className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold"
+                  onClick={() => void onDownload(report)}
+                  aria-label={`Download ${report.format}`}
+                >
+                  Download
+                </button>
+                <button
+                  type="button"
+                  className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold"
+                  onClick={() => void onShare(report)}
+                  aria-label={`Share ${report.format} again`}
+                >
+                  Share again
+                </button>
+                <Link
+                  href={runbookRoutes.reports(holeId)}
+                  className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold no-underline"
+                >
+                  Generate New Version
+                </Link>
+              </div>
+            </li>
+          );
+        })}
       </ul>
 
       <div className="hidden overflow-x-auto lg:block">
@@ -267,6 +377,8 @@ export function ReportActivity({ holeId }: { holeId: string }) {
               <th className="px-3 py-2">Type</th>
               <th className="px-3 py-2">Format</th>
               <th className="px-3 py-2">Version</th>
+              <th className="px-3 py-2">Filename</th>
+              <th className="px-3 py-2">Size</th>
               <th className="px-3 py-2">Generated</th>
               <th className="px-3 py-2">By</th>
               <th className="px-3 py-2">Depth</th>
@@ -275,56 +387,83 @@ export function ReportActivity({ holeId }: { holeId: string }) {
             </tr>
           </thead>
           <tbody>
-            {filtered.map((report) => (
-              <tr
-                key={report.localId}
-                className="border-b border-[var(--tl-border)]"
-              >
-                <td className="px-3 py-3 font-semibold">
-                  {REPORT_TYPE_LABELS[report.reportType]}
-                </td>
-                <td className="px-3 py-3">{report.format}</td>
-                <td className="px-3 py-3">{report.version}</td>
-                <td className="px-3 py-3">
-                  {formatFieldDateTime(report.generatedAt)}
-                </td>
-                <td className="px-3 py-3">{report.generatedByNameSnapshot}</td>
-                <td className="px-3 py-3">
-                  {formatMetres(report.holeDepthSnapshotDm)}
-                </td>
-                <td className="px-3 py-3">
-                  <StatusPill tone="info">
-                    {report.activityStatus.replaceAll("_", " ")}
-                  </StatusPill>
-                </td>
-                <td className="px-3 py-3">
-                  <div className="flex gap-2">
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 items-center gap-1 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-2 font-bold"
-                      onClick={() => void onDownload(report)}
-                      aria-label={`Download ${report.format}`}
-                    >
+            {filtered.map((report) => {
+              const currency = currencyById.get(report.localId);
+              return (
+                <tr
+                  key={report.localId}
+                  className="border-b border-[var(--tl-border)]"
+                >
+                  <td className="px-3 py-3 font-semibold">
+                    {REPORT_TYPE_LABELS[report.reportType]}
+                    {currency?.status === "out_of_date" ? (
+                      <span className="mt-1 block text-xs font-normal text-amber-800 dark:text-amber-200">
+                        Historical report
+                      </span>
+                    ) : null}
+                  </td>
+                  <td className="px-3 py-3">{report.format}</td>
+                  <td className="px-3 py-3">{report.version}</td>
+                  <td className="max-w-[14rem] break-all px-3 py-3">
+                    {report.filename}
+                  </td>
+                  <td className="px-3 py-3">
+                    {formatFileSize(report.sizeBytes)}
+                  </td>
+                  <td className="px-3 py-3">
+                    {formatFieldDateTime(report.generatedAt)}
+                  </td>
+                  <td className="px-3 py-3">{report.generatedByNameSnapshot}</td>
+                  <td className="px-3 py-3">
+                    {formatMetres(report.holeDepthSnapshotDm)}
+                  </td>
+                  <td className="px-3 py-3">
+                    <StatusPill tone="info">
+                      {report.activityStatus.replaceAll("_", " ")}
+                    </StatusPill>
+                  </td>
+                  <td className="px-3 py-3">
+                    <div className="flex flex-wrap gap-2">
                       {report.format === "PDF" ? (
-                        <FileText aria-hidden="true" className="size-4" />
-                      ) : (
-                        <FileSpreadsheet aria-hidden="true" className="size-4" />
-                      )}
-                      Download
-                    </button>
-                    <button
-                      type="button"
-                      className="inline-flex min-h-11 items-center gap-1 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-2 font-bold"
-                      onClick={() => void onShare(report)}
-                      aria-label={`Share ${report.format} again`}
-                    >
-                      <Share2 aria-hidden="true" className="size-4" />
-                      Share again
-                    </button>
-                  </div>
-                </td>
-              </tr>
-            ))}
+                        <button
+                          type="button"
+                          className="inline-flex min-h-11 items-center gap-1 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-2 font-bold"
+                          onClick={() => void onOpen(report)}
+                          aria-label={`Open PDF ${report.filename}`}
+                        >
+                          Open PDF
+                        </button>
+                      ) : null}
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center gap-1 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-2 font-bold"
+                        onClick={() => void onDownload(report)}
+                        aria-label={`Download ${report.format}`}
+                      >
+                        {report.format === "PDF" ? (
+                          <FileText aria-hidden="true" className="size-4" />
+                        ) : (
+                          <FileSpreadsheet
+                            aria-hidden="true"
+                            className="size-4"
+                          />
+                        )}
+                        Download
+                      </button>
+                      <button
+                        type="button"
+                        className="inline-flex min-h-11 items-center gap-1 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-2 font-bold"
+                        onClick={() => void onShare(report)}
+                        aria-label={`Share ${report.format} again`}
+                      >
+                        <Share2 aria-hidden="true" className="size-4" />
+                        Share again
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              );
+            })}
           </tbody>
         </table>
       </div>

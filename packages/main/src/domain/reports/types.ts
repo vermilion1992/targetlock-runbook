@@ -24,8 +24,12 @@ export type ReportFormat = (typeof REPORT_FORMATS)[number];
 export const REPORT_GENERATION_STAGES = [
   "SNAPSHOT_BUILDING",
   "SNAPSHOT_SAVED",
+  "DOCUMENT_GENERATING",
   "DOCUMENT_GENERATED",
+  "FILE_SAVING",
+  /** @deprecated Prefer FILE_VERIFIED; retained for resume of V1 envelopes. */
   "FILE_SAVED",
+  "FILE_VERIFIED",
   "METADATA_SAVED",
   "COMPLETED",
   "FAILED",

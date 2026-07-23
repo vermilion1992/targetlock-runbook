@@ -90,7 +90,12 @@ function snapshot(): ReportSnapshot {
 describe("generateExcelWorkbook", () => {
   it("includes required sheets, numeric cells and formula protection", async () => {
     const blob = await generateExcelWorkbook(snapshot());
-    const buffer = Buffer.from(await blob.arrayBuffer());
+    expect(blob.size).toBeGreaterThan(0);
+    expect(blob.type).toContain("spreadsheetml");
+    const bytes = new Uint8Array(await blob.arrayBuffer());
+    expect(bytes[0]).toBe(0x50);
+    expect(bytes[1]).toBe(0x4b);
+    const buffer = Buffer.from(bytes);
     const workbook = new ExcelJS.Workbook();
     await workbook.xlsx.load(buffer as never);
 

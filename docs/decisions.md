@@ -635,15 +635,33 @@ can orphan the other; recovery fails clearly. No cloud backup in V1.
 Share sheets and mailto drafts are not email delivery.
 
 **Decision:** Stage generation as
-`SNAPSHOT_BUILDING` → `SNAPSHOT_SAVED` → `DOCUMENT_GENERATED` → `FILE_SAVED` →
-`METADATA_SAVED` → `COMPLETED` / `FAILED`, idempotent by `operationId` +
-fingerprint. Activity statuses are Generated / Downloaded / Shared / Email
-draft / Failed. Outbox uses `DRAFT` / `READY_TO_SHARE` / `SHARED` /
-`CANCELLED` / etc. Never record SENT or DELIVERED. Cancelled share is not
-success.
+`SNAPSHOT_BUILDING` → `SNAPSHOT_SAVED` → `DOCUMENT_GENERATING` →
+`DOCUMENT_GENERATED` → `FILE_SAVING` → `FILE_VERIFIED` → `METADATA_SAVED` →
+`COMPLETED` / `FAILED`, idempotent by `operationId` + fingerprint. Legacy
+`FILE_SAVED` remains readable for resume. Activity statuses are Generated /
+Downloaded / Shared / Email draft / Failed. Outbox uses `DRAFT` /
+`READY_TO_SHARE` / `SHARED` / `CANCELLED` / etc. Never record SENT or
+DELIVERED. Cancelled share is not success.
 
 **Consequences:** UI language stays honest for the pilot. Real SMTP remains a
 future provider behind the same outbox boundary.
+
+## ADR-041: V2 report binary verification and currency
+
+- **Date:** 2026-07-24
+- **Status:** Accepted
+
+**Context:** V1 Report Centre could leave operators unsure whether Generate
+produced a real, openable file. Size-only IndexedDB checks were insufficient,
+Open PDF was missing, and Hole changes did not surface stale reports.
+
+**Decision:** Require `FILE_VERIFIED` with MIME/filename/signature validation
+before metadata completion; create object URLs only on Open/Download user
+gestures; version reports without overwrite; compare `sourceVersions`
+fingerprints for out-of-date detection; keep historical versions immutable.
+
+**Consequences:** Generate shows staged progress and a persistent success card.
+Failed ops stay failed with retry. Railway still does not store report blobs.
 
 ## ADR-039: Reports read Stage 5 completion snapshots without mutating holes
 

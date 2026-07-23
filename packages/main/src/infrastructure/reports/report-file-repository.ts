@@ -1,4 +1,14 @@
-import type { SavedReportFile } from "@/domain";
+import {
+  assertValidReportBlob,
+  type ReportFormat,
+  type SavedReportFile,
+} from "@/domain";
+
+export interface ReportFileVerifyOptions {
+  readonly format: ReportFormat;
+  readonly filename: string;
+  readonly mimeType: string;
+}
 
 export interface ReportFileRepository {
   save(
@@ -10,7 +20,10 @@ export interface ReportFileRepository {
 
   get(storageKey: string): Promise<Blob | null>;
 
-  verify(storageKey: string): Promise<boolean>;
+  verify(
+    storageKey: string,
+    options?: ReportFileVerifyOptions,
+  ): Promise<boolean>;
 
   delete(storageKey: string): Promise<void>;
 }
@@ -163,9 +176,28 @@ export class IndexedDbReportFileRepository implements ReportFileRepository {
     return record?.blob ?? null;
   }
 
-  async verify(storageKey: string): Promise<boolean> {
+  async verify(
+    storageKey: string,
+    options?: ReportFileVerifyOptions,
+  ): Promise<boolean> {
     const blob = await this.get(storageKey);
-    return blob !== null && blob.size > 0;
+    if (blob === null || blob.size <= 0) {
+      return false;
+    }
+    if (options === undefined) {
+      return true;
+    }
+    try {
+      await assertValidReportBlob({
+        blob,
+        format: options.format,
+        filename: options.filename,
+        mimeType: options.mimeType,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async delete(storageKey: string): Promise<void> {
@@ -236,9 +268,28 @@ export class MemoryReportFileRepository implements ReportFileRepository {
     return this.records.get(storageKey)?.blob ?? null;
   }
 
-  async verify(storageKey: string): Promise<boolean> {
+  async verify(
+    storageKey: string,
+    options?: ReportFileVerifyOptions,
+  ): Promise<boolean> {
     const blob = await this.get(storageKey);
-    return blob !== null && blob.size > 0;
+    if (blob === null || blob.size <= 0) {
+      return false;
+    }
+    if (options === undefined) {
+      return true;
+    }
+    try {
+      await assertValidReportBlob({
+        blob,
+        format: options.format,
+        filename: options.filename,
+        mimeType: options.mimeType,
+      });
+      return true;
+    } catch {
+      return false;
+    }
   }
 
   async delete(storageKey: string): Promise<void> {

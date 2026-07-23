@@ -1,10 +1,19 @@
 # TargetLock Implementation Status
 
-Status date: 2026-07-23
+Status date: 2026-07-24
 Target: `packages/main` only
-Stage: Final pilot audit of Runbook V1 Stages 1–6 + Railway deployment prep
+Stage: V2 Implementation 1 — Report generation reliability (after V1 pilot)
 
-## Final pilot audit result
+## V2 Implementation 1 — Report generation reliability
+
+Report Centre now runs a verified generation transaction
+(`SNAPSHOT_BUILDING` … `FILE_VERIFIED` … `COMPLETED`), shows staged progress
+and a persistent success card, supports Open PDF / Download / Share / Prepare
+Email, versions without overwrite, and flags out-of-date reports via
+`sourceVersions` fingerprints. Empty or unsigned blobs cannot be marked
+generated.
+
+## Final pilot audit result (V1 retained)
 
 The local TargetLock pilot was integration-audited end-to-end. Authoritative
 drilling maths remain in `src/domain/rods.ts`. Repository boundaries, hole
@@ -63,15 +72,20 @@ completion/lock/reopen, Report Centre/Activity, Timeline, Search, Statistics
 
 Run from `packages/main`:
 
-- [x] `npm run test` — 244 unit tests (includes health + pilot-access gate)
-- [x] `npm run test:e2e` — includes `e2e/pilot-end-to-end.spec.ts` plus Stage 2–6 suites
+- [x] `npm run test` — 257 unit tests (includes report blob validation + currency)
+- [x] `npm run test:e2e` — `e2e/reports.spec.ts` V2 workflows 1–5 plus share/email
+  and responsive Report Centre checks; other Stage suites retained
 - [x] `npm run typecheck`
 - [x] `npm run lint` — scoped TargetLock lint
 - [x] `npm run build`
+- [x] Local production build succeeded; Hole Summary PDF evidence
+  `DDH041_Hole_Summary_v001_2026-07-24.pdf` non-zero `%PDF-` blob with ≥1 page
 - [x] Responsive/light-dark review at `360`, `390`, `430`, `768`, `1024` px in
-  the pilot Playwright workflow
+  the reports Playwright workflow
 - [ ] Manual accessibility/device review: keyboard-only, screen reader, 200%
   zoom, gloves, glare, physical camera, safe-area on hardware
+- [ ] Live Railway browser verify after deploy (device-local reports; pilot-access
+  gate may block unattended checks)
 
 ### Manual checks still required
 

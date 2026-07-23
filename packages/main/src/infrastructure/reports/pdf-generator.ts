@@ -340,11 +340,27 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
     generatedAt: snapshot.generatedAt,
   });
 
-  writer.title(`TargetLock — ${reportTypeLabel(snapshot.reportType)}`);
-  writer.line(`Hole ${data.holeName} · Project ${data.projectName} · Rig ${data.rigName}`);
+  writer.title(`TargetLock Runbook — ${reportTypeLabel(snapshot.reportType)}`);
+  writer.line(`Hole ID ${data.holeId} · ${data.holeName}`);
+  writer.line(`Project ${data.projectName} · Rig ${data.rigName}`);
   writer.line(
-    `Status ${data.holeStatus} · Depth ${formatMetres(data.currentOrFinalDepthDm)} · Planned ${formatMetres(data.plannedDepthDm)}`,
+    `Status ${data.holeStatus} · Current/final depth ${formatMetres(data.currentOrFinalDepthDm)} · Planned ${formatMetres(data.plannedDepthDm)}`,
   );
+  writer.line(
+    `Generated ${snapshot.generatedAt} · Report ${formatReportVersion(snapshot.version)} · By ${snapshot.generatedByNameSnapshot}`,
+  );
+
+  if (snapshot.reportType === "HOLE_SUMMARY") {
+    writer.heading("Hole Summary");
+    writer.line(`Total Runs ${data.statistics.totalRuns}`);
+    writer.line(`Total drilled ${formatMetres(data.statistics.totalDrilledDm)}`);
+    writer.line(
+      `Total recovered ${formatMetres(data.statistics.totalRecoveredDm)}`,
+    );
+    writer.line(
+      `Weighted recovery ${percent(data.statistics.weightedRecoveryPercentTenths)}`,
+    );
+  }
 
   if (data.completion) {
     writer.heading("Completion");

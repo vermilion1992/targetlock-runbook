@@ -453,17 +453,74 @@ export async function buildReportDocumentData(
     disclosures,
   };
 
+  const reopenHistory = await dependencies.completion.getReopenHistory(
+    input.holeId,
+  );
+
   const sourceVersions: ReportSourceVersion[] = [
-    { entityType: "hole", entityId: context.hole.localId, version: context.hole.version },
+    {
+      entityType: "hole",
+      entityId: context.hole.localId,
+      version: context.hole.version,
+    },
     ...completedRuns.map((run) => ({
       entityType: "run",
       entityId: run.localId,
       version: run.version,
     })),
-    ...shifts.map((shift) => ({
-      entityType: "shift",
-      entityId: shift.localId,
-      version: shift.version,
+    ...context.rodEvents
+      .filter((event) => event.holeId === input.holeId)
+      .map((event) => ({
+        entityType: "rod_event",
+        entityId: event.localId,
+        version: event.version,
+      })),
+    ...context.shifts
+      .filter((shift) => shift.holeId === input.holeId)
+      .map((shift) => ({
+        entityType: "shift",
+        entityId: shift.localId,
+        version: shift.version,
+      })),
+    ...context.casingStrings
+      .filter((casing) => casing.holeId === input.holeId)
+      .map((casing) => ({
+        entityType: "casing",
+        entityId: casing.localId,
+        version: casing.version,
+      })),
+    ...casingEvents
+      .filter((event) => event.holeId === input.holeId)
+      .map((event) => ({
+        entityType: "casing_event",
+        entityId: event.localId,
+        version: event.version,
+      })),
+    ...context.componentAssignments
+      .filter((assignment) => assignment.holeId === input.holeId)
+      .map((assignment) => ({
+        entityType: "component_assignment",
+        entityId: assignment.localId,
+        version: assignment.version,
+      })),
+    ...context.surveys
+      .filter((survey) => survey.holeId === input.holeId)
+      .map((survey) => ({
+        entityType: "survey",
+        entityId: survey.localId,
+        version: survey.version,
+      })),
+    ...context.trays
+      .filter((tray) => tray.holeId === input.holeId)
+      .map((tray) => ({
+        entityType: "tray",
+        entityId: tray.localId,
+        version: tray.version,
+      })),
+    ...surveyCorrections.map((correction) => ({
+      entityType: "correction",
+      entityId: correction.id,
+      version: 1,
     })),
     ...(completionRecord
       ? [
@@ -474,6 +531,11 @@ export async function buildReportDocumentData(
           },
         ]
       : []),
+    ...reopenHistory.map((reopen) => ({
+      entityType: "reopen",
+      entityId: reopen.localId,
+      version: reopen.version,
+    })),
   ];
 
   return {

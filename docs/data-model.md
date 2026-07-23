@@ -492,17 +492,28 @@ No barrel-capacity value is stored or inferred.
 - `GeneratedReportRecord` stores metadata only (filename, mime, storage key,
   size, activity status). Binaries live in IndexedDB
   `targetlock-runbook-reports-v1` via `ReportFileRepository`.
-- Generation stages:
-  `SNAPSHOT_BUILDING` → `SNAPSHOT_SAVED` → `DOCUMENT_GENERATED` →
-  `FILE_SAVED` → `METADATA_SAVED` → `COMPLETED` / `FAILED`.
+- Generation stages (V2 reliability transaction):
+  `SNAPSHOT_BUILDING` → `SNAPSHOT_SAVED` → `DOCUMENT_GENERATING` →
+  `DOCUMENT_GENERATED` → `FILE_SAVING` → `FILE_VERIFIED` →
+  `METADATA_SAVED` → `COMPLETED` / `FAILED`.
+  Legacy `FILE_SAVED` may still appear when resuming V1 envelopes and is
+  treated as needing verification before metadata save.
+- A report is not marked `GENERATED` until the binary Blob exists, size > 0,
+  is stored in IndexedDB, can be retrieved, and passes format validation
+  (PDF `%PDF-` + EOF, XLSX ZIP signature, UTF-8 CSV).
+- `sourceVersions` fingerprint relevant operational entities (runs, rod events,
+  shifts, casing, component assignments, surveys, trays, corrections,
+  completion/reopen). Currency compares the immutable snapshot fingerprint to
+  the current repository; out-of-date reports stay historical and are never
+  overwritten.
 - `SavedReportRecipient` scopes: `ORGANISATION` | `PROJECT` | `HOLE`.
 - `ReportOutboxItem` tracks draft/share intent with
   `DRAFT` | `READY_TO_SHARE` | `SHARED` | `QUEUED_FOR_FUTURE_PROVIDER` |
   `FAILED` | `CANCELLED` — never email delivery.
 - Legacy Stage 1 `SentReport` seed remains unused by Report Centre.
 - Spreadsheet/CSV exports escape formula-like user text (`=`, `+`, `-`, `@`).
-- Audits record snapshot/generate/download/share/draft events without binary
-  payloads.
+- Audits record snapshot/generate/download/share/open/draft events without
+  binary payloads or credentials.
 
 ## Validation invariants
 

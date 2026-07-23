@@ -329,11 +329,30 @@ npm run build
 
 Focused coverage includes domain maths, repositories, lock enforcement,
 recovery, reports, seed continuity, and Playwright suites through
-`e2e/pilot-end-to-end.spec.ts`. Responsive checks cover `360`, `390`, `430`,
-`768`, and `1024 px` in light/dark mode. Installation and field checklist live
-in `docs/local-installation.md` and `docs/pilot-test-guide.md`. Results and
-deferred risks are recorded in `implementation-status.md` and
-`docs/known-limitations.md`.
+`e2e/pilot-end-to-end.spec.ts` and `e2e/reports.spec.ts`. Responsive checks
+cover `360`, `390`, `430`, `768`, and `1024 px` in light/dark mode.
+Installation and field checklist live in `docs/local-installation.md` and
+`docs/pilot-test-guide.md`. Results and deferred risks are recorded in
+`implementation-status.md` and `docs/known-limitations.md`.
+
+## V2 report generation reliability
+
+Report Centre generation is a recoverable, idempotent transaction keyed by
+`operationId` + fingerprint. Stages are
+`SNAPSHOT_BUILDING` → `SNAPSHOT_SAVED` → `DOCUMENT_GENERATING` →
+`DOCUMENT_GENERATED` → `FILE_SAVING` → `FILE_VERIFIED` → `METADATA_SAVED` →
+`COMPLETED` / `FAILED`. Metadata is written only after IndexedDB save and
+binary format validation (`assertValidReportBlob`). Open PDF creates a
+temporary object URL on the user gesture (not before) and revokes it after the
+tab can load. Download never offers a zero-byte file. Report currency compares
+immutable `sourceVersions` fingerprints; out-of-date reports remain historical
+and are never auto-regenerated. Railway still hosts code only — report blobs
+remain browser-local.
+
+**Original V1 reliability gap:** generation could complete in repositories while
+the UI only showed a transient status line, had no Open PDF path, and verified
+storage by size alone — so operators could believe no real PDF was created even
+when a blob existed, or accept insufficiently validated files.
 
 ## Final pilot audit architecture notes
 

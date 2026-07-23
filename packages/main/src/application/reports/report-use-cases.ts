@@ -1,11 +1,15 @@
 import {
+  assertValidReportBlob,
   buildReportFilename,
+  evaluateReportCurrency,
   reportMimeType,
   reportTypeLabel,
   type GeneratedReportRecord,
   type ReportActivityStatus,
+  type ReportCurrencyResult,
   type ReportDispatchStatus,
   type ReportFormat,
+  type ReportGenerationStage,
   type ReportOutboxItem,
   type ReportSnapshot,
   type ReportType,
@@ -35,7 +39,12 @@ export class ReportApplicationError extends Error {
       | "IDEMPOTENCY_CONFLICT"
       | "GENERATION_FAILED"
       | "NOT_FOUND"
-      | "STORAGE_FAILED",
+      | "STORAGE_FAILED"
+      | "VERIFICATION_FAILED"
+      | "UNSUPPORTED"
+      | "POPUP_BLOCKED"
+      | "QUOTA_EXCEEDED"
+      | "STALE_OPERATION",
     message: string,
   ) {
     super(message);
@@ -50,6 +59,14 @@ export interface ReportServices extends ReportDocumentBuilderDependencies {
   readonly audits: AuditRepository;
 }
 
+export type ReportGenerationProgress =
+  | "Building report snapshot…"
+  | "Generating PDF…"
+  | "Generating Excel…"
+  | "Generating CSV…"
+  | "Saving report locally…"
+  | "Verifying file…";
+
 export interface GenerateReportInput {
   readonly operationId: string;
   readonly holeId: string;
@@ -60,6 +77,7 @@ export interface GenerateReportInput {
   readonly generatedByUserId: string;
   readonly generatedByNameSnapshot: string;
   readonly generatedAt?: string;
+  readonly onProgress?: (stage: ReportGenerationProgress) => void;
 }
 
 export interface GenerateReportResult {
@@ -76,6 +94,43 @@ function fingerprintOf(input: GenerateReportInput): string {
     shiftId: input.shiftId ?? null,
     csvDataset: input.csvDataset ?? null,
   });
+}
+
+function userFacingError(error: unknown): ReportApplicationError {
+  if (error instanceof ReportApplicationError) {
+    return error;
+  }
+  const message = error instanceof Error ? error.message : "Unknown error";
+  const lower = message.toLowerCase();
+  if (
+    lower.includes("quota") ||
+    (lower.includes("storage") && lower.includes("exceed"))
+  ) {
+    return new ReportApplicationError(
+      "QUOTA_EXCEEDED",
+      "Browser storage is full. Download older reports or free space, then retry.",
+    );
+  }
+  if (
+    lower.includes("indexeddb") ||
+    lower.includes("storage is unavailable") ||
+    lower.includes("localstorage")
+  ) {
+    return new ReportApplicationError(
+      "STORAGE_FAILED",
+      "Browser storage is unavailable for reports on this device.",
+    );
+  }
+  if (lower.includes("unsupported") || lower.includes("no csv dataset")) {
+    return new ReportApplicationError(
+      "UNSUPPORTED",
+      "That report type or format combination is not supported.",
+    );
+  }
+  return new ReportApplicationError(
+    "GENERATION_FAILED",
+    "Report generation failed. Retry the same report, or choose another format.",
+  );
 }
 
 async function appendAudit(
@@ -113,6 +168,12 @@ async function appendAudit(
   });
 }
 
+function documentProgress(format: ReportFormat): ReportGenerationProgress {
+  if (format === "PDF") return "Generating PDF…";
+  if (format === "XLSX") return "Generating Excel…";
+  return "Generating CSV…";
+}
+
 async function generateBlob(
   snapshot: ReportSnapshot,
   format: ReportFormat,
@@ -129,7 +190,7 @@ async function generateBlob(
     datasets.find((item) => item.dataset === csvDataset) ?? datasets[0];
   if (selected === undefined) {
     throw new ReportApplicationError(
-      "GENERATION_FAILED",
+      "UNSUPPORTED",
       "No CSV dataset available for this report type.",
     );
   }
@@ -139,6 +200,14 @@ async function generateBlob(
     }),
     csvDataset: selected.dataset,
   };
+}
+
+function isFileReadyStage(stage: ReportGenerationStage): boolean {
+  return (
+    stage === "FILE_SAVED" ||
+    stage === "FILE_VERIFIED" ||
+    stage === "METADATA_SAVED"
+  );
 }
 
 export async function generateReport(
@@ -165,6 +234,7 @@ export async function generateReport(
   let transaction = begin.transaction;
   const recovered = begin.kind === "resume";
   const generatedAt = input.generatedAt ?? new Date().toISOString();
+  const notify = input.onProgress;
 
   try {
     let snapshot: ReportSnapshot | null = null;
@@ -173,6 +243,7 @@ export async function generateReport(
     }
 
     if (transaction.stage === "SNAPSHOT_BUILDING" || snapshot === null) {
+      notify?.("Building report snapshot…");
       const built = await buildReportDocumentData(
         {
           holeId: input.holeId,
@@ -203,7 +274,10 @@ export async function generateReport(
       };
       Object.freeze(snapshot);
       Object.freeze(snapshot.documentData);
-      transaction = await services.reports.saveSnapshot(input.operationId, snapshot);
+      transaction = await services.reports.saveSnapshot(
+        input.operationId,
+        snapshot,
+      );
       await appendAudit(services, {
         holeId: input.holeId,
         operationId: input.operationId,
@@ -228,100 +302,51 @@ export async function generateReport(
 
     let blob: Blob | null = null;
     let usedCsvDataset = input.csvDataset;
+
     if (
       transaction.stage === "SNAPSHOT_SAVED" ||
-      transaction.stage === "DOCUMENT_GENERATED"
+      transaction.stage === "DOCUMENT_GENERATING"
     ) {
-      if (transaction.stage === "SNAPSHOT_SAVED") {
-        const generated = await generateBlob(
-          snapshot,
-          input.format,
-          input.csvDataset,
+      notify?.(documentProgress(input.format));
+      transaction = await services.reports.advanceGeneration({
+        operationId: input.operationId,
+        stage: "DOCUMENT_GENERATING",
+      });
+      const generated = await generateBlob(
+        snapshot,
+        input.format,
+        input.csvDataset,
+      );
+      blob = generated.blob;
+      usedCsvDataset = generated.csvDataset;
+      if (blob.size <= 0) {
+        throw new ReportApplicationError(
+          "VERIFICATION_FAILED",
+          "The generator produced an empty file.",
         );
-        blob = generated.blob;
-        usedCsvDataset = generated.csvDataset;
-        transaction = await services.reports.advanceGeneration({
-          operationId: input.operationId,
-          stage: "DOCUMENT_GENERATED",
-        });
-        await appendAudit(services, {
-          holeId: input.holeId,
-          operationId: input.operationId,
-          action:
-            input.format === "PDF"
-              ? "report_pdf_generated"
-              : input.format === "XLSX"
-                ? "report_excel_generated"
-                : "report_csv_generated",
-          entityId: snapshot.id,
-          userId: input.generatedByUserId,
-          userName: input.generatedByNameSnapshot,
-          metadata: { format: input.format, version: snapshot.version },
-        });
       }
+      transaction = await services.reports.advanceGeneration({
+        operationId: input.operationId,
+        stage: "DOCUMENT_GENERATED",
+      });
+      await appendAudit(services, {
+        holeId: input.holeId,
+        operationId: input.operationId,
+        action:
+          input.format === "PDF"
+            ? "report_pdf_generated"
+            : input.format === "XLSX"
+              ? "report_excel_generated"
+              : "report_csv_generated",
+        entityId: snapshot.id,
+        userId: input.generatedByUserId,
+        userName: input.generatedByNameSnapshot,
+        metadata: { format: input.format, version: snapshot.version },
+      });
     }
 
     let storageKey = transaction.storageKey;
-    if (
-      transaction.stage === "DOCUMENT_GENERATED" ||
-      transaction.stage === "FILE_SAVED"
-    ) {
-      if (transaction.stage === "DOCUMENT_GENERATED") {
-        if (blob === null) {
-          const generated = await generateBlob(
-            snapshot,
-            input.format,
-            input.csvDataset,
-          );
-          blob = generated.blob;
-          usedCsvDataset = generated.csvDataset;
-        }
-        const filename = buildReportFilename({
-          holeId: input.holeId,
-          reportType: input.reportType,
-          format: input.format,
-          version: snapshot.version,
-          generatedAt: snapshot.generatedAt,
-          shiftLabel: snapshot.documentData.currentShift?.label,
-          csvDataset: usedCsvDataset,
-        });
-        const saved = await services.reportFiles.save(
-          input.operationId,
-          filename,
-          reportMimeType(input.format),
-          blob,
-        );
-        const verified = await services.reportFiles.verify(saved.storageKey);
-        if (!verified) {
-          throw new ReportApplicationError(
-            "STORAGE_FAILED",
-            "Generated report file could not be verified in storage.",
-          );
-        }
-        storageKey = saved.storageKey;
-        transaction = await services.reports.advanceGeneration({
-          operationId: input.operationId,
-          stage: "FILE_SAVED",
-          storageKey,
-        });
-      }
-    }
-
-    if (storageKey === undefined) {
-      throw new ReportApplicationError(
-        "STORAGE_FAILED",
-        "Report file storage key is missing.",
-      );
-    }
-
-    const existingFile = await services.reportFiles.get(storageKey);
-    if (existingFile === null) {
-      throw new ReportApplicationError(
-        "STORAGE_FAILED",
-        "Report file is missing after save.",
-      );
-    }
-
+    const mimeType = reportMimeType(input.format);
     const filename = buildReportFilename({
       holeId: input.holeId,
       reportType: input.reportType,
@@ -332,6 +357,102 @@ export async function generateReport(
       csvDataset: usedCsvDataset,
     });
 
+    if (
+      transaction.stage === "DOCUMENT_GENERATED" ||
+      transaction.stage === "FILE_SAVING"
+    ) {
+      notify?.("Saving report locally…");
+      if (transaction.stage === "DOCUMENT_GENERATED") {
+        transaction = await services.reports.advanceGeneration({
+          operationId: input.operationId,
+          stage: "FILE_SAVING",
+        });
+      }
+      storageKey = transaction.storageKey ?? storageKey;
+      if (storageKey === undefined) {
+        if (blob === null) {
+          const generated = await generateBlob(
+            snapshot,
+            input.format,
+            input.csvDataset,
+          );
+          blob = generated.blob;
+          usedCsvDataset = generated.csvDataset;
+        }
+        await assertValidReportBlob({
+          blob,
+          format: input.format,
+          filename,
+          mimeType,
+        });
+        const saved = await services.reportFiles.save(
+          input.operationId,
+          filename,
+          mimeType,
+          blob,
+        );
+        storageKey = saved.storageKey;
+      }
+    }
+
+    if (
+      transaction.stage === "FILE_SAVING" ||
+      transaction.stage === "FILE_SAVED"
+    ) {
+      notify?.("Verifying file…");
+      storageKey = storageKey ?? transaction.storageKey;
+      if (storageKey === undefined) {
+        throw new ReportApplicationError(
+          "STORAGE_FAILED",
+          "Report file storage key is missing.",
+        );
+      }
+      const verified = await services.reportFiles.verify(storageKey, {
+        format: input.format,
+        filename,
+        mimeType,
+      });
+      if (!verified) {
+        throw new ReportApplicationError(
+          "VERIFICATION_FAILED",
+          "Generated report file could not be verified in storage.",
+        );
+      }
+      const retrieved = await services.reportFiles.get(storageKey);
+      if (retrieved === null || retrieved.size <= 0) {
+        throw new ReportApplicationError(
+          "VERIFICATION_FAILED",
+          "Stored report file could not be retrieved after save.",
+        );
+      }
+      await assertValidReportBlob({
+        blob: retrieved,
+        format: input.format,
+        filename,
+        mimeType,
+      });
+      transaction = await services.reports.advanceGeneration({
+        operationId: input.operationId,
+        stage: "FILE_VERIFIED",
+        storageKey,
+      });
+    }
+
+    if (storageKey === undefined) {
+      throw new ReportApplicationError(
+        "STORAGE_FAILED",
+        "Report file storage key is missing.",
+      );
+    }
+
+    const existingFile = await services.reportFiles.get(storageKey);
+    if (existingFile === null || existingFile.size <= 0) {
+      throw new ReportApplicationError(
+        "STORAGE_FAILED",
+        "Report file is missing after save.",
+      );
+    }
+
     const report: GeneratedReportRecord = {
       localId: `report-${input.operationId}`,
       holeId: input.holeId,
@@ -340,7 +461,7 @@ export async function generateReport(
       format: input.format,
       version: snapshot.version,
       filename,
-      mimeType: reportMimeType(input.format),
+      mimeType,
       storageKey,
       sizeBytes: existingFile.size,
       generatedAt: snapshot.generatedAt,
@@ -358,9 +479,34 @@ export async function generateReport(
     };
 
     if (
-      transaction.stage === "FILE_SAVED" ||
+      transaction.stage === "FILE_VERIFIED" ||
+      isFileReadyStage(transaction.stage) ||
       transaction.stage === "METADATA_SAVED"
     ) {
+      if (
+        transaction.stage !== "FILE_VERIFIED" &&
+        transaction.stage !== "METADATA_SAVED" &&
+        transaction.stage !== "COMPLETED"
+      ) {
+        // Legacy FILE_SAVED resume: re-verify before metadata.
+        notify?.("Verifying file…");
+        const verified = await services.reportFiles.verify(storageKey, {
+          format: input.format,
+          filename,
+          mimeType,
+        });
+        if (!verified) {
+          throw new ReportApplicationError(
+            "VERIFICATION_FAILED",
+            "Generated report file could not be verified in storage.",
+          );
+        }
+        transaction = await services.reports.advanceGeneration({
+          operationId: input.operationId,
+          stage: "FILE_VERIFIED",
+          storageKey,
+        });
+      }
       await services.reports.saveGeneratedReport(input.operationId, report);
       transaction = await services.reports.advanceGeneration({
         operationId: input.operationId,
@@ -383,10 +529,11 @@ export async function generateReport(
 
     return { report, recovered, alreadyCompleted: false };
   } catch (error) {
+    const facing = userFacingError(error);
     await services.reports.advanceGeneration({
       operationId: input.operationId,
       stage: "FAILED",
-      failureReason: error instanceof Error ? error.message : "Unknown error",
+      failureReason: facing.message,
     });
     await appendAudit(services, {
       holeId: input.holeId,
@@ -396,10 +543,21 @@ export async function generateReport(
       userId: input.generatedByUserId,
       userName: input.generatedByNameSnapshot,
       metadata: {
-        reason: error instanceof Error ? error.message : "Unknown error",
+        reason: facing.code,
+        stage: transaction.stage,
       },
     });
-    throw error;
+    // Log technical detail without private report contents.
+    console.error("[TargetLock reports]", facing.code, {
+      operationId: input.operationId,
+      holeId: input.holeId,
+      reportType: input.reportType,
+      format: input.format,
+      stage: transaction.stage,
+      technical:
+        error instanceof Error ? error.message : "non-error rejection",
+    });
+    throw facing;
   }
 }
 
@@ -432,18 +590,28 @@ export async function downloadReport(
     readonly userName: string;
   },
   services: ReportServices,
-): Promise<{ readonly blob: Blob; readonly filename: string; readonly mimeType: string }> {
+): Promise<{
+  readonly blob: Blob;
+  readonly filename: string;
+  readonly mimeType: string;
+}> {
   const report = await services.reports.getReport(input.reportId);
   if (report === null || report.holeId !== input.holeId) {
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
   const blob = await services.reportFiles.get(report.storageKey);
-  if (blob === null) {
+  if (blob === null || blob.size <= 0) {
     throw new ReportApplicationError(
       "STORAGE_FAILED",
       "Report file is no longer available locally.",
     );
   }
+  await assertValidReportBlob({
+    blob,
+    format: report.format,
+    filename: report.filename,
+    mimeType: report.mimeType,
+  });
   await services.share.download({
     filename: report.filename,
     mimeType: report.mimeType,
@@ -467,6 +635,92 @@ export async function downloadReport(
   return { blob, filename: report.filename, mimeType: report.mimeType };
 }
 
+export type OpenReportResult =
+  | { readonly status: "opened"; readonly filename: string }
+  | {
+      readonly status: "popup_blocked";
+      readonly filename: string;
+      readonly downloadOffered: boolean;
+    };
+
+export async function openReport(
+  input: {
+    readonly operationId: string;
+    readonly reportId: string;
+    readonly holeId: string;
+    readonly userId: string;
+    readonly userName: string;
+  },
+  services: ReportServices,
+): Promise<OpenReportResult> {
+  const report = await services.reports.getReport(input.reportId);
+  if (report === null || report.holeId !== input.holeId) {
+    throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
+  }
+  if (report.format !== "PDF") {
+    throw new ReportApplicationError(
+      "UNSUPPORTED",
+      "Open in browser is available for PDF reports only.",
+    );
+  }
+  const blob = await services.reportFiles.get(report.storageKey);
+  if (blob === null || blob.size <= 0) {
+    throw new ReportApplicationError(
+      "STORAGE_FAILED",
+      "Report file is no longer available locally.",
+    );
+  }
+  await assertValidReportBlob({
+    blob,
+    format: report.format,
+    filename: report.filename,
+    mimeType: report.mimeType,
+  });
+
+  if (typeof window === "undefined" || typeof URL === "undefined") {
+    throw new ReportApplicationError(
+      "UNSUPPORTED",
+      "Opening reports requires a browser window.",
+    );
+  }
+
+  const objectUrl = URL.createObjectURL(blob);
+  const opened = window.open(objectUrl, "_blank", "noopener,noreferrer");
+  if (opened === null) {
+    URL.revokeObjectURL(objectUrl);
+    await services.share.download({
+      filename: report.filename,
+      mimeType: report.mimeType,
+      blob,
+      title: report.filename,
+    });
+    await appendAudit(services, {
+      holeId: input.holeId,
+      operationId: input.operationId,
+      action: "report_open_popup_blocked",
+      entityId: report.localId,
+      userId: input.userId,
+      userName: input.userName,
+    });
+    return {
+      status: "popup_blocked",
+      filename: report.filename,
+      downloadOffered: true,
+    };
+  }
+
+  window.setTimeout(() => URL.revokeObjectURL(objectUrl), 60_000);
+  await appendAudit(services, {
+    holeId: input.holeId,
+    operationId: input.operationId,
+    action: "report_opened",
+    entityId: report.localId,
+    userId: input.userId,
+    userName: input.userName,
+  });
+  return { status: "opened", filename: report.filename };
+}
+
 export async function shareReport(
   input: {
     readonly operationId: string;
@@ -482,7 +736,7 @@ export async function shareReport(
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
   const blob = await services.reportFiles.get(report.storageKey);
-  if (blob === null) {
+  if (blob === null || blob.size <= 0) {
     throw new ReportApplicationError(
       "STORAGE_FAILED",
       "Report file is no longer available locally.",
@@ -573,7 +827,7 @@ export async function prepareEmailDraft(
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
   const blob = await services.reportFiles.get(report.storageKey);
-  if (blob === null) {
+  if (blob === null || blob.size <= 0) {
     throw new ReportApplicationError(
       "STORAGE_FAILED",
       "Report file is no longer available locally.",
@@ -627,7 +881,6 @@ export async function prepareEmailDraft(
     },
   });
 
-  // mailto cannot attach files — download for manual attach.
   await services.share.download({
     filename: report.filename,
     mimeType: report.mimeType,
@@ -647,7 +900,6 @@ export async function prepareEmailDraft(
   const mailtoUrl = `mailto:${input.toRecipients.join(",")}?${params.toString()}`;
 
   if (input.openMailClient !== false && typeof window !== "undefined") {
-    // Prefer a new browsing context so Report Centre stays mounted.
     window.open(mailtoUrl, "_blank", "noopener,noreferrer");
   }
 
@@ -693,6 +945,29 @@ export async function listGeneratedReports(
   services: Pick<ReportServices, "reports">,
 ): Promise<readonly GeneratedReportRecord[]> {
   return services.reports.listReports(holeId);
+}
+
+export async function evaluateGeneratedReportCurrency(
+  report: GeneratedReportRecord,
+  services: ReportServices,
+): Promise<ReportCurrencyResult> {
+  const snapshot = await services.reports.getSnapshot(report.snapshotId);
+  if (snapshot === null) {
+    return {
+      status: "out_of_date",
+      generatedFingerprint: "",
+      currentFingerprint: "missing-snapshot",
+      changesDetected: ["Report snapshot missing"],
+    };
+  }
+  const current = await buildReportDocumentData(
+    {
+      holeId: report.holeId,
+      reportType: report.reportType,
+    },
+    services,
+  );
+  return evaluateReportCurrency(snapshot.sourceVersions, current.sourceVersions);
 }
 
 export async function updateReportOutboxStatus(

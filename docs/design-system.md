@@ -248,10 +248,20 @@ reason.
 
 ## Stage 6 report patterns
 
-- Report Centre: large report-type radios, clear format checkboxes, visible
-  generation progress via a polite live region, and filename wrapping.
-- Actions are labelled with file type (`Download PDF`, `Share XLSX`). Touch
-  targets remain at least 44×44 px.
+- Report Centre: large report-type radios, clear format checkboxes, staged
+  generation progress (`Building report snapshot…`, `Generating PDF…`,
+  `Saving report locally…`, `Verifying file…`) with Generate disabled while
+  active, and a persistent **Report generated** success card (filename, format,
+  version, size, relative time) until dismissed.
+- Concise local-storage disclosure: reports stay on this device and are not
+  backed up or synchronised by Railway.
+- Actions: **Open PDF** (object URL created on user gesture), **Download**,
+  **Share**, **Prepare Email**, **Generate New Version**. Download confirms
+  “Download started” + filename only.
+- Out-of-date banner when the Hole fingerprint changed: keep historical version
+  or generate an updated version; never mutate the old file.
+- Failed generations show failed stage, clear error, and Retry — never a false
+  Generated status.
 - Activity statuses are **Generated**, **Downloaded**, **Shared**,
   **Email draft**, or **Failed** — never Sent or Delivered. Status is not
   colour-only.

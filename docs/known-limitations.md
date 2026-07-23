@@ -1,15 +1,20 @@
 # TargetLock Known Limitations
 
-Status date: 2026-07-22  
-Scope: local pilot of Stages 1–6 in `packages/main`
+Status date: 2026-07-24
+Scope: local pilot of Stages 1–6 in `packages/main` + V2 report reliability
 
 ## Acceptable local-pilot limitations
 
 - **Browser-only storage.** Records live in localStorage and IndexedDB on one
   browser profile. Clearing site data loses local work.
+- **Reports are device-local.** Generated PDF/Excel/CSV blobs are verified in
+  IndexedDB on this browser only. They are not backed up or synchronised by
+  Railway; download important reports to permanent storage.
 - **Railway hosts code only.** A public Railway deployment serves the Next.js
   app; Runs, photographs and reports still remain local to each browser and are
   not synchronised or backed up by Railway.
+- **Open PDF depends on the browser.** Popup blockers may force a download
+  fallback. Object URLs are temporary and revoked after open.
 - **No authentication.** Operator identity is seed/local snapshot based. An
   optional Railway HTTP Basic pilot-access gate may protect the public URL; it
   is not user-account authentication.

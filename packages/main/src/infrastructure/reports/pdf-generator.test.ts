@@ -1,3 +1,4 @@
+import { PDFDocument } from "pdf-lib";
 import { describe, expect, it } from "vitest";
 
 import { decimetres, type ReportSnapshot } from "@/domain";
@@ -116,9 +117,27 @@ describe("buildPdfLayoutModel", () => {
 });
 
 describe("generateReportPdf", () => {
-  it("produces a non-empty PDF blob", async () => {
+  it("produces a non-empty PDF blob with %PDF- signature", async () => {
     const blob = await generateReportPdf(snapshot());
     expect(blob.type).toBe("application/pdf");
     expect(blob.size).toBeGreaterThan(500);
+    const header = new TextDecoder().decode(await blob.slice(0, 5).arrayBuffer());
+    expect(header).toBe("%PDF-");
+    const tail = await blob.slice(Math.max(0, blob.size - 1024)).text();
+    expect(tail).toContain("%%EOF");
+  });
+
+  it("includes Hole Summary layout and at least one openable page", async () => {
+    const holeSummary = snapshot({ reportType: "HOLE_SUMMARY", version: 1 });
+    const model = buildPdfLayoutModel(holeSummary);
+    expect(model.holeId).toBe("DDH041");
+    expect(model.version).toBe(1);
+    expect(model.sections).toEqual(
+      expect.arrayContaining(["Hole information", "Statistics"]),
+    );
+
+    const blob = await generateReportPdf(holeSummary);
+    const doc = await PDFDocument.load(await blob.arrayBuffer());
+    expect(doc.getPageCount()).toBeGreaterThanOrEqual(1);
   });
 });

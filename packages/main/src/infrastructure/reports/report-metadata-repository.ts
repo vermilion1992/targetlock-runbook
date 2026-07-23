@@ -43,8 +43,11 @@ const reportFormatSchema = z.enum(["PDF", "XLSX", "CSV"]);
 const generationStageSchema = z.enum([
   "SNAPSHOT_BUILDING",
   "SNAPSHOT_SAVED",
+  "DOCUMENT_GENERATING",
   "DOCUMENT_GENERATED",
+  "FILE_SAVING",
   "FILE_SAVED",
+  "FILE_VERIFIED",
   "METADATA_SAVED",
   "COMPLETED",
   "FAILED",
@@ -304,6 +307,9 @@ export interface ReportMetadataRepository {
   getPendingTransaction(
     holeId: string,
   ): Promise<ReportGenerationTransaction | null>;
+  listFailedTransactions(
+    holeId: string,
+  ): Promise<readonly ReportGenerationTransaction[]>;
   listRecipients(input: {
     readonly holeId?: string;
     readonly projectId?: string;
@@ -538,7 +544,14 @@ export class LocalReportMetadataRepository implements ReportMetadataRepository {
         "Report generation transaction was not found.",
       );
     }
-    if (transaction.stage === input.stage) {
+    if (
+      transaction.stage === input.stage &&
+      (input.storageKey === undefined ||
+        input.storageKey === transaction.storageKey) &&
+      (input.reportRecordId === undefined ||
+        input.reportRecordId === transaction.reportRecordId) &&
+      input.failureReason === transaction.failureReason
+    ) {
       return transaction;
     }
     const next: ReportGenerationTransaction = {
@@ -686,6 +699,17 @@ export class LocalReportMetadataRepository implements ReportMetadataRepository {
           transaction.stage !== "FAILED",
       ) ?? null
     );
+  }
+
+  async listFailedTransactions(
+    holeId: string,
+  ): Promise<readonly ReportGenerationTransaction[]> {
+    return this.read()
+      .transactions.filter(
+        (transaction) =>
+          transaction.holeId === holeId && transaction.stage === "FAILED",
+      )
+      .sort((left, right) => right.updatedAt.localeCompare(left.updatedAt));
   }
 
   async listRecipients(input: {

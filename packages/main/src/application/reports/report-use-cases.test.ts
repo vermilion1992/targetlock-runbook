@@ -318,6 +318,9 @@ function makeServices(
         latestReopenRecordId: undefined,
       };
     },
+    async getReopenHistory() {
+      return [];
+    },
     async getLatestCompletion(holeId: string) {
       if (!completionSnapshot || holeId !== "DDH041") return null;
       return {
@@ -571,5 +574,77 @@ describe("generateReport", () => {
       services,
     );
     expect(await services.reports.listReports("DDH099")).toHaveLength(0);
+  });
+
+  it("does not mark failed generation as generated and allows retry with new op id", async () => {
+    const services = makeServices();
+    const original = services.reportFiles.save.bind(services.reportFiles);
+    let calls = 0;
+    services.reportFiles.save = async (...args) => {
+      calls += 1;
+      if (calls === 1) {
+        throw new Error("IndexedDB quota exceeded");
+      }
+      return original(...args);
+    };
+
+    await expect(
+      generateReport(
+        {
+          operationId: "op-fail-once",
+          holeId: "DDH041",
+          reportType: "HOLE_SUMMARY",
+          format: "PDF",
+          generatedByUserId: "user-1",
+          generatedByNameSnapshot: "Hoffman",
+          generatedAt: NOW,
+        },
+        services,
+      ),
+    ).rejects.toMatchObject({ code: "QUOTA_EXCEEDED" });
+
+    expect(await services.reports.listReports("DDH041")).toHaveLength(0);
+    const failed = await services.reports.listFailedTransactions("DDH041");
+    expect(failed[0]?.stage).toBe("FAILED");
+
+    const retried = await generateReport(
+      {
+        operationId: "op-fail-retry",
+        holeId: "DDH041",
+        reportType: "HOLE_SUMMARY",
+        format: "PDF",
+        generatedByUserId: "user-1",
+        generatedByNameSnapshot: "Hoffman",
+        generatedAt: NOW,
+      },
+      services,
+    );
+    expect(retried.report.activityStatus).toBe("GENERATED");
+    expect(retried.report.sizeBytes).toBeGreaterThan(0);
+    expect(await services.reports.listReports("DDH041")).toHaveLength(1);
+  });
+
+  it("emits staged progress callbacks before completion", async () => {
+    const services = makeServices();
+    const stages: string[] = [];
+    await generateReport(
+      {
+        operationId: "op-progress",
+        holeId: "DDH041",
+        reportType: "HOLE_SUMMARY",
+        format: "PDF",
+        generatedByUserId: "user-1",
+        generatedByNameSnapshot: "Hoffman",
+        generatedAt: NOW,
+        onProgress: (stage) => stages.push(stage),
+      },
+      services,
+    );
+    expect(stages).toEqual([
+      "Building report snapshot…",
+      "Generating PDF…",
+      "Saving report locally…",
+      "Verifying file…",
+    ]);
   });
 });
