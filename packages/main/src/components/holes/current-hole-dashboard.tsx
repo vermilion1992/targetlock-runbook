@@ -46,9 +46,14 @@ import {
   formatRecoveryPercentage,
   normalizeHoleStatus,
   type HoleAnalytics,
+  type HoleTrajectoryComparison,
   type ShiftAnalytics,
 } from "@/domain";
 import type { TargetLockStage1Seed } from "@/infrastructure/seed";
+import {
+  formatMetresValue,
+  formatVerticalOfPlan,
+} from "@/components/trajectory/trajectory-format";
 
 export function CurrentHoleDashboard({
   holeId,
@@ -72,6 +77,9 @@ export function CurrentHoleDashboard({
     null,
   );
   const [holeAnalytics, setHoleAnalytics] = useState<HoleAnalytics | null>(
+    null,
+  );
+  const [trajectory, setTrajectory] = useState<HoleTrajectoryComparison | null>(
     null,
   );
   const [warning, setWarning] = useState<string | null>(null);
@@ -117,6 +125,17 @@ export function CurrentHoleDashboard({
           setHoleAnalytics(analytics);
         } else {
           setHoleAnalytics(null);
+        }
+        if (services.trajectoryComparison) {
+          try {
+            setTrajectory(
+              await services.trajectoryComparison.getComparison(holeId),
+            );
+          } catch {
+            setTrajectory(null);
+          }
+        } else {
+          setTrajectory(null);
         }
       })
       .catch((error: unknown) =>
@@ -524,6 +543,62 @@ export function CurrentHoleDashboard({
           </div>
         </article>
       </section>
+
+      {trajectory &&
+      !trajectory.blocked &&
+      trajectory.currentTrackingPoint ? (
+        <section
+          aria-label="Trajectory tracking"
+          className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5"
+          data-testid="trajectory-tracking-card"
+        >
+          <div className="flex items-center gap-2">
+            <Compass aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
+            <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+              Trajectory tracking
+            </h2>
+          </div>
+          <div className="mt-3 grid grid-cols-2 gap-3">
+            <MetricDisplay
+              label="Latest Survey"
+              value={formatMetresValue(
+                trajectory.currentTrackingPoint.measuredDepthM,
+              )}
+              emphasis="strong"
+            />
+            <MetricDisplay
+              label="Horizontal deviation from plan"
+              value={formatMetresValue(
+                trajectory.currentTrackingPoint.horizontalDeviationM,
+              )}
+            />
+            <MetricDisplay
+              label="Vertical deviation from plan"
+              value={formatVerticalOfPlan(
+                trajectory.currentTrackingPoint.deltaRlM,
+              )}
+            />
+            <MetricDisplay
+              label="Distance to target"
+              value={
+                trajectory.targetTracking
+                  ? formatMetresValue(
+                      trajectory.targetTracking.actualEndpointDistanceM,
+                    )
+                  : "Not configured"
+              }
+            />
+          </div>
+          <div className="mt-4">
+            <Link
+              href={runbookRoutes.trajectory(holeId)}
+              className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
+            >
+              View trajectory
+            </Link>
+          </div>
+        </section>
+      ) : null}
 
       <HoleRecordSearch holeId={holeId} />
 

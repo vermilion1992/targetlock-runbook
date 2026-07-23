@@ -137,7 +137,9 @@ Domain calculations do not depend on React or browser storage.
 15. Survey input parses depth to integer decimetres and angles to integer
     tenths. Warning assessment uses circular azimuth difference, allows a
     deliberately confirmed repeated depth as a new record, and never performs
-    a trajectory or north-reference conversion.
+    a trajectory or north-reference conversion inside the Survey layer.
+    Trajectory comparison is owned by `LocalTrajectoryRepository` plus
+    `getHoleTrajectoryComparison` / pure domain desurvey modules.
 16. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
     and operation stages in localStorage. `IndexedDbMediaRepository` stores the
     original/preview blobs separately. A tray is activated only after its

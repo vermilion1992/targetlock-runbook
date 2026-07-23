@@ -12,4 +12,6 @@ export * from "./shift-analytics-query";
 export * from "./shift-use-cases";
 export * from "./survey-use-cases";
 export * from "./tray-use-cases";
+export * from "./trajectory-use-cases";
+export * from "./trajectory-comparison-query";
 export * from "../reports";

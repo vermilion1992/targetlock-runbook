@@ -359,6 +359,79 @@ export async function generateExcelWorkbook(
     );
   }
 
+  if (data.trajectorySummary) {
+    const trajectory = data.trajectorySummary;
+    addSheet(
+      workbook,
+      "Target Summary",
+      ["metric", "value"],
+      [
+        ["active_plan", trajectory.activePlanName ?? ""],
+        ["coordinate_mode", trajectory.coordinateMode ?? ""],
+        ["desurvey_method", trajectory.desurveyMethod],
+        ["engine_version", trajectory.engineVersion],
+        [
+          "distance_to_target_m",
+          trajectory.distanceToTargetM ?? "",
+        ],
+        [
+          "planned_endpoint_distance_to_target_m",
+          trajectory.plannedEndpointDistanceToTargetM ?? "",
+        ],
+        ["closest_approach_m", trajectory.closestApproachM ?? ""],
+        ["warning_count", trajectory.warningCount],
+      ],
+    );
+    addSheet(
+      workbook,
+      "Planned Trajectory Stations",
+      ["md_m", "dip_deg", "azimuth_deg", "e_m", "n_m", "rl_m", "tvd_m"],
+      trajectory.plannedStations.map((station) => [
+        station.measuredDepthM,
+        station.dipDegrees,
+        station.azimuthDegrees,
+        station.eastingM,
+        station.northingM,
+        station.rlM,
+        station.tvdM,
+      ]),
+    );
+    addSheet(
+      workbook,
+      "Actual Trajectory Stations",
+      ["md_m", "dip_deg", "azimuth_deg", "e_m", "n_m", "rl_m", "tvd_m"],
+      trajectory.actualStations.map((station) => [
+        station.measuredDepthM,
+        station.dipDegrees,
+        station.azimuthDegrees,
+        station.eastingM,
+        station.northingM,
+        station.rlM,
+        station.tvdM,
+      ]),
+    );
+    addSheet(
+      workbook,
+      "Trajectory Tracking",
+      [
+        "md_m",
+        "delta_e_m",
+        "delta_n_m",
+        "delta_rl_m",
+        "spatial_m",
+        "status",
+      ],
+      trajectory.trackingRows.map((row) => [
+        row.measuredDepthM,
+        row.deltaEastingM,
+        row.deltaNorthingM,
+        row.deltaRlM,
+        row.spatialDeviationM,
+        row.status,
+      ]),
+    );
+  }
+
   addSheet(
     workbook,
     "Runs",

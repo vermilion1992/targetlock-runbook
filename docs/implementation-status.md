@@ -2,7 +2,20 @@
 
 Status date: 2026-07-24
 Target: `packages/main` only
-Stage: V2 Implementation 4 — End-of-Hole analytics and analytical reports
+Stage: V2 Implementation 5 — Planned versus actual Survey trajectories
+
+## V2 Implementation 5 — Planned versus actual Survey trajectories
+
+Authoritative minimum-curvature trajectory engine (`minimum-curvature-v1`)
+calculates independent planned and actual paths from planned directional
+stations and selected Survey readings. Hole coordinate configuration supports
+relative and mine-grid modes; optional targets store E/N/RL separately from
+endpoint attitude. Same-MD tracking, target distance / closest approach,
+plan/setup/comparison UI, Current Hole card, Hole Analytics Trajectory
+section, and Hole Summary / Full-Hole / Excel trajectory summaries share one
+comparison query. Polished interactive 3D renderer deferred to Implementation
+6. Out of scope: steering recommendations, certified anti-collision, geographic
+reprojection, PDF chart images.
 
 ## V2 Implementation 4 — End-of-Hole analytics and analytical reports
 

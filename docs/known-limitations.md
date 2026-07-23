@@ -62,12 +62,24 @@ These must be solved before production or multi-device deployment:
 - Production dependency advisory review beyond the local pilot scope
 - Physical-device accessibility sign-off
 
+## Trajectory limitations (V2 Implementation 5)
+
+- **Polished interactive 3D renderer is deferred** to Implementation 6.
+  Foundation plan view, vertical section, and dip/azimuth trends are available.
+- **No steering recommendations** and **no certified anti-collision**.
+- **Display tolerances are visual only** unless supplied by an authorised
+  project source.
+- **Mine-grid mode does not reproject** between EPSG systems; entered
+  coordinates must already belong to the named grid.
+- **Endpoint dip/azimuth alone do not prove target intersection.** Target
+  coordinates are stored and checked separately from the directional plan.
+- **PDF report graphics** for trajectories remain deferred; text/Excel
+  summaries are included.
+
 ## Hole analytics limitations (V2 Implementation 4)
 
 - PDF Hole Summary / Full-Hole reports include analytical tables and chart text
   summaries only; deterministic chart-image embedding is deferred.
-- Survey trajectory, TVD, lateral displacement, target distance, and dogleg
-  severity are not calculated (next trajectory implementation).
 - Observed component recovery does not prove causation; partial boundary Runs
   remain labelled as run-level estimates.
 - Driller breakdown is an operational record, not a performance leaderboard.
@@ -76,8 +88,8 @@ These must be solved before production or multi-device deployment:
 
 ## Future enhancements
 
-- Survey desurveying / 3D trajectory graphics / coordinate-system conversion
-- Deterministic PDF chart-image embedding for Hole analytics
+- Polished interactive 3D trajectory renderer (Implementation 6)
+- Deterministic PDF chart-image embedding for Hole analytics and trajectories
 - Tray OCR / annotation
 - Payroll, hours, delays, costs
 - SQLite and service-worker offline packaging

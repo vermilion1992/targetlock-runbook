@@ -52,7 +52,9 @@ V2 end-of-Hole analytics provide a repository-backed Hole overview on
 Summary reports (executive summary, operational analysis tables, chart text
 summaries, Excel analytics sheets). Weighted recovery, void exclusion, shared
 Run attribution, observed component recovery (with partial-Run labels), and
-per-category record completeness apply. Survey trajectory / 3D graphics,
+per-category record completeness apply. Polished interactive 3D trajectory
+graphics remain deferred; foundation planned-versus-actual trajectories apply
+after V2 Implementation 5. Survey trajectory / legacy 3D graphics,
 payroll, downtime costing, and employee rankings remain out of scope.
 
 Completed Runs may be corrected or voided only through an audited workflow:

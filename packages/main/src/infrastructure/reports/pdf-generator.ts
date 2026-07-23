@@ -424,6 +424,70 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
     }
   }
 
+  if (
+    data.trajectorySummary &&
+    (snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
+      snapshot.reportType === "HOLE_SUMMARY")
+  ) {
+    const trajectory = data.trajectorySummary;
+    writer.heading("Trajectory tracking summary");
+    writer.line(`Active plan ${trajectory.activePlanName ?? "None"}`);
+    writer.line(
+      `Coordinate system ${trajectory.coordinateSystemName ?? trajectory.coordinateMode ?? "Relative"}`,
+    );
+    writer.line(`Desurvey method ${trajectory.desurveyMethod}`);
+    writer.line(`Engine ${trajectory.engineVersion}`);
+    if (trajectory.latestSurveyDepthM !== undefined) {
+      writer.line(
+        `Latest Survey depth ${trajectory.latestSurveyDepthM.toFixed(1)} m`,
+      );
+    }
+    if (
+      trajectory.plannedEastingM !== undefined &&
+      trajectory.plannedNorthingM !== undefined &&
+      trajectory.plannedRlM !== undefined
+    ) {
+      writer.line(
+        `Current planned position E ${trajectory.plannedEastingM.toFixed(1)} N ${trajectory.plannedNorthingM.toFixed(1)} RL ${trajectory.plannedRlM.toFixed(1)}`,
+      );
+    }
+    if (
+      trajectory.actualEastingM !== undefined &&
+      trajectory.actualNorthingM !== undefined &&
+      trajectory.actualRlM !== undefined
+    ) {
+      writer.line(
+        `Current actual position E ${trajectory.actualEastingM.toFixed(1)} N ${trajectory.actualNorthingM.toFixed(1)} RL ${trajectory.actualRlM.toFixed(1)}`,
+      );
+    }
+    if (trajectory.horizontalDeviationM !== undefined) {
+      writer.line(
+        `Horizontal deviation from plan ${trajectory.horizontalDeviationM.toFixed(1)} m`,
+      );
+    }
+    if (trajectory.verticalDeviationM !== undefined) {
+      writer.line(
+        `Vertical deviation from plan ${trajectory.verticalDeviationM.toFixed(1)} m`,
+      );
+    }
+    if (trajectory.spatialDeviationM !== undefined) {
+      writer.line(
+        `3D deviation from plan ${trajectory.spatialDeviationM.toFixed(1)} m`,
+      );
+    }
+    if (trajectory.distanceToTargetM !== undefined) {
+      writer.line(
+        `Distance from surveyed endpoint to target ${trajectory.distanceToTargetM.toFixed(1)} m`,
+      );
+    }
+    if (trajectory.plannedEndpointDistanceToTargetM !== undefined) {
+      writer.line(
+        `Planned endpoint distance to target ${trajectory.plannedEndpointDistanceToTargetM.toFixed(1)} m`,
+      );
+    }
+    writer.line(`Trajectory warnings ${trajectory.warningCount}`);
+  }
+
   if (data.completion) {
     writer.heading("Completion");
     writer.line(

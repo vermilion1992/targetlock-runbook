@@ -344,7 +344,57 @@ export interface ReportDocumentData {
   readonly shiftAnalytics?: ReportShiftAnalytics;
   /** Present on Full-Hole and Hole Summary reports after V2 hole analytics. */
   readonly holeAnalytics?: ReportHoleAnalytics;
+  /** Present when planned/actual trajectory comparison is available. */
+  readonly trajectorySummary?: ReportTrajectorySummary;
   readonly disclosures: readonly string[];
+}
+
+export interface ReportTrajectorySummary {
+  readonly activePlanName?: string;
+  readonly coordinateMode?: string;
+  readonly coordinateSystemName?: string;
+  readonly desurveyMethod: string;
+  readonly engineVersion: string;
+  readonly latestSurveyDepthM?: number;
+  readonly plannedEastingM?: number;
+  readonly plannedNorthingM?: number;
+  readonly plannedRlM?: number;
+  readonly actualEastingM?: number;
+  readonly actualNorthingM?: number;
+  readonly actualRlM?: number;
+  readonly horizontalDeviationM?: number;
+  readonly verticalDeviationM?: number;
+  readonly spatialDeviationM?: number;
+  readonly distanceToTargetM?: number;
+  readonly plannedEndpointDistanceToTargetM?: number;
+  readonly closestApproachM?: number;
+  readonly warningCount: number;
+  readonly plannedStations: readonly {
+    readonly measuredDepthM: number;
+    readonly dipDegrees: number;
+    readonly azimuthDegrees: number;
+    readonly eastingM: number;
+    readonly northingM: number;
+    readonly rlM: number;
+    readonly tvdM: number;
+  }[];
+  readonly actualStations: readonly {
+    readonly measuredDepthM: number;
+    readonly dipDegrees: number;
+    readonly azimuthDegrees: number;
+    readonly eastingM: number;
+    readonly northingM: number;
+    readonly rlM: number;
+    readonly tvdM: number;
+  }[];
+  readonly trackingRows: readonly {
+    readonly measuredDepthM: number;
+    readonly deltaEastingM: number;
+    readonly deltaNorthingM: number;
+    readonly deltaRlM: number;
+    readonly spatialDeviationM: number;
+    readonly status: string;
+  }[];
 }
 
 export interface ReportSnapshot {

@@ -24,6 +24,7 @@ import {
   HoleSurveyPanel,
   HoleTrayPanel,
 } from "./hole-analytics-panels";
+import { HoleAnalyticsTrajectoryPanel } from "./hole-analytics-trajectory-panel";
 
 type VersionOption = {
   readonly completionId: string;
@@ -167,6 +168,7 @@ export function HoleAnalyticsDashboard({ holeId }: { holeId: string }) {
           <HoleComponentPanel analytics={analytics} />
           <HoleCasingPanel analytics={analytics} />
           <HoleSurveyPanel analytics={analytics} />
+          <HoleAnalyticsTrajectoryPanel holeId={holeId} />
           <HoleTrayPanel analytics={analytics} />
           <HoleCompletenessPanel analytics={analytics} />
         </div>

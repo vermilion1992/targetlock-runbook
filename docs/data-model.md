@@ -214,9 +214,25 @@ uses depth and then `recordedAt`; "latest" means deepest, then latest at that
 depth. The default warning thresholds are `50` tenths for dip and `100` tenths
 for circular azimuth change.
 
-Survey depth, angle, reference, tool, and photograph are observations. There is
-no trajectory, coordinate, declination, or reference-conversion record in
-Stage 4.
+Survey depth, angle, reference, tool, and photograph are observations. Survey
+records themselves remain unchanged by trajectory selection.
+
+### Hole trajectory (V2 Implementation 5)
+
+Hole-scoped trajectory storage holds:
+
+- `HoleCoordinateConfiguration` — `RELATIVE` or `MINE_GRID`, optional collar
+  E/N/RL (dm), calculation north reference;
+- `ReferenceConfiguration` — grid rotation and magnetic declination (degrees);
+- `PlannedHoleTrajectory` — ordered planned stations (MD, dip tenths, azimuth
+  tenths, north reference, station type), draft/active/superseded;
+- `HoleTarget` — optional E/N/RL (and radius) separate from planned stations /
+  desired attitude;
+- `ActualTrajectoryConfiguration` — collar dip/azimuth/reference for Survey path;
+- `TrajectorySurveySelection` — one selected Survey ID per duplicate depth;
+- optional display-only `TrajectoryTrackingTolerance`.
+
+Calculated trajectories and tracking are derived (not stored as authoritative).
 
 ### Completed tray
 

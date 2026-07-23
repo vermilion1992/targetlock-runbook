@@ -90,6 +90,28 @@ export function MorePreview({ holeId }: { holeId: string }) {
       href: runbookRoutes.surveys(holeId),
     },
     {
+      id: "trajectory",
+      label: "Trajectory",
+      description:
+        "Planned versus actual Survey paths, tracking deviation, and target status.",
+      icon: Compass,
+      href: runbookRoutes.trajectory(holeId),
+    },
+    {
+      id: "trajectory-plan",
+      label: "Trajectory plan",
+      description: "Create or activate a straight or curved directional plan.",
+      icon: Settings,
+      href: runbookRoutes.trajectoryPlan(holeId),
+    },
+    {
+      id: "trajectory-setup",
+      label: "Trajectory setup",
+      description: "Actual collar direction, coordinates, and north-reference conversion.",
+      icon: Settings,
+      href: runbookRoutes.trajectorySetup(holeId),
+    },
+    {
       id: "components",
       label: "Components",
       description: "Review bit and reamer installation and removal events.",

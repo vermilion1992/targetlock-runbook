@@ -16,14 +16,18 @@ import {
   type ReportHoleAnalytics,
   type ReportShiftAnalytics,
   type ReportSourceVersion,
+  type ReportTrajectorySummary,
   type ReportType,
   type Run,
   type ShiftAnalyticsRun,
 } from "@/domain";
 import type { HoleCompletionContext } from "@/application/runbook/hole-completion-use-cases";
+import { getHoleTrajectoryComparison } from "@/application/runbook/trajectory-comparison-query";
 import type { CasingRepository } from "@/infrastructure/casing";
 import type { CompletionRepository } from "@/infrastructure/completion";
 import type { SurveyRepository } from "@/infrastructure/surveys";
+import type { TrajectoryRepository } from "@/infrastructure/trajectory";
+import type { CurrentHoleStateDependencies } from "@/application/runbook/current-hole-state";
 
 export interface BuildReportInput {
   readonly holeId: string;
@@ -45,6 +49,8 @@ export interface ReportDocumentBuilderDependencies {
   readonly completion: CompletionRepository;
   readonly casing: CasingRepository;
   readonly surveys: SurveyRepository;
+  readonly trajectory?: TrajectoryRepository;
+  readonly currentState?: CurrentHoleStateDependencies;
 }
 
 function recoveryTenths(run: Run): number {
@@ -556,6 +562,93 @@ export async function buildReportDocumentData(
     .slice()
     .sort((left, right) => right.trayNumber - left.trayNumber)[0];
 
+  let trajectorySummary: ReportTrajectorySummary | undefined;
+  let trajectorySourceVersions: ReportSourceVersion[] = [];
+  if (
+    (input.reportType === "FULL_HOLE_RUNBOOK" ||
+      input.reportType === "HOLE_SUMMARY") &&
+    dependencies.trajectory &&
+    dependencies.currentState
+  ) {
+    try {
+      const comparison = await getHoleTrajectoryComparison(input.holeId, {
+        trajectory: dependencies.trajectory,
+        surveys: dependencies.surveys,
+        currentState: dependencies.currentState,
+      });
+      const current = comparison.currentTrackingPoint;
+      const activePlan = await dependencies.trajectory.getActivePlan(
+        input.holeId,
+      );
+      trajectorySummary = {
+        activePlanName: activePlan?.name,
+        coordinateMode: comparison.planned?.coordinateMode ??
+          comparison.actual?.coordinateMode,
+        coordinateSystemName: comparison.planned?.coordinateSystemName ??
+          comparison.actual?.coordinateSystemName,
+        desurveyMethod: "Minimum curvature",
+        engineVersion:
+          comparison.planned?.engineVersion ??
+          comparison.actual?.engineVersion ??
+          "minimum-curvature-v1",
+        latestSurveyDepthM: current?.measuredDepthM,
+        plannedEastingM: current?.plannedPosition.eastingM,
+        plannedNorthingM: current?.plannedPosition.northingM,
+        plannedRlM: current?.plannedPosition.rlM,
+        actualEastingM: current?.actualPosition.eastingM,
+        actualNorthingM: current?.actualPosition.northingM,
+        actualRlM: current?.actualPosition.rlM,
+        horizontalDeviationM: current?.horizontalDeviationM,
+        verticalDeviationM: current?.verticalDeviationM,
+        spatialDeviationM: current?.spatialDeviationM,
+        distanceToTargetM:
+          comparison.targetTracking?.actualEndpointDistanceM,
+        plannedEndpointDistanceToTargetM:
+          comparison.targetTracking?.plannedEndpointDistanceM,
+        closestApproachM:
+          comparison.targetTracking?.actualClosestApproachM,
+        warningCount: comparison.warnings.length,
+        plannedStations: (comparison.planned?.stations ?? []).map(
+          (station) => ({
+            measuredDepthM: station.measuredDepthM,
+            dipDegrees: station.dipDegrees,
+            azimuthDegrees: station.azimuthDegrees,
+            eastingM: station.eastingM,
+            northingM: station.northingM,
+            rlM: station.rlM,
+            tvdM: station.tvdM,
+          }),
+        ),
+        actualStations: (comparison.actual?.stations ?? []).map(
+          (station) => ({
+            measuredDepthM: station.measuredDepthM,
+            dipDegrees: station.dipDegrees,
+            azimuthDegrees: station.azimuthDegrees,
+            eastingM: station.eastingM,
+            northingM: station.northingM,
+            rlM: station.rlM,
+            tvdM: station.tvdM,
+          }),
+        ),
+        trackingRows: comparison.trackingPoints.map((point) => ({
+          measuredDepthM: point.measuredDepthM,
+          deltaEastingM: point.deltaEastingM,
+          deltaNorthingM: point.deltaNorthingM,
+          deltaRlM: point.deltaRlM,
+          spatialDeviationM: point.spatialDeviationM,
+          status: point.status,
+        })),
+      };
+      trajectorySourceVersions = comparison.sourceVersions.map((version) => ({
+        entityType: version.entityType,
+        entityId: version.entityId,
+        version: version.version,
+      }));
+    } catch {
+      trajectorySummary = undefined;
+    }
+  }
+
   const activeBit = context.componentAssignments.find(
     (assignment) =>
       assignment.componentType === "BIT" && assignment.status === "ACTIVE",
@@ -729,6 +822,7 @@ export async function buildReportDocumentData(
     currentShift,
     shiftAnalytics,
     holeAnalytics,
+    trajectorySummary,
     disclosures,
   };
 
@@ -815,6 +909,7 @@ export async function buildReportDocumentData(
       entityId: reopen.localId,
       version: reopen.version,
     })),
+    ...trajectorySourceVersions,
   ];
 
   return {

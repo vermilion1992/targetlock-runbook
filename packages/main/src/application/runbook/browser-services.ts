@@ -22,9 +22,12 @@ import {
   ddh041Stage2Shifts,
   stage6DefaultRecipients,
   targetLockStage5Seed,
+  trajectorySeedByHole,
 } from "@/infrastructure/seed";
+import { createBrowserTrajectoryRepository } from "@/infrastructure/trajectory";
 import { createHoleAnalyticsQueryServices } from "./hole-analytics-query";
 import { createShiftAnalyticsQueryServices } from "./shift-analytics-query";
+import { createTrajectoryComparisonQueryServices } from "./trajectory-comparison-query";
 import { createBrowserShiftRepository } from "@/infrastructure/shifts";
 import {
   createBrowserSurveyRepository,
@@ -57,7 +60,14 @@ export type BrowserRunbookServices = ShiftServices &
   SurveyServices &
   TrayServices &
   HoleCompletionApplicationServices &
-  ReportServices;
+  ReportServices & {
+    readonly trajectory: NonNullable<
+      ReturnType<typeof createBrowserTrajectoryRepository>
+    >;
+    readonly trajectoryComparison: ReturnType<
+      typeof createTrajectoryComparisonQueryServices
+    >;
+  };
 
 export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   const migrationCandidates = targetLockStage5Seed.componentAssignments.flatMap(
@@ -127,6 +137,10 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   );
   const surveyTools =
     surveys === null ? null : createSurveyToolRepository(surveys);
+  const trajectory = createBrowserTrajectoryRepository(
+    trajectorySeedByHole,
+    mutationGuard,
+  );
   const trays = createBrowserTrayRepository(
     targetLockStage5Seed.trays,
     targetLockStage5Seed.photos,
@@ -150,6 +164,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     media === null ||
     surveys === null ||
     surveyTools === null ||
+    trajectory === null ||
     trays === null ||
     photos === null ||
     reportFiles === null ||
@@ -224,6 +239,12 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     },
   );
 
+  const trajectoryComparison = createTrajectoryComparisonQueryServices({
+    trajectory,
+    surveys,
+    currentState,
+  });
+
   return {
     runs,
     shifts,
@@ -235,6 +256,8 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     casing,
     surveys,
     surveyTools,
+    trajectory,
+    trajectoryComparison,
     trays,
     photos,
     media,

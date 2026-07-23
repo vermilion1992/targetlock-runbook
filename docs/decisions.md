@@ -780,3 +780,43 @@ formulas or inventing a BI dashboard framework.
 **Consequences:** One Hole calculator feeds UI and reports; PDF remains
 verifiable without screenshot capture; Excel provides raw analytical sheets for
 offline analysis.
+
+## ADR-045: Planned versus actual minimum-curvature trajectories
+
+**Status:** Accepted  
+**Date:** 2026-07-24
+
+**Context:** Hole analytics stored Survey stations without desurveying. Field
+users need curved planned paths, actual Survey paths, same-MD deviation, and
+target distance without steering or anti-collision.
+
+**Decision:**
+
+1. Port TargetLock IQ pure geometry/desurvey/reference-conversion logic into
+   Runbook domain modules (	rajectory-geometry, 	rajectory-desurvey,
+   	rajectory-references) adapted to Runbook types (dm, tenths, uppercase
+   `NorthReference`). Engine version `minimum-curvature-v1`.
+2. Model planned paths as ordered `PlannedTrajectoryStation` records (not
+   collar+endpoint-only fields). Targets store E/N/RL separately from optional
+   attitude. Endpoint dip/azimuth alone do not prove target intersection.
+3. Use one shared `calculateMinimumCurvatureTrajectory` for planned and
+   actual; interpolate mid-interval MD via MC+slerp; sample render paths with
+   `maximumRenderSegmentDm` (default 5.0 m).
+4. Precision: double-precision metres internally; round only for display/export.
+5. Near-vertical threshold `|dip| >= 85°` (IQ-compatible); suppress exaggerated
+   azimuth alarms while keeping finite coordinates.
+6. Persist hole-scoped trajectory envelope; UI/reports never calculate
+   independently. Trajectory source versions participate in report currency.
+7. Defer polished interactive 3D to Implementation 6. No steering or certified
+   anti-collision in this implementation.
+
+**Logic provenance:**
+
+- Reused/ported from TargetLock IQ: min-curve RF, slerp mid-MD, Grid/True/Magnetic
+  sign conventions, near-vertical threshold.
+- Independently implemented for Runbook: planned-station model, survey selection,
+  comparison query, UI, report summaries, relative/mine-grid configuration.
+
+**Consequences:** Planned and actual paths share identical mathematics; TargetLock
+IQ and Runbook must not diverge on identical inputs; 3D polish and steering remain
+future work.

@@ -49,7 +49,13 @@ fixtures (`DDH038`, `DDH039`, `DDH042`).
 ### Hole analytics
 
 - [ ] Open More → Statistics for DDH041; confirm Overview, Production, Shifts,
-      rods, components, Surveys, Trays, completeness, and charts.
+      rods, components, Surveys, Trajectory, Trays, completeness, and charts.
+- [ ] Open More → Trajectory; confirm dashed planned path, solid actual path,
+      current tracking, target status, and warnings. Confirm the demo curved
+      plan is not reduced to a straight collar-target line.
+- [ ] Open Trajectory plan / setup; save a straight plan, then restore the
+      curved demo plan; confirm Survey History is unchanged when selecting a
+      duplicate Survey depth.
 - [ ] Correct a recovered length; weighted recovery changes, depth does not.
 - [ ] Void a test Run; production excludes it and completeness notes the void.
 - [ ] Generate Hole Summary PDF and Excel; confirm analytical section / sheets.
