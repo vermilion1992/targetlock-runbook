@@ -95,8 +95,8 @@ Run from `packages/main`:
   the reports Playwright workflow
 - [ ] Manual accessibility/device review: keyboard-only, screen reader, 200%
   zoom, gloves, glare, physical camera, safe-area on hardware
-- [ ] Live Railway browser verify after deploy (device-local reports; pilot-access
-  gate may block unattended checks)
+- [x] Live Railway browser verify after deploy — `e2e/run-corrections.spec.ts`
+  (7 workflows) against production URL with temporary Playwright config
 
 ### Manual checks still required
 
