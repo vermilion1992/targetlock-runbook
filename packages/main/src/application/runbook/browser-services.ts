@@ -5,7 +5,11 @@ import {
   HoleMutationGuard,
 } from "@/infrastructure/completion";
 import { createBrowserComponentRepository } from "@/infrastructure/components";
-import { createBrowserRunRepository } from "@/infrastructure/drafts";
+import {
+  createBrowserRunCorrectionRepository,
+  createBrowserRunRepository,
+} from "@/infrastructure/drafts";
+import type { RunCorrectionServices } from "./run-correction-use-cases";
 import { createBrowserMediaRepository } from "@/infrastructure/media";
 import {
   createBrowserReportFileRepository,
@@ -45,6 +49,7 @@ import {
 
 export type BrowserRunbookServices = ShiftServices &
   RunServices &
+  RunCorrectionServices &
   ComponentServices &
   CasingServices &
   SurveyServices &
@@ -86,6 +91,11 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     mutationGuard,
   );
   const audits = createBrowserAuditRepository(ddh041Stage5AuditEntries);
+  const runCorrections = createBrowserRunCorrectionRepository(
+    migrationCandidates,
+    mutationGuard,
+    audits ?? undefined,
+  );
   let components: ReturnType<typeof createBrowserComponentRepository> = null;
   components = createBrowserComponentRepository(
     targetLockStage5Seed.organisation.localId,
@@ -132,6 +142,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     runs === null ||
     shifts === null ||
     audits === null ||
+    runCorrections === null ||
     components === null ||
     casing === null ||
     media === null ||
@@ -143,6 +154,8 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     reports === null
   )
     return null;
+
+  void runCorrections.recoverInterrupted(targetLockStage5Seed.hole.name);
 
   const currentState = {
     seed: targetLockStage5Seed,
@@ -171,6 +184,8 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     runs,
     shifts,
     audits,
+    runCorrections,
+    mutationGuard,
     components,
     componentAssignments: components,
     casing,

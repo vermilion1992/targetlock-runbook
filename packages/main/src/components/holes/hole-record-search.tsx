@@ -19,7 +19,10 @@ import {
   type Survey,
   type Tray,
 } from "@/domain";
-import type { SavedRunSnapshot } from "@/infrastructure/drafts";
+import type {
+  RunCorrectionRecord,
+  SavedRunSnapshot,
+} from "@/infrastructure/drafts";
 import { targetLockStage5Seed } from "@/infrastructure/seed";
 
 interface SearchResult {
@@ -54,6 +57,9 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
     readonly HoleCompletionRecord[]
   >([]);
   const [reports, setReports] = useState<readonly GeneratedReportRecord[]>([]);
+  const [runCorrections, setRunCorrections] = useState<
+    readonly RunCorrectionRecord[]
+  >([]);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -68,6 +74,7 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
       services.components.list(),
       services.completion.getCompletionHistory(holeId),
       services.reports.listReports(holeId),
+      services.runCorrections.getEnvelope(holeId),
     ]).then(
       ([
         nextSurveys,
@@ -79,6 +86,7 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
         nextComponents,
         nextCompletions,
         nextReports,
+        runEnvelope,
       ]) => {
         setSurveys(nextSurveys);
         setTrays(nextTrays);
@@ -91,6 +99,7 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
         setComponents(nextComponents);
         setCompletions(nextCompletions);
         setReports(nextReports);
+        setRunCorrections(runEnvelope?.corrections ?? []);
       },
     );
   }, [holeId]);
@@ -122,28 +131,43 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
           formatMetres(run.holeDepth),
           formatMetres(run.drilledLength),
           "run",
+          run.status,
+          run.status === "corrected" ? "corrected" : "",
+          run.status === "void" ? "void" : "",
         ])
       ) {
         found.push({
           id: `run-${run.localId}`,
-          label: `Run ${run.runNumber} · ${formatMetres(run.holeDepth)}`,
+          label: `Run ${run.runNumber}${run.status === "void" ? " · VOID" : run.status === "corrected" ? " · Corrected" : ""} · ${formatMetres(run.holeDepth)}`,
           href: runbookRoutes.runDetail(holeId, run.localId),
           rank: 1,
         });
       }
     }
     for (const run of localRuns) {
+      const originalNumber = run.originalSnapshot?.runNumber;
+      const relatedReasons = runCorrections
+        .filter((correction) => correction.runId === run.localId)
+        .map((correction) => correction.reason);
       if (
         matches(needle, [
           String(run.runNumber),
+          originalNumber !== undefined ? String(originalNumber) : "",
           formatMetres(decimetres(run.holeDepthDm)),
           formatMetres(decimetres(run.drilledLengthDm)),
           "run",
+          run.status,
+          run.status === "corrected" ? "corrected" : "",
+          run.status === "void" ? "void" : "",
+          run.voidReason ?? "",
+          run.voidComment ?? "",
+          run.comment,
+          ...relatedReasons,
         ])
       ) {
         found.push({
           id: `run-${run.localId}`,
-          label: `Run ${run.runNumber} · ${formatMetres(decimetres(run.holeDepthDm))}`,
+          label: `Run ${run.runNumber}${run.status === "void" ? " · VOID" : run.status === "corrected" ? " · Corrected" : ""} · ${formatMetres(decimetres(run.holeDepthDm))}`,
           href: runbookRoutes.runDetail(holeId, run.localId),
           rank: 1,
         });
@@ -321,10 +345,11 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
     localRuns,
     query,
     reports,
+    runCorrections,
     shifts,
     surveys,
     trays,
-  ]);
+  ]); // runCorrections included for reason search
 
   return (
     <section

@@ -703,3 +703,24 @@ runs. Close Shift only offered handover, blocking final completion from the UI.
 **Consequences:** Local pilot completion, lock, reports, and refresh persistence
 are coherent for field testing. Seed edits do not rewrite already-persisted
 browser data unless storage is cleared.
+
+## ADR-025: Audited Run corrections preserve original snapshots
+
+- **Date:** 2026-07-24
+- **Status:** Accepted
+
+**Context:** Drillers need to correct completed Run mistakes without silently
+overwriting history, editing calculated fields, or breaking later Run continuity.
+
+**Decision:** Extend the existing `Correction` foundation rather than invent a
+parallel `RunCorrection` type. Local saved-run envelopes move to V5 with
+`originalSnapshot` frozen on first mutation, field-level correction records,
+rod-event effective overrides (ADR-011), and staged `operationId` transactions.
+`previewRunCorrection` / `previewVoidRun` share the same projection engine used
+on save. Run status becomes `completed | corrected | void`. Void never deletes.
+Locked holes block calculation-affecting correct/void until reopen. Run version
+bumps feed V2 report fingerprints so prior reports become out of date.
+
+**Consequences:** Original entry values remain inspectable; downstream stick-up
+and rod-event recalculation is explicit and previewable; accidental duplicates
+are voided instead of mass-renumbered.

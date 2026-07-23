@@ -5,6 +5,7 @@ export * from "./current-hole-state";
 export * from "./hole-completion-use-cases";
 export * from "./hole-mutation-guard";
 export * from "./queries";
+export * from "./run-correction-use-cases";
 export * from "./run-use-cases";
 export * from "./shift-use-cases";
 export * from "./survey-use-cases";

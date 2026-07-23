@@ -39,6 +39,11 @@ The primary user is a driller or supervisor recording a drilling run at the rig.
 
 The interface must clearly distinguish editable observations from calculated values and retain the context needed for a shift handover.
 
+Completed Runs may be corrected or voided only through an audited workflow:
+source values are edited, calculated R/S / depth / drilled / recovery remain
+derived, original snapshots are retained, impact is previewed before save, and
+voided Runs are never physically deleted.
+
 ## Stage 1 scope
 
 - A dedicated TargetLock experience for the seeded hole `DDH041`.

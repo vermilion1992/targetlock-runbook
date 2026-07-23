@@ -2,7 +2,18 @@
 
 Status date: 2026-07-24
 Target: `packages/main` only
-Stage: V2 Implementation 1 — Report generation reliability (after V1 pilot)
+Stage: V2 Implementation 2 — Audited Run corrections and voiding
+
+## V2 Implementation 2 — Audited Run corrections and voiding
+
+Completed Runs support an audited Correct / Void workflow. Original snapshots
+are frozen; field-level correction records and staged `operationId` transactions
+update the current projection. Stick-up, recovered length, rod-event, and
+comment corrections share one impact engine for preview and save. Voided Runs
+remain searchable and visible with a `VOID` label but are excluded from
+operational calculations. Locked holes block calculation-affecting corrections
+until reopen. Report `sourceVersions` bump when Runs change so prior reports
+become out of date without altering historical binaries.
 
 ## V2 Implementation 1 — Report generation reliability
 
@@ -72,7 +83,7 @@ completion/lock/reopen, Report Centre/Activity, Timeline, Search, Statistics
 
 Run from `packages/main`:
 
-- [x] `npm run test` — 257 unit tests (includes report blob validation + currency)
+- [x] `npm run test` — 267 unit tests (includes run corrections/voiding + report currency)
 - [x] `npm run test:e2e` — `e2e/reports.spec.ts` V2 workflows 1–5 plus share/email
   and responsive Report Centre checks; other Stage suites retained
 - [x] `npm run typecheck`

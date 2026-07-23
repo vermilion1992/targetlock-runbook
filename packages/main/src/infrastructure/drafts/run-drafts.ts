@@ -2,7 +2,8 @@ import { z } from "zod";
 
 import type { LocalStorageAdapter } from "./storage";
 
-export const RUN_DRAFT_VERSION = 4 as const;
+export const RUN_DRAFT_VERSION = 5 as const;
+export const LEGACY_V4_RUN_DRAFT_VERSION = 4 as const;
 export const DRAFT_SYNC_STATUS = "local-only" as const;
 const LEGACY_SHIFT_ID = "legacy-unassigned-shift";
 const LEGACY_USER_ID = "legacy-local-user";
@@ -11,6 +12,44 @@ const LEGACY_USER_NAME = "Legacy local operator";
 const isoTimestampSchema = z.string().datetime();
 const rodLengthDmSchema = z.union([z.literal(30), z.literal(60)]);
 const rodEventActionSchema = z.union([z.literal("add"), z.literal("remove")]);
+const runStatusSchema = z.enum(["completed", "corrected", "void"]);
+const voidReasonSchema = z.enum([
+  "ACCIDENTAL_DUPLICATE",
+  "WRONG_HOLE",
+  "TEST_ENTRY",
+  "NEVER_OCCURRED",
+  "OTHER",
+]);
+const runCorrectionTypeSchema = z.enum([
+  "MEASURED_STICK_UP",
+  "RECOVERED_LENGTH",
+  "ROD_EVENT",
+  "COMMENT",
+  "OPERATIONAL_NOTE",
+  "COMPONENT_SNAPSHOT",
+  "RUN_NUMBER",
+  "OTHER",
+  "VOID",
+]);
+const correctionValueSchema = z.union([
+  z.string(),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]);
+const operationStageSchema = z.enum([
+  "PREVIEWED",
+  "VALIDATED",
+  "CORRECTION_SAVED",
+  "RUN_PROJECTION_UPDATED",
+  "ROD_PROJECTION_UPDATED",
+  "DEPENDENT_PROJECTIONS_UPDATED",
+  "TIMELINE_UPDATED",
+  "AUDIT_WRITTEN",
+  "REPORTS_MARKED_STALE",
+  "COMPLETED",
+  "FAILED",
+]);
 
 const pendingRodEventSchema = z.object({
   localId: z.string().min(1),
@@ -59,7 +98,8 @@ const runDraftEnvelopeSchema = z.object({
   payload: runDraftPayloadSchema,
 });
 
-export const savedRunSnapshotSchema = z.object({
+/** Measured run fields frozen as the original entry (no correction metadata). */
+export const savedRunOriginalSnapshotSchema = z.object({
   localId: z.string().min(1),
   startedAt: isoTimestampSchema,
   completedAt: isoTimestampSchema,
@@ -77,7 +117,8 @@ export const savedRunSnapshotSchema = z.object({
   measuredStickUpDm: z.number().int().nonnegative(),
   previousCompletedDepthDm: z.number().int().nonnegative(),
   holeDepthDm: z.number().int().nonnegative(),
-  drilledLengthDm: z.number().int().positive(),
+  /** Positive for newly completed runs; may be zero after audited chain recalculation. */
+  drilledLengthDm: z.number().int().nonnegative(),
   recoveredLengthDm: z.number().int().nonnegative(),
   recoveryPercentage: z.number().nonnegative(),
   rodEvents: z.array(savedRodEventSchema),
@@ -90,12 +131,87 @@ export const savedRunSnapshotSchema = z.object({
   casingSummarySnapshot: z.string().min(1).nullable(),
 });
 
+export const savedRunSnapshotSchema = savedRunOriginalSnapshotSchema.extend({
+  version: z.number().int().positive().default(1),
+  status: runStatusSchema.default("completed"),
+  correctionIds: z.array(z.string().min(1)).default([]),
+  originalSnapshot: savedRunOriginalSnapshotSchema.nullable().default(null),
+  voidReason: voidReasonSchema.nullable().default(null),
+  voidComment: z.string().max(500).nullable().default(null),
+  voidedAt: isoTimestampSchema.nullable().default(null),
+  voidedByUserId: z.string().min(1).nullable().default(null),
+  voidedByNameSnapshot: z.string().min(1).nullable().default(null),
+});
+
+export const runCorrectionRecordSchema = z.object({
+  id: z.string().min(1),
+  holeId: z.string().min(1),
+  runId: z.string().min(1),
+  correctionType: runCorrectionTypeSchema,
+  fieldName: z.string().min(1),
+  previousValue: correctionValueSchema,
+  correctedValue: correctionValueSchema,
+  reason: z.string().trim().min(1).max(500),
+  comment: z.string().max(500).optional(),
+  affectedRunIds: z.array(z.string().min(1)).default([]),
+  affectedEntityIds: z.array(z.string().min(1)).default([]),
+  correctedAt: isoTimestampSchema,
+  correctedByUserId: z.string().min(1),
+  correctedByNameSnapshot: z.string().min(1),
+  operationId: z.string().min(1),
+});
+
+export const rodEventEffectiveOverrideSchema = z.object({
+  rodEventId: z.string().min(1),
+  runId: z.string().min(1),
+  action: rodEventActionSchema,
+  rodLengthDm: rodLengthDmSchema,
+  affectedRodNumber: z.number().int().positive(),
+  voided: z.boolean().default(false),
+  version: z.number().int().positive().default(1),
+});
+
+export const runCorrectionOperationSchema = z.object({
+  operationId: z.string().min(1),
+  kind: z.enum(["CORRECT_RUN", "VOID_RUN"]),
+  correctionType: runCorrectionTypeSchema,
+  runId: z.string().min(1),
+  inputJson: z.string(),
+  stage: operationStageSchema,
+  affectedRunIds: z.array(z.string().min(1)).default([]),
+  correctionIds: z.array(z.string().min(1)).default([]),
+  createdAt: isoTimestampSchema,
+  updatedAt: isoTimestampSchema,
+  completedAt: isoTimestampSchema.nullable().default(null),
+  failureReason: z.string().nullable().default(null),
+});
+
 const savedRunsEnvelopeSchema = z.object({
   version: z.literal(RUN_DRAFT_VERSION),
   holeId: z.string().min(1),
   syncStatus: z.literal(DRAFT_SYNC_STATUS),
   updatedAt: isoTimestampSchema,
+  revision: z.number().int().nonnegative().default(0),
   snapshots: z.array(savedRunSnapshotSchema),
+  corrections: z.array(runCorrectionRecordSchema).default([]),
+  operations: z.array(runCorrectionOperationSchema).default([]),
+  rodEventOverrides: z.array(rodEventEffectiveOverrideSchema).default([]),
+});
+
+const legacyV4SavedRunSnapshotSchema = savedRunOriginalSnapshotSchema;
+const legacyV4SavedRunsEnvelopeSchema = z.object({
+  version: z.literal(LEGACY_V4_RUN_DRAFT_VERSION),
+  holeId: z.string().min(1),
+  syncStatus: z.literal(DRAFT_SYNC_STATUS),
+  updatedAt: isoTimestampSchema,
+  snapshots: z.array(legacyV4SavedRunSnapshotSchema),
+});
+const legacyV4RunDraftEnvelopeSchema = z.object({
+  version: z.literal(LEGACY_V4_RUN_DRAFT_VERSION),
+  holeId: z.string().min(1),
+  syncStatus: z.literal(DRAFT_SYNC_STATUS),
+  savedAt: isoTimestampSchema,
+  payload: runDraftPayloadSchema,
 });
 
 const legacyV3RunDraftPayloadSchema = runDraftPayloadSchema
@@ -119,7 +235,7 @@ const legacyV3RunDraftEnvelopeSchema = z.object({
   payload: legacyV3RunDraftPayloadSchema,
 });
 
-const legacyV3SavedRunSnapshotSchema = savedRunSnapshotSchema
+const legacyV3SavedRunSnapshotSchema = legacyV4SavedRunSnapshotSchema
   .omit({
     activeBitAssignmentId: true,
     activeReamerAssignmentId: true,
@@ -230,8 +346,21 @@ export type SavedRodEventSnapshot = z.infer<typeof savedRodEventSchema>;
 export type RunDraftContext = z.infer<typeof runContextSchema>;
 export type RunDraftPayload = z.infer<typeof runDraftPayloadSchema>;
 export type RunDraftEnvelope = z.infer<typeof runDraftEnvelopeSchema>;
+export type SavedRunOriginalSnapshot = z.infer<
+  typeof savedRunOriginalSnapshotSchema
+>;
 export type SavedRunSnapshot = z.infer<typeof savedRunSnapshotSchema>;
 export type SavedRunsEnvelope = z.infer<typeof savedRunsEnvelopeSchema>;
+export type RunCorrectionRecord = z.infer<typeof runCorrectionRecordSchema>;
+export type RodEventEffectiveOverride = z.infer<
+  typeof rodEventEffectiveOverrideSchema
+>;
+export type RunCorrectionOperation = z.infer<
+  typeof runCorrectionOperationSchema
+>;
+export type RunCorrectionType = z.infer<typeof runCorrectionTypeSchema>;
+export type RunVoidReason = z.infer<typeof voidReasonSchema>;
+export type RunCorrectionOperationStage = z.infer<typeof operationStageSchema>;
 
 export type DraftReadResult =
   | { readonly status: "empty" }
@@ -243,6 +372,7 @@ export type SavedRunsReadResult =
   | {
       readonly status: "valid";
       readonly snapshots: readonly SavedRunSnapshot[];
+      readonly envelope: SavedRunsEnvelope;
     }
   | { readonly status: "invalid"; readonly reason: string };
 
@@ -254,16 +384,22 @@ export type SaveRunResult =
   | { readonly ok: true; readonly status: "saved" | "already-saved" }
   | { readonly ok: false; readonly reason: string };
 
+export function isOperationalRunSnapshot(snapshot: SavedRunSnapshot): boolean {
+  return snapshot.status !== "void";
+}
+
 export function latestSavedRunSnapshot(
   snapshots: readonly SavedRunSnapshot[],
 ): SavedRunSnapshot | undefined {
-  return snapshots.reduce<SavedRunSnapshot | undefined>(
-    (latest, snapshot) =>
-      latest === undefined || snapshot.runNumber > latest.runNumber
-        ? snapshot
-        : latest,
-    undefined,
-  );
+  return snapshots
+    .filter(isOperationalRunSnapshot)
+    .reduce<SavedRunSnapshot | undefined>(
+      (latest, snapshot) =>
+        latest === undefined || snapshot.runNumber > latest.runNumber
+          ? snapshot
+          : latest,
+      undefined,
+    );
 }
 
 export function nextRunContextFromSavedRuns(
@@ -283,8 +419,79 @@ export function nextRunContextFromSavedRuns(
   };
 }
 
+export function freezeOriginalRunSnapshot(
+  snapshot: SavedRunSnapshot | SavedRunOriginalSnapshot,
+): SavedRunOriginalSnapshot {
+  return savedRunOriginalSnapshotSchema.parse({
+    localId: snapshot.localId,
+    startedAt: snapshot.startedAt,
+    completedAt: snapshot.completedAt,
+    startedShiftId: snapshot.startedShiftId,
+    completedShiftId: snapshot.completedShiftId,
+    startedByUserId: snapshot.startedByUserId,
+    startedByNameSnapshot: snapshot.startedByNameSnapshot,
+    completedByUserId: snapshot.completedByUserId,
+    completedByNameSnapshot: snapshot.completedByNameSnapshot,
+    holeId: snapshot.holeId,
+    syncStatus: snapshot.syncStatus,
+    runNumber: snapshot.runNumber,
+    rodNumber: snapshot.rodNumber,
+    rodStringDm: snapshot.rodStringDm,
+    measuredStickUpDm: snapshot.measuredStickUpDm,
+    previousCompletedDepthDm: snapshot.previousCompletedDepthDm,
+    holeDepthDm: snapshot.holeDepthDm,
+    drilledLengthDm: snapshot.drilledLengthDm,
+    recoveredLengthDm: snapshot.recoveredLengthDm,
+    recoveryPercentage: snapshot.recoveryPercentage,
+    rodEvents: snapshot.rodEvents,
+    conditionTagIds: snapshot.conditionTagIds,
+    comment: snapshot.comment,
+    activeBitAssignmentId: snapshot.activeBitAssignmentId,
+    activeReamerAssignmentId: snapshot.activeReamerAssignmentId,
+    activeBitSerialNumberSnapshot: snapshot.activeBitSerialNumberSnapshot,
+    activeReamerSerialNumberSnapshot: snapshot.activeReamerSerialNumberSnapshot,
+    casingSummarySnapshot: snapshot.casingSummarySnapshot,
+  });
+}
+
+export function withDefaultRunCorrectionFields(
+  snapshot: SavedRunOriginalSnapshot | SavedRunSnapshot,
+): SavedRunSnapshot {
+  return savedRunSnapshotSchema.parse({
+    ...freezeOriginalRunSnapshot(snapshot),
+    version: "version" in snapshot ? snapshot.version : 1,
+    status: "status" in snapshot ? snapshot.status : "completed",
+    correctionIds: "correctionIds" in snapshot ? snapshot.correctionIds : [],
+    originalSnapshot:
+      "originalSnapshot" in snapshot ? snapshot.originalSnapshot : null,
+    voidReason: "voidReason" in snapshot ? snapshot.voidReason : null,
+    voidComment: "voidComment" in snapshot ? snapshot.voidComment : null,
+    voidedAt: "voidedAt" in snapshot ? snapshot.voidedAt : null,
+    voidedByUserId: "voidedByUserId" in snapshot ? snapshot.voidedByUserId : null,
+    voidedByNameSnapshot:
+      "voidedByNameSnapshot" in snapshot ? snapshot.voidedByNameSnapshot : null,
+  });
+}
+
+function emptySavedRunsEnvelope(
+  holeId: string,
+  updatedAt: string,
+): SavedRunsEnvelope {
+  return savedRunsEnvelopeSchema.parse({
+    version: RUN_DRAFT_VERSION,
+    holeId,
+    syncStatus: DRAFT_SYNC_STATUS,
+    updatedAt,
+    revision: 0,
+    snapshots: [],
+    corrections: [],
+    operations: [],
+    rodEventOverrides: [],
+  });
+}
+
 function scopedKey(
-  version: 1 | 2 | 3 | typeof RUN_DRAFT_VERSION,
+  version: 1 | 2 | 3 | 4 | typeof RUN_DRAFT_VERSION,
   holeId: string,
   suffix: "run-draft" | "saved-runs",
 ): string {
@@ -321,6 +528,14 @@ function legacyV3RunDraftKey(holeId: string): string {
 
 function legacyV3SavedRunsKey(holeId: string): string {
   return scopedKey(3, holeId, "saved-runs");
+}
+
+function legacyV4RunDraftKey(holeId: string): string {
+  return scopedKey(LEGACY_V4_RUN_DRAFT_VERSION, holeId, "run-draft");
+}
+
+function legacyV4SavedRunsKey(holeId: string): string {
+  return scopedKey(LEGACY_V4_RUN_DRAFT_VERSION, holeId, "saved-runs");
 }
 
 function parseJson(raw: string): unknown {
@@ -442,7 +657,7 @@ function migrateLegacySavedRun(
   const initialRodNumber =
     legacy.rodNumber - legacy.pendingRodEvents.length;
 
-  return savedRunSnapshotSchema.parse({
+  return withDefaultRunCorrectionFields({
     localId: legacy.localId,
     startedAt: legacy.savedAt,
     completedAt: legacy.savedAt,
@@ -501,7 +716,7 @@ function migrateV3SavedRun(
   legacy: z.infer<typeof legacyV3SavedRunSnapshotSchema>,
   candidates: readonly RunAssignmentMigrationCandidate[],
 ): SavedRunSnapshot {
-  return savedRunSnapshotSchema.parse({
+  return withDefaultRunCorrectionFields({
     ...legacy,
     ...migratedComponentSnapshots(
       legacy,
@@ -509,6 +724,21 @@ function migrateV3SavedRun(
       legacy.previousCompletedDepthDm,
       candidates,
     ),
+  });
+}
+
+function migrateV4SavedRun(
+  legacy: z.infer<typeof legacyV4SavedRunSnapshotSchema>,
+): SavedRunSnapshot {
+  return withDefaultRunCorrectionFields(legacy);
+}
+
+function migrateV4Draft(
+  legacy: z.infer<typeof legacyV4RunDraftEnvelopeSchema>,
+): RunDraftEnvelope {
+  return runDraftEnvelopeSchema.parse({
+    ...legacy,
+    version: RUN_DRAFT_VERSION,
   });
 }
 
@@ -538,7 +768,7 @@ function migrateV2SavedRun(
   legacy: z.infer<typeof legacyV2SavedRunSnapshotSchema>,
   candidates: readonly RunAssignmentMigrationCandidate[],
 ): SavedRunSnapshot {
-  return savedRunSnapshotSchema.parse({
+  return withDefaultRunCorrectionFields({
     ...legacy,
     startedShiftId: LEGACY_SHIFT_ID,
     completedShiftId: LEGACY_SHIFT_ID,
@@ -555,26 +785,45 @@ function migrateV2SavedRun(
   });
 }
 
+function envelopeFromMigratedSnapshots(
+  holeId: string,
+  updatedAt: string,
+  snapshots: readonly SavedRunSnapshot[],
+): SavedRunsEnvelope {
+  return savedRunsEnvelopeSchema.parse({
+    ...emptySavedRunsEnvelope(holeId, updatedAt),
+    snapshots,
+  });
+}
+
 export function readRunDraft(
   storage: LocalStorageAdapter,
   holeId: string,
   migrationCandidates: readonly RunAssignmentMigrationCandidate[] = [],
 ): DraftReadResult {
   let currentRaw: string | null;
+  let v4Raw: string | null;
   let v3Raw: string | null;
   let v2Raw: string | null;
   let v1Raw: string | null;
 
   try {
     currentRaw = storage.getItem(runDraftKey(holeId));
+    v4Raw =
+      currentRaw === null ? storage.getItem(legacyV4RunDraftKey(holeId)) : null;
     v3Raw =
-      currentRaw === null ? storage.getItem(legacyV3RunDraftKey(holeId)) : null;
+      currentRaw === null && v4Raw === null
+        ? storage.getItem(legacyV3RunDraftKey(holeId))
+        : null;
     v2Raw =
-      currentRaw === null && v3Raw === null
+      currentRaw === null && v4Raw === null && v3Raw === null
         ? storage.getItem(legacyV2RunDraftKey(holeId))
         : null;
     v1Raw =
-      currentRaw === null && v3Raw === null && v2Raw === null
+      currentRaw === null &&
+      v4Raw === null &&
+      v3Raw === null &&
+      v2Raw === null
         ? storage.getItem(legacyRunDraftKey(holeId))
         : null;
   } catch {
@@ -583,6 +832,7 @@ export function readRunDraft(
 
   if (
     currentRaw === null &&
+    v4Raw === null &&
     v3Raw === null &&
     v2Raw === null &&
     v1Raw === null
@@ -594,11 +844,13 @@ export function readRunDraft(
     const parsed =
       currentRaw !== null
         ? runDraftEnvelopeSchema.safeParse(parseJson(currentRaw))
-        : v3Raw !== null
-          ? legacyV3RunDraftEnvelopeSchema.safeParse(parseJson(v3Raw))
-        : v2Raw !== null
-          ? legacyV2RunDraftEnvelopeSchema.safeParse(parseJson(v2Raw))
-          : legacyRunDraftEnvelopeSchema.safeParse(parseJson(v1Raw!));
+        : v4Raw !== null
+          ? legacyV4RunDraftEnvelopeSchema.safeParse(parseJson(v4Raw))
+          : v3Raw !== null
+            ? legacyV3RunDraftEnvelopeSchema.safeParse(parseJson(v3Raw))
+            : v2Raw !== null
+              ? legacyV2RunDraftEnvelopeSchema.safeParse(parseJson(v2Raw))
+              : legacyRunDraftEnvelopeSchema.safeParse(parseJson(v1Raw!));
     if (!parsed.success || parsed.data.holeId !== holeId) {
       return {
         status: "invalid",
@@ -609,11 +861,13 @@ export function readRunDraft(
     const envelope =
       parsed.data.version === RUN_DRAFT_VERSION
         ? parsed.data
-        : parsed.data.version === 3
-          ? migrateV3Draft(parsed.data, migrationCandidates)
-        : parsed.data.version === 2
-          ? migrateV2Draft(parsed.data, migrationCandidates)
-          : migrateLegacyDraft(parsed.data);
+        : parsed.data.version === LEGACY_V4_RUN_DRAFT_VERSION
+          ? migrateV4Draft(parsed.data)
+          : parsed.data.version === 3
+            ? migrateV3Draft(parsed.data, migrationCandidates)
+            : parsed.data.version === 2
+              ? migrateV2Draft(parsed.data, migrationCandidates)
+              : migrateLegacyDraft(parsed.data);
     return {
       status: "valid",
       envelope,
@@ -646,6 +900,7 @@ export function writeRunDraft(
     storage.removeItem(legacyRunDraftKey(holeId));
     storage.removeItem(legacyV2RunDraftKey(holeId));
     storage.removeItem(legacyV3RunDraftKey(holeId));
+    storage.removeItem(legacyV4RunDraftKey(holeId));
     return { ok: true };
   } catch {
     return { ok: false, reason: "This browser could not save the draft." };
@@ -661,6 +916,7 @@ export function clearRunDraft(
     storage.removeItem(legacyRunDraftKey(holeId));
     storage.removeItem(legacyV2RunDraftKey(holeId));
     storage.removeItem(legacyV3RunDraftKey(holeId));
+    storage.removeItem(legacyV4RunDraftKey(holeId));
     return { ok: true };
   } catch {
     return { ok: false, reason: "This browser could not clear the draft." };
@@ -673,20 +929,28 @@ export function readSavedRunSnapshots(
   migrationCandidates: readonly RunAssignmentMigrationCandidate[] = [],
 ): SavedRunsReadResult {
   let currentRaw: string | null;
+  let v4Raw: string | null;
   let v3Raw: string | null;
   let v2Raw: string | null;
   let v1Raw: string | null;
 
   try {
     currentRaw = storage.getItem(savedRunsKey(holeId));
+    v4Raw =
+      currentRaw === null ? storage.getItem(legacyV4SavedRunsKey(holeId)) : null;
     v3Raw =
-      currentRaw === null ? storage.getItem(legacyV3SavedRunsKey(holeId)) : null;
+      currentRaw === null && v4Raw === null
+        ? storage.getItem(legacyV3SavedRunsKey(holeId))
+        : null;
     v2Raw =
-      currentRaw === null && v3Raw === null
+      currentRaw === null && v4Raw === null && v3Raw === null
         ? storage.getItem(legacyV2SavedRunsKey(holeId))
         : null;
     v1Raw =
-      currentRaw === null && v3Raw === null && v2Raw === null
+      currentRaw === null &&
+      v4Raw === null &&
+      v3Raw === null &&
+      v2Raw === null
         ? storage.getItem(legacySavedRunsKey(holeId))
         : null;
   } catch {
@@ -695,6 +959,7 @@ export function readSavedRunSnapshots(
 
   if (
     currentRaw === null &&
+    v4Raw === null &&
     v3Raw === null &&
     v2Raw === null &&
     v1Raw === null
@@ -712,7 +977,28 @@ export function readSavedRunSnapshots(
             "Existing locally saved runs are incompatible and were left unchanged.",
         };
       }
-      return { status: "valid", snapshots: current.data.snapshots };
+      return {
+        status: "valid",
+        snapshots: current.data.snapshots,
+        envelope: current.data,
+      };
+    }
+
+    if (v4Raw !== null) {
+      const v4 = legacyV4SavedRunsEnvelopeSchema.safeParse(parseJson(v4Raw));
+      if (!v4.success || v4.data.holeId !== holeId) {
+        return {
+          status: "invalid",
+          reason:
+            "Existing locally saved runs are incompatible and were left unchanged.",
+        };
+      }
+      const envelope = envelopeFromMigratedSnapshots(
+        holeId,
+        v4.data.updatedAt,
+        v4.data.snapshots.map(migrateV4SavedRun),
+      );
+      return { status: "valid", snapshots: envelope.snapshots, envelope };
     }
 
     if (v3Raw !== null) {
@@ -724,12 +1010,14 @@ export function readSavedRunSnapshots(
             "Existing locally saved runs are incompatible and were left unchanged.",
         };
       }
-      return {
-        status: "valid",
-        snapshots: v3.data.snapshots.map((snapshot) =>
+      const envelope = envelopeFromMigratedSnapshots(
+        holeId,
+        v3.data.updatedAt,
+        v3.data.snapshots.map((snapshot) =>
           migrateV3SavedRun(snapshot, migrationCandidates),
         ),
-      };
+      );
+      return { status: "valid", snapshots: envelope.snapshots, envelope };
     }
 
     if (v2Raw !== null) {
@@ -741,12 +1029,14 @@ export function readSavedRunSnapshots(
             "Existing locally saved runs are incompatible and were left unchanged.",
         };
       }
-      return {
-        status: "valid",
-        snapshots: v2.data.snapshots.map((snapshot) =>
+      const envelope = envelopeFromMigratedSnapshots(
+        holeId,
+        v2.data.updatedAt,
+        v2.data.snapshots.map((snapshot) =>
           migrateV2SavedRun(snapshot, migrationCandidates),
         ),
-      };
+      );
+      return { status: "valid", snapshots: envelope.snapshots, envelope };
     }
 
     const legacy = legacySavedRunsEnvelopeSchema.safeParse(parseJson(v1Raw!));
@@ -757,10 +1047,12 @@ export function readSavedRunSnapshots(
           "Existing locally saved runs are incompatible and were left unchanged.",
       };
     }
-    return {
-      status: "valid",
-      snapshots: legacy.data.snapshots.map(migrateLegacySavedRun),
-    };
+    const envelope = envelopeFromMigratedSnapshots(
+      holeId,
+      legacy.data.updatedAt,
+      legacy.data.snapshots.map(migrateLegacySavedRun),
+    );
+    return { status: "valid", snapshots: envelope.snapshots, envelope };
   } catch {
     return {
       status: "invalid",
@@ -769,12 +1061,39 @@ export function readSavedRunSnapshots(
   }
 }
 
+export function writeSavedRunsEnvelope(
+  storage: LocalStorageAdapter,
+  holeId: string,
+  envelope: SavedRunsEnvelope,
+): PersistenceResult {
+  const parsed = savedRunsEnvelopeSchema.safeParse({
+    ...envelope,
+    version: RUN_DRAFT_VERSION,
+    holeId,
+  });
+  if (!parsed.success || parsed.data.holeId !== holeId) {
+    return { ok: false, reason: "The saved runs envelope did not pass validation." };
+  }
+  try {
+    storage.setItem(savedRunsKey(holeId), JSON.stringify(parsed.data));
+    storage.removeItem(legacySavedRunsKey(holeId));
+    storage.removeItem(legacyV2SavedRunsKey(holeId));
+    storage.removeItem(legacyV3SavedRunsKey(holeId));
+    storage.removeItem(legacyV4SavedRunsKey(holeId));
+    return { ok: true };
+  } catch {
+    return { ok: false, reason: "This browser could not save the runs." };
+  }
+}
+
 export function appendSavedRunSnapshot(
   storage: LocalStorageAdapter,
   holeId: string,
   snapshot: SavedRunSnapshot,
 ): SaveRunResult {
-  const snapshotResult = savedRunSnapshotSchema.safeParse(snapshot);
+  const snapshotResult = savedRunSnapshotSchema.safeParse(
+    withDefaultRunCorrectionFields(snapshot),
+  );
   if (!snapshotResult.success || snapshotResult.data.holeId !== holeId) {
     return { ok: false, reason: "The run snapshot did not pass validation." };
   }
@@ -785,7 +1104,11 @@ export function appendSavedRunSnapshot(
       return { ok: false, reason: existing.reason };
     }
 
-    const snapshots = existing.snapshots;
+    const base =
+      existing.status === "valid"
+        ? existing.envelope
+        : emptySavedRunsEnvelope(holeId, snapshotResult.data.completedAt);
+    const snapshots = base.snapshots;
     const sameLocalId = snapshots.find(
       ({ localId }) => localId === snapshotResult.data.localId,
     );
@@ -801,7 +1124,9 @@ export function appendSavedRunSnapshot(
 
     if (
       snapshots.some(
-        ({ runNumber }) => runNumber === snapshotResult.data.runNumber,
+        (item) =>
+          item.runNumber === snapshotResult.data.runNumber &&
+          isOperationalRunSnapshot(item),
       )
     ) {
       return {
@@ -811,17 +1136,19 @@ export function appendSavedRunSnapshot(
     }
 
     const envelope = savedRunsEnvelopeSchema.parse({
+      ...base,
       version: RUN_DRAFT_VERSION,
       holeId,
       syncStatus: DRAFT_SYNC_STATUS,
       updatedAt: snapshotResult.data.completedAt,
+      revision: base.revision + 1,
       snapshots: [...snapshots, snapshotResult.data],
     });
 
-    storage.setItem(savedRunsKey(holeId), JSON.stringify(envelope));
-    storage.removeItem(legacySavedRunsKey(holeId));
-    storage.removeItem(legacyV2SavedRunsKey(holeId));
-    storage.removeItem(legacyV3SavedRunsKey(holeId));
+    const written = writeSavedRunsEnvelope(storage, holeId, envelope);
+    if (!written.ok) {
+      return { ok: false, reason: written.reason };
+    }
     return { ok: true, status: "saved" };
   } catch {
     return { ok: false, reason: "This browser could not save the run." };

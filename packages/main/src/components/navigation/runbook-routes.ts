@@ -14,6 +14,10 @@ export const runbookRoutes = {
   recordRun: (holeId: string) => `${holeBase(holeId)}/runs/new`,
   runDetail: (holeId: string, runId: string) =>
     `${holeBase(holeId)}/runs/${encodeURIComponent(runId)}`,
+  correctRun: (holeId: string, runId: string) =>
+    `${holeBase(holeId)}/runs/${encodeURIComponent(runId)}/correct`,
+  voidRun: (holeId: string, runId: string) =>
+    `${holeBase(holeId)}/runs/${encodeURIComponent(runId)}/void`,
   runbook: (holeId: string) => `${holeBase(holeId)}/runbook`,
   shifts: (holeId: string) => `${holeBase(holeId)}/shifts`,
   startShift: (holeId: string) => `${holeBase(holeId)}/shifts/start`,

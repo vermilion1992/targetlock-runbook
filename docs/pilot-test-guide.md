@@ -82,6 +82,16 @@ fixtures (`DDH038`, `DDH039`, `DDH042`).
 - [ ] Download a report; confirm filename is safe and local-only.
 - [ ] Confirm UI never says sent or delivered.
 
+### Correcting and voiding runs
+
+- [ ] Open Run Detail → Correct run → measured stick-up; review impact; save.
+- [ ] Confirm correction history and that the following run’s drilled length updated.
+- [ ] Correct recovered length; confirm hole depth unchanged.
+- [ ] Correct a 6.0 m rod event to 3.0 m; confirm rod count stays one physical rod.
+- [ ] Void an accidental duplicate; confirm VOID label and exclusion from stats.
+- [ ] Generate a report, correct a run, confirm the report is out of date.
+- [ ] On a completed/locked hole, confirm Correct/Void is blocked until reopen.
+
 ### Reporting a fault
 
 Record and send to the pilot owner:

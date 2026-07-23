@@ -85,7 +85,8 @@ from domain inputs while editing.
 
 - `startedShiftId`/`startedBy*` and `completedShiftId`/`completedBy*` preserve
   both owners when a run crosses shifts.
-- Immutable calculated values use explicit `*Dm` names.
+- Calculated values use explicit `*Dm` names and remain derived after
+  corrections (users edit source fields only).
 - Start-time component assignment IDs and serial snapshots are copied unchanged
   into the completed record. A component change within the run does not split
   or rewrite the run.
@@ -93,11 +94,15 @@ from domain inputs while editing.
   number, and occurrence time.
 - `localId` makes identical retries idempotent.
 - A second local record with the same run number or conflicting local ID is
-  rejected.
+  rejected (voided runs do not block reuse of a run number).
+- V5 fields: `version`, `status` (`completed` | `corrected` | `void`),
+  `correctionIds`, `originalSnapshot` (frozen on first correction/void), and
+  void metadata. Envelope collections hold correction records, staged
+  operations, and rod-event effective overrides.
 
 ### Local draft envelope
 
-- `version`: currently `4`; valid V1, V2, and V3 records are migrated on read.
+- `version`: currently `5`; valid V1–V4 records are migrated on read.
 - Legacy component serial snapshots are retained. Assignment IDs are populated
   only when one candidate matches component type, normalised serial, hole, and
   ownership at the run start depth; zero or multiple matches remain null.

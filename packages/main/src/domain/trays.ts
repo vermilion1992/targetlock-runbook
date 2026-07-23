@@ -164,7 +164,7 @@ export interface TrayOverlapRun {
   readonly runNumber: number;
   readonly startDepthDm: Decimetres;
   readonly endDepthDm: Decimetres;
-  readonly status: "completed" | "corrected" | "in_progress";
+  readonly status: "completed" | "corrected" | "in_progress" | "void";
 }
 
 export function findTrayRunOverlaps(
@@ -182,6 +182,7 @@ export function findTrayRunOverlaps(
     .filter(
       (run) =>
         run.status !== "in_progress" &&
+        run.status !== "void" &&
         Math.max(tray.startDepthDm!, run.startDepthDm) <
           Math.min(tray.endDepthDm!, run.endDepthDm),
     )

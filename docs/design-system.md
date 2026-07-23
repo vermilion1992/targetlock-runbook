@@ -8,6 +8,9 @@
 - **Recoverable:** make draft, media-save, completion-transaction, and
   validation state explicit; never imply that local data has synchronised.
 - **Accessible:** preserve semantic controls, keyboard operation, visible focus, and non-colour status cues.
+- **Correction clarity:** show original vs corrected values as text (not colour
+  alone); label Corrected / VOID status with pills; keep destructive Void
+  confirmation unmistakable with ≥44×44 px targets.
 
 ## Foundation
 

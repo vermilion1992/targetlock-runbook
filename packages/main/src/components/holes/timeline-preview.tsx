@@ -183,10 +183,22 @@ function stageAuditTimelineEntries(
           ? "Tray details corrected"
           : audit.action === "tray_photograph_replaced"
             ? "Tray photograph replaced"
-            : null;
+            : audit.action === "run_corrected"
+              ? "Run corrected"
+              : audit.action === "rod_event_corrected"
+                ? "Rod event corrected"
+                : audit.action === "recovered_length_corrected"
+                  ? "Recovered length corrected"
+                  : audit.action === "run_voided"
+                    ? "Run voided"
+                    : null;
     if (title === null) continue;
     const category: TimelineCategory =
-      audit.entityType === "survey" ? "Survey" : "Tray";
+      audit.entityType === "survey"
+        ? "Survey"
+        : audit.entityType === "run"
+          ? "Run"
+          : "Tray";
     entries.push({
       id: audit.localId,
       category,
@@ -196,11 +208,17 @@ function stageAuditTimelineEntries(
       detail:
         typeof audit.metadata.reason === "string"
           ? audit.metadata.reason
-          : "Audited correction",
+          : typeof audit.metadata.voidReason === "string"
+            ? audit.metadata.voidReason.replaceAll("_", " ")
+            : typeof audit.metadata.correctionType === "string"
+              ? audit.metadata.correctionType.replaceAll("_", " ")
+              : "Audited correction",
       href:
         category === "Survey"
           ? runbookRoutes.surveyDetail(holeId, audit.entityId)
-          : runbookRoutes.trayDetail(holeId, audit.entityId),
+          : category === "Run"
+            ? runbookRoutes.runDetail(holeId, audit.entityId)
+            : runbookRoutes.trayDetail(holeId, audit.entityId),
     });
   }
   return entries;

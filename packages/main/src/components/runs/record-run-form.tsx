@@ -58,7 +58,6 @@ import {
   type PendingDraftRodEvent,
   type RunDraftContext,
   type RunDraftPayload,
-  type SavedRunSnapshot,
 } from "@/infrastructure/drafts";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 
@@ -610,18 +609,10 @@ export function RecordRunForm({
     const savedAt = new Date().toISOString();
     const calculated = currentDerived.values;
     let eventRodNumber = context.rodNumber;
-    const snapshot: SavedRunSnapshot = {
+    const snapshot = {
       localId: draftIdentity.localId,
-      startedAt: draftIdentity.startedAt,
       completedAt: savedAt,
-      startedShiftId: draftIdentity.startedShiftId,
-      completedShiftId: activeShiftId,
-      startedByUserId: draftIdentity.startedByUserId,
-      startedByNameSnapshot: draftIdentity.startedByNameSnapshot,
-      completedByUserId: primaryDrillerId,
-      completedByNameSnapshot: primaryDriller,
       holeId,
-      syncStatus: "local-only",
       runNumber: context.runNumber,
       rodNumber: calculated.rodNumber,
       rodStringDm: calculated.rodString,
@@ -645,13 +636,6 @@ export function RecordRunForm({
       }),
       conditionTagIds: [...values.conditionTagIds],
       comment: values.comment.trim(),
-      activeBitAssignmentId: draftIdentity.activeBitAssignmentId,
-      activeReamerAssignmentId: draftIdentity.activeReamerAssignmentId,
-      activeBitSerialNumberSnapshot:
-        draftIdentity.activeBitSerialNumberSnapshot,
-      activeReamerSerialNumberSnapshot:
-        draftIdentity.activeReamerSerialNumberSnapshot,
-      casingSummarySnapshot: draftIdentity.casingSummarySnapshot,
     };
     let result;
     try {

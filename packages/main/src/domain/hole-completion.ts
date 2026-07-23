@@ -256,7 +256,7 @@ export function evaluateHoleCompletion(
 ): HoleCompletionEvaluation {
   const checks: HoleCompletionCheck[] = [];
   const completedRuns = input.runs
-    .filter(({ status }) => status !== "in_progress")
+    .filter(({ status }) => status !== "in_progress" && status !== "void")
     .sort(completionRunOrder);
   const unfinishedRuns = input.runs.filter(
     ({ status }) => status === "in_progress",

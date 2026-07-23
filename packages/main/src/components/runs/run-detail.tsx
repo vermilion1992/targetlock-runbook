@@ -26,7 +26,10 @@ import {
 import {
   targetLockStage3Seed,
 } from "@/infrastructure/seed";
-import type { SavedRunSnapshot } from "@/infrastructure/drafts";
+import type {
+  RunCorrectionRecord,
+  SavedRunSnapshot,
+} from "@/infrastructure/drafts";
 
 type DetailRun =
   | { source: "seed"; run: Run }
@@ -53,6 +56,9 @@ export function RunDetail({
   const [audits, setAudits] = useState<readonly AuditEntry[]>([]);
   const [surveys, setSurveys] = useState<readonly Survey[]>([]);
   const [trays, setTrays] = useState<readonly Tray[]>([]);
+  const [corrections, setCorrections] = useState<readonly RunCorrectionRecord[]>(
+    [],
+  );
   const [message, setMessage] = useState("Loading run…");
 
   useEffect(() => {
@@ -69,8 +75,17 @@ export function RunDetail({
       services.audits.listByHole(holeId),
       services.surveys.listByHole(holeId),
       services.trays.listByHole(holeId),
+      services.runCorrections.listByRun(holeId, runId),
     ])
-      .then(([nextShifts, local, nextAudits, nextSurveys, nextTrays]) => {
+      .then(
+        ([
+          nextShifts,
+          local,
+          nextAudits,
+          nextSurveys,
+          nextTrays,
+          nextCorrections,
+        ]) => {
         if (local.status === "invalid") throw new Error(local.reason);
         const localRun = local.snapshots.find((run) => run.localId === runId);
         const seedRun = targetLockStage3Seed.runs.find((run) => run.localId === runId);
@@ -81,6 +96,7 @@ export function RunDetail({
         setAudits(nextAudits);
         setSurveys(nextSurveys);
         setTrays(nextTrays);
+        setCorrections(nextCorrections);
         setMessage("");
       })
       .catch((error: unknown) =>
@@ -90,6 +106,12 @@ export function RunDetail({
 
   if (detail === null) return <p role="status">{message}</p>;
   const run = detail.run;
+  const runStatus =
+    detail.source === "local"
+      ? detail.run.status
+      : detail.run.status;
+  const isVoid = runStatus === "void";
+  const isCorrected = runStatus === "corrected" || corrections.length > 0;
   const startedShiftId = run.startedShiftId;
   const completedShiftId = run.completedShiftId;
   const startedShift = shifts.find((shift) => shift.localId === startedShiftId);
@@ -194,12 +216,66 @@ export function RunDetail({
       <StagePageHeader
         eyebrow="Stage 3 · run and component ownership"
         title={`Run ${run.runNumber}`}
-        description={shared ? "Shared between shifts" : "Completed within one shift"}
-        action={shared ? <StatusPill tone="info"><Share2 aria-hidden="true" className="size-4" />Shared run</StatusPill> : <StatusPill tone="success">Completed</StatusPill>}
+        description={
+          isVoid
+            ? "Voided — retained for audit history"
+            : shared
+              ? "Shared between shifts"
+              : isCorrected
+                ? "Completed and corrected"
+                : "Completed within one shift"
+        }
+        action={
+          isVoid ? (
+            <StatusPill tone="warning">VOID</StatusPill>
+          ) : isCorrected ? (
+            <StatusPill tone="warning">Corrected</StatusPill>
+          ) : shared ? (
+            <StatusPill tone="info">
+              <Share2 aria-hidden="true" className="size-4" />
+              Shared run
+            </StatusPill>
+          ) : (
+            <StatusPill tone="success">Completed</StatusPill>
+          )
+        }
       />
       <Link href={runbookRoutes.runbook(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
         <ArrowLeft aria-hidden="true" className="size-5" /> Back to runbook
       </Link>
+      {!isVoid ? (
+        <div className="flex flex-wrap gap-3">
+          <Link
+            href={runbookRoutes.correctRun(holeId, runId)}
+            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-4 font-bold text-white"
+          >
+            Correct run
+          </Link>
+          <Link
+            href={runbookRoutes.voidRun(holeId, runId)}
+            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] px-4 font-bold text-[var(--tl-danger)]"
+            aria-label={`Void run ${run.runNumber}`}
+          >
+            Void run
+          </Link>
+        </div>
+      ) : null}
+      {isVoid && detail.source === "local" ? (
+        <SectionPanel title="Void record" description="This run is excluded from production, recovery and depth calculations.">
+          <p className="font-bold">
+            {detail.run.voidReason?.replaceAll("_", " ") ?? "Voided"}
+          </p>
+          <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+            Voided by {detail.run.voidedByNameSnapshot ?? "Unknown"}
+            {detail.run.voidedAt
+              ? ` · ${formatFieldDateTime(detail.run.voidedAt)}`
+              : ""}
+          </p>
+          {detail.run.voidComment ? (
+            <p className="mt-2 text-sm">{detail.run.voidComment}</p>
+          ) : null}
+        </SectionPanel>
+      ) : null}
       <SectionPanel title="Shift ownership" description="The starting shift is never overwritten by the completing shift.">
         <div className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-[var(--tl-radius-md)] bg-[var(--tl-surface-raised)] p-4">
@@ -275,6 +351,69 @@ export function RunDetail({
             )}
           </div>
         ) : null}
+      </SectionPanel>
+      <SectionPanel
+        title="Correction history"
+        description="Original values remain preserved. Correction records are immutable."
+      >
+        {corrections.length === 0 &&
+        !(detail.source === "local" && detail.run.originalSnapshot) ? (
+          <p className="text-sm text-[var(--tl-ink-muted)]">
+            No corrections have been recorded for this run.
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {detail.source === "local" && detail.run.originalSnapshot ? (
+              <article className="rounded-[var(--tl-radius-md)] bg-[var(--tl-surface-raised)] p-4">
+                <h3 className="font-bold">Original entry</h3>
+                <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                  Stick-up{" "}
+                  {formatMetres(
+                    decimetres(detail.run.originalSnapshot.measuredStickUpDm),
+                  )}{" "}
+                  · Depth{" "}
+                  {formatMetres(
+                    decimetres(detail.run.originalSnapshot.holeDepthDm),
+                  )}{" "}
+                  · Recovered{" "}
+                  {formatMetres(
+                    decimetres(detail.run.originalSnapshot.recoveredLengthDm),
+                  )}
+                </p>
+              </article>
+            ) : null}
+            {[...corrections]
+              .sort((left, right) =>
+                left.correctedAt.localeCompare(right.correctedAt),
+              )
+              .map((correction) => (
+                <article
+                  key={correction.id}
+                  className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-4"
+                >
+                  <p className="text-sm text-[var(--tl-ink-muted)]">
+                    {formatFieldDateTime(correction.correctedAt)} ·{" "}
+                    {correction.correctedByNameSnapshot}
+                  </p>
+                  <h3 className="mt-1 font-bold">
+                    {correction.correctionType.replaceAll("_", " ")}
+                  </h3>
+                  <p className="mt-1 text-sm">
+                    {correction.fieldName}: {String(correction.previousValue)} →{" "}
+                    {String(correction.correctedValue)}
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                    Reason: {correction.reason}
+                  </p>
+                  {correction.affectedRunIds.length > 1 ? (
+                    <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                      Affected runs: {correction.affectedRunIds.length}
+                    </p>
+                  ) : null}
+                </article>
+              ))}
+          </div>
+        )}
       </SectionPanel>
       <SectionPanel
         title="Related surveys and trays"

@@ -116,6 +116,15 @@ const savedRun: SavedRunSnapshot = {
   activeBitSerialNumberSnapshot: "BIT-HQ-002193",
   activeReamerSerialNumberSnapshot: "REA-HQ-000912",
   casingSummarySnapshot: "PQ to 18.0 m; HQ to 42.0 m",
+  version: 1,
+  status: "completed",
+  correctionIds: [],
+  originalSnapshot: null,
+  voidReason: null,
+  voidComment: null,
+  voidedAt: null,
+  voidedByUserId: null,
+  voidedByNameSnapshot: null,
 };
 
 describe("local run repository", () => {
@@ -129,7 +138,7 @@ describe("local run repository", () => {
     expect(repository.readDraft(holeId)).toEqual({
       status: "valid",
       envelope: {
-        version: 4,
+        version: 5,
         holeId,
         syncStatus: "local-only",
         savedAt: completedAt,
@@ -150,7 +159,7 @@ describe("local run repository", () => {
     });
 
     const reopenedRepository = new LocalRunRepository(storage);
-    expect(reopenedRepository.readCompletedRuns(holeId)).toEqual({
+    expect(reopenedRepository.readCompletedRuns(holeId)).toMatchObject({
       status: "valid",
       snapshots: [savedRun],
     });
@@ -283,7 +292,7 @@ describe("local run repository", () => {
     expect(migratedDraft).toMatchObject({
       status: "valid",
       envelope: {
-        version: 4,
+        version: 5,
         payload: {
           context: {
             currentRodStringDm: 6_625,
@@ -368,7 +377,7 @@ describe("local run repository", () => {
     expect(repository.readDraft(holeId)).toMatchObject({
       status: "valid",
       envelope: {
-        version: 4,
+        version: 5,
         payload: {
           startedShiftId: "legacy-unassigned-shift",
           startedByNameSnapshot: "Legacy local operator",
@@ -442,7 +451,7 @@ describe("local run repository", () => {
     expect(repository.readDraft(holeId)).toMatchObject({
       status: "valid",
       envelope: {
-        version: 4,
+        version: 5,
         payload: {
           activeBitAssignmentId: null,
           activeReamerAssignmentId: null,

@@ -34,7 +34,7 @@ function completedRunsInDepthOrder(
   runs: readonly UsageRun[],
 ): readonly UsageRun[] {
   const completed = runs
-    .filter(({ status }) => status !== "in_progress")
+    .filter(({ status }) => status !== "in_progress" && status !== "void")
     .sort(
       (left, right) =>
         left.startDepth - right.startDepth || left.holeDepth - right.holeDepth,

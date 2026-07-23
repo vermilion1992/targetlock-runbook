@@ -1,9 +1,21 @@
 # TargetLock Known Limitations
 
 Status date: 2026-07-24
-Scope: local pilot of Stages 1–6 in `packages/main` + V2 report reliability
+Scope: local pilot of Stages 1–6 in `packages/main` + V2 report reliability +
+Run corrections/voiding
 
 ## Acceptable local-pilot limitations
+
+- **Run restore-from-void is not supported.** Voided Runs remain in audit
+  history; reversing a void requires a new operational entry after review.
+- **Mass automatic renumbering of later Runs is not supported.** Prefer voiding
+  accidental duplicates; run-number correction only updates the target Run after
+  duplicate/gap preview.
+- **Component snapshot correction is display-scoped.** Assignment interval
+  boundaries are not rewritten by Run corrections; discrepancies surface as
+  warnings.
+- **Metadata-only amendments on locked completed holes remain deferred.**
+  Calculation-affecting corrections require reopen.
 
 - **Browser-only storage.** Records live in localStorage and IndexedDB on one
   browser profile. Clearing site data loses local work.

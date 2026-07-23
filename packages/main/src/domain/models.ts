@@ -226,7 +226,7 @@ export interface Run extends SyncMetadata {
   readonly activeBitAssignmentId: LocalId | null;
   readonly activeReamerAssignmentId: LocalId | null;
   readonly casingSummarySnapshot: string | null;
-  readonly status: "in_progress" | "completed" | "corrected";
+  readonly status: "in_progress" | "completed" | "corrected" | "void";
   readonly holeNameSnapshot: string;
   readonly rigNameSnapshot: string;
 }

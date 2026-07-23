@@ -36,6 +36,9 @@ src/
     shifts/                shift history and statistics
     handover/              recoverable acceptance
     runbook/               shift-grouped runbook
+    runs/[runId]/          run detail with Correct / Void entry points
+    runs/[runId]/correct/  audited run correction workflow + impact preview
+    runs/[runId]/void/     audited void workflow with rod-event resolution
     casing/                history and install workflow
     casing/[casingId]/     detail, advance, and correction workflows
     components/            active assignments and hole history

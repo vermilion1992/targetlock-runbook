@@ -165,6 +165,15 @@ type CompletionValues = Omit<
   | "activeBitSerialNumberSnapshot"
   | "activeReamerSerialNumberSnapshot"
   | "casingSummarySnapshot"
+  | "version"
+  | "status"
+  | "correctionIds"
+  | "originalSnapshot"
+  | "voidReason"
+  | "voidComment"
+  | "voidedAt"
+  | "voidedByUserId"
+  | "voidedByNameSnapshot"
 >;
 
 export async function completeRun(
@@ -204,6 +213,15 @@ export async function completeRun(
     activeReamerSerialNumberSnapshot:
       payload.activeReamerSerialNumberSnapshot,
     casingSummarySnapshot: payload.casingSummarySnapshot,
+    version: 1,
+    status: "completed",
+    correctionIds: [],
+    originalSnapshot: null,
+    voidReason: null,
+    voidComment: null,
+    voidedAt: null,
+    voidedByUserId: null,
+    voidedByNameSnapshot: null,
   };
   const result = services.runs.saveCompletedRun(values.holeId, snapshot);
   if (!result.ok) return result;

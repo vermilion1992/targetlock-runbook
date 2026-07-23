@@ -79,9 +79,16 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
               <div className="mt-3 space-y-3">
                 {group.runs.map((run) => (
                   <Link key={run.id} href={runbookRoutes.runDetail(holeId, run.id)} className="block rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 no-underline">
-                    <div className="flex items-start justify-between">
+                    <div className="flex items-start justify-between gap-2">
                       <span className="text-xl font-bold">Run {run.runNumber}</span>
-                      {run.shared ? <StatusPill tone="info"><Share2 aria-hidden="true" className="size-4" />Shared run</StatusPill> : null}
+                      <span className="flex flex-wrap justify-end gap-2">
+                        {run.status === "void" ? (
+                          <StatusPill tone="danger">VOID</StatusPill>
+                        ) : run.status === "corrected" ? (
+                          <StatusPill tone="warning">Corrected</StatusPill>
+                        ) : null}
+                        {run.shared ? <StatusPill tone="info"><Share2 aria-hidden="true" className="size-4" />Shared</StatusPill> : null}
+                      </span>
                     </div>
                     <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
                       <div><dt className="text-[var(--tl-ink-muted)]">End depth</dt><dd className="font-bold">{formatMetres(run.holeDepthDm)}</dd></div>
@@ -128,7 +135,16 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
                   <tbody>
                     {group.runs.map((run) => (
                       <tr key={run.id} className="border-t border-[var(--tl-border)]">
-                        <th className="px-4 py-3"><Link href={runbookRoutes.runDetail(holeId, run.id)} className="font-bold text-[var(--tl-primary)]">{run.runNumber}</Link></th>
+                        <th className="px-4 py-3">
+                          <Link href={runbookRoutes.runDetail(holeId, run.id)} className="font-bold text-[var(--tl-primary)]">
+                            {run.runNumber}
+                          </Link>
+                          {run.status === "void" ? (
+                            <StatusPill tone="danger" className="ml-2">VOID</StatusPill>
+                          ) : run.status === "corrected" ? (
+                            <StatusPill tone="warning" className="ml-2">Corrected</StatusPill>
+                          ) : null}
+                        </th>
                         <td className="px-4 py-3">{run.shared ? <StatusPill tone="info">Shared</StatusPill> : group.shift.shiftType === "DAY" ? "Day" : "Night"}</td>
                         <td className="px-4 py-3 text-right">{formatMetres(run.holeDepthDm)}</td>
                         <td className="px-4 py-3 text-right">{formatMetres(run.drilledLengthDm)}</td>

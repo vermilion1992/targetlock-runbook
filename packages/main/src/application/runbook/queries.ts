@@ -22,7 +22,7 @@ export interface ShiftRunView {
   readonly drilledLengthDm: Decimetres;
   readonly recoveredLengthDm: Decimetres;
   readonly recoveryPercentage: number;
-  readonly status: "in_progress" | "completed" | "corrected";
+  readonly status: "in_progress" | "completed" | "corrected" | "void";
   readonly shared: boolean;
   readonly activeBitSerialNumberSnapshot: string | null;
   readonly activeReamerSerialNumberSnapshot: string | null;
@@ -71,7 +71,7 @@ function localRunView(run: SavedRunSnapshot): ShiftRunView {
     drilledLengthDm: run.drilledLengthDm as Decimetres,
     recoveredLengthDm: run.recoveredLengthDm as Decimetres,
     recoveryPercentage: run.recoveryPercentage,
-    status: "completed",
+    status: run.status,
     shared: run.startedShiftId !== run.completedShiftId,
     activeBitSerialNumberSnapshot: run.activeBitSerialNumberSnapshot,
     activeReamerSerialNumberSnapshot: run.activeReamerSerialNumberSnapshot,
@@ -209,6 +209,10 @@ const operationalActions = new Set([
   "hole_completed_timeline",
   "hole_abandoned_timeline",
   "hole_reopened_timeline",
+  "run_corrected",
+  "rod_event_corrected",
+  "recovered_length_corrected",
+  "run_voided",
 ]);
 
 export function getOperationalTimelineEntries(

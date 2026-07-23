@@ -15,7 +15,7 @@ import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import { formatMetres, type AuditEntry } from "@/domain";
+import { decimetres, formatMetres, type AuditEntry } from "@/domain";
 import { targetLockStage2Seed } from "@/infrastructure/seed";
 
 export function ShiftDetail({
@@ -61,6 +61,15 @@ export function ShiftDetail({
 
   if (group === null) return <p role="status">{message}</p>;
   const { shift, runs } = group;
+  const operationalRuns = runs.filter((run) => run.status !== "void");
+  const currentEndingDepthDm = operationalRuns.reduce(
+    (max, run) => (run.holeDepthDm > max ? run.holeDepthDm : max),
+    0,
+  );
+  const amendedAfterClose =
+    shift.endingDepthDm !== undefined &&
+    shift.closedAt !== undefined &&
+    currentEndingDepthDm !== shift.endingDepthDm;
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -70,6 +79,24 @@ export function ShiftDetail({
         description={`Primary driller: ${shift.primaryDrillerNameSnapshot}`}
         action={<StatusPill tone={shift.status === "OPEN" ? "success" : shift.status === "HANDOVER_PENDING" ? "warning" : "neutral"}>{shift.status.replaceAll("_", " ")}</StatusPill>}
       />
+
+      {amendedAfterClose ? (
+        <section
+          role="status"
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] p-4"
+        >
+          <h2 className="font-bold">Shift summary amended</h2>
+          <p className="mt-2 text-sm">
+            One or more runs were corrected after shift close. The original
+            handover note and acceptance timestamps are unchanged.
+          </p>
+          <p className="mt-2 text-sm">
+            Original ending depth {formatMetres(shift.endingDepthDm!)} · Current
+            calculated ending depth{" "}
+            {formatMetres(decimetres(currentEndingDepthDm))}
+          </p>
+        </section>
+      ) : null}
 
       <div className="flex flex-wrap gap-2">
         <Link href={runbookRoutes.shifts(holeId)} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline">

@@ -143,7 +143,7 @@ function localRunMetadata(snapshot: SavedRunSnapshot) {
     createdAt: snapshot.startedAt,
     updatedAt: snapshot.completedAt,
     deviceId: DEVICE_ID,
-    version: 1,
+    version: snapshot.version,
   };
 }
 
@@ -197,7 +197,7 @@ export function savedRunSnapshotToRun(
       (tagId) => tagLabels.get(tagId) ?? tagId,
     ),
     comment: snapshot.comment.trim() || null,
-    correctionIds: [],
+    correctionIds: [...snapshot.correctionIds],
     activeBitSerialNumberSnapshot:
       snapshot.activeBitSerialNumberSnapshot,
     activeReamerSerialNumberSnapshot:
@@ -205,7 +205,7 @@ export function savedRunSnapshotToRun(
     activeBitAssignmentId: snapshot.activeBitAssignmentId,
     activeReamerAssignmentId: snapshot.activeReamerAssignmentId,
     casingSummarySnapshot: snapshot.casingSummarySnapshot,
-    status: "completed",
+    status: snapshot.status,
     holeNameSnapshot: seed.hole.name,
     rigNameSnapshot: seed.rig.name,
   };
@@ -401,13 +401,15 @@ export async function getHoleCompletionContext(
   );
   const seedRunsForHole =
     seed.hole.name === holeId
-      ? seed.runs.filter(({ status }) => status !== "in_progress")
+      ? seed.runs.filter(
+          ({ status }) => status !== "in_progress" && status !== "void",
+        )
       : [];
   const completedRuns = mergeCompletionRuns(
     seedRunsForHole,
-    currentState.completedLocalRuns,
+    currentState.completedLocalRuns.filter(({ status }) => status !== "void"),
     seed,
-  ).filter(({ status }) => status !== "in_progress");
+  ).filter(({ status }) => status !== "in_progress" && status !== "void");
   const draftRun =
     seed.hole.name === holeId
       ? unfinishedDraftRun(holeId, currentState, seed)
