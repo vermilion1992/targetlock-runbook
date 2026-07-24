@@ -512,7 +512,7 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
       );
     }
     if (trajectory.targetAttitudeMode) {
-      writer.line(`Target attitude ${trajectory.targetAttitudeMode}`);
+      writer.line(`Target entry direction ${trajectory.targetAttitudeMode}`);
     }
     if (
       trajectory.nextSurveyDipDegrees !== undefined &&

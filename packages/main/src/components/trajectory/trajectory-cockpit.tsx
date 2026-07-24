@@ -44,6 +44,35 @@ function supportsWebGL(): boolean {
   }
 }
 
+function targetDialogProps(result: MiniTargetLockResult) {
+  const endpoint = result.curvedSolution?.endpoint;
+  const residual = result.curvedSolution?.targetAttitudeResidual;
+  return {
+    initial: result.target
+      ? {
+          measuredDepthM: result.target.measuredDepthM,
+          eastingM: result.target.eastingM,
+          northingM: result.target.northingM,
+          rlM: result.target.rlM,
+          diameterM: result.target.diameterM,
+          attitudeMode: result.target.attitudeMode,
+          desiredDipDegrees: result.target.desiredDipDegrees,
+          desiredAzimuthDegrees: result.target.desiredAzimuthDegrees,
+          desiredNorthReference: result.target.desiredNorthReference,
+        }
+      : undefined,
+    calculatedEntry: endpoint
+      ? {
+          dipDegrees: endpoint.dipDegrees,
+          azimuthDegrees: endpoint.azimuthDegrees,
+          northReference: result.calculationNorthReference,
+          residualDipDegrees: residual?.dipDegrees,
+          residualAzimuthDegrees: residual?.azimuthDegrees,
+        }
+      : undefined,
+  };
+}
+
 export function TrajectoryCockpit({
   holeId,
   result,
@@ -57,6 +86,7 @@ export function TrajectoryCockpit({
   const [targetOpen, setTargetOpen] = useState(false);
   const [collarOpen, setCollarOpen] = useState(false);
   const [useCanvas3d, setUseCanvas3d] = useState(() => !supportsWebGL());
+  const [showPlanSection, setShowPlanSection] = useState(false);
   const [selectedSurveyId, setSelectedSurveyId] = useState<string | null>(
     result.latestSurvey?.sourceId ?? null,
   );
@@ -126,21 +156,7 @@ export function TrajectoryCockpit({
           open={targetOpen}
           onClose={() => setTargetOpen(false)}
           onSaved={onReload}
-          initial={
-            result.target
-              ? {
-                  measuredDepthM: result.target.measuredDepthM,
-                  eastingM: result.target.eastingM,
-                  northingM: result.target.northingM,
-                  rlM: result.target.rlM,
-                  diameterM: result.target.diameterM,
-                  attitudeMode: result.target.attitudeMode,
-                  desiredDipDegrees: result.target.desiredDipDegrees,
-                  desiredAzimuthDegrees: result.target.desiredAzimuthDegrees,
-                  desiredNorthReference: result.target.desiredNorthReference,
-                }
-              : undefined
-          }
+          {...targetDialogProps(result)}
         />
       </div>
     );
@@ -171,21 +187,7 @@ export function TrajectoryCockpit({
           open={targetOpen}
           onClose={() => setTargetOpen(false)}
           onSaved={onReload}
-          initial={
-            result.target
-              ? {
-                  measuredDepthM: result.target.measuredDepthM,
-                  eastingM: result.target.eastingM,
-                  northingM: result.target.northingM,
-                  rlM: result.target.rlM,
-                  diameterM: result.target.diameterM,
-                  attitudeMode: result.target.attitudeMode,
-                  desiredDipDegrees: result.target.desiredDipDegrees,
-                  desiredAzimuthDegrees: result.target.desiredAzimuthDegrees,
-                  desiredNorthReference: result.target.desiredNorthReference,
-                }
-              : undefined
-          }
+          {...targetDialogProps(result)}
         />
       </div>
     );
@@ -206,32 +208,46 @@ export function TrajectoryCockpit({
         {!useCanvas3d ? (
           <div className="space-y-2">
             <TrajectoryR3FViewer model={model} />
-            <button
-              type="button"
-              className="text-xs font-semibold text-[var(--tl-ink-muted)] underline"
-              onClick={() => setUseCanvas3d(true)}
-            >
-              Use canvas fallback
-            </button>
+            <div className="flex flex-wrap items-center gap-3">
+              <button
+                type="button"
+                className="text-xs font-semibold text-[var(--tl-ink-muted)] underline"
+                onClick={() => setShowPlanSection((value) => !value)}
+                data-testid="trajectory-toggle-plan-section"
+              >
+                {showPlanSection
+                  ? "Hide plan & section"
+                  : "Show plan & section"}
+              </button>
+              <button
+                type="button"
+                className="text-xs font-semibold text-[var(--tl-ink-muted)] underline"
+                onClick={() => setUseCanvas3d(true)}
+              >
+                Use canvas fallback
+              </button>
+            </div>
           </div>
         ) : null}
-        <TrajectoryWorkspace
-          model={model}
-          comparison={
-            {
-              holeId,
-              planned: null,
-              actual: result.actualTrajectory,
-              trackingPoints: [],
-              warnings: [...result.warnings],
-              sourceVersions: [...result.sourceVersions],
-              blocked: false,
-              toleranceConfigured: false,
-            } satisfies HoleTrajectoryComparison
-          }
-          selectedSurveyId={selectedSurveyId}
-          onSelectSurveyId={setSelectedSurveyId}
-        />
+        {useCanvas3d || showPlanSection ? (
+          <TrajectoryWorkspace
+            model={model}
+            comparison={
+              {
+                holeId,
+                planned: null,
+                actual: result.actualTrajectory,
+                trackingPoints: [],
+                warnings: [...result.warnings],
+                sourceVersions: [...result.sourceVersions],
+                blocked: false,
+                toleranceConfigured: false,
+              } satisfies HoleTrajectoryComparison
+            }
+            selectedSurveyId={selectedSurveyId}
+            onSelectSurveyId={setSelectedSurveyId}
+          />
+        ) : null}
       </div>
 
       <TrajectoryFieldDetails result={result} holeId={holeId} />
@@ -241,21 +257,7 @@ export function TrajectoryCockpit({
         open={targetOpen}
         onClose={() => setTargetOpen(false)}
         onSaved={onReload}
-        initial={
-          result.target
-            ? {
-                measuredDepthM: result.target.measuredDepthM,
-                eastingM: result.target.eastingM,
-                northingM: result.target.northingM,
-                rlM: result.target.rlM,
-                diameterM: result.target.diameterM,
-                attitudeMode: result.target.attitudeMode,
-                desiredDipDegrees: result.target.desiredDipDegrees,
-                desiredAzimuthDegrees: result.target.desiredAzimuthDegrees,
-                desiredNorthReference: result.target.desiredNorthReference,
-              }
-            : undefined
-        }
+        {...targetDialogProps(result)}
       />
       <TrajectoryCollarCoordinatesDialog
         holeId={holeId}

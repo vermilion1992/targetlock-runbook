@@ -69,6 +69,18 @@ export function TrajectoryMetricStrip({
   const intervalMissing =
     result.target?.measuredDepthM !== undefined &&
     result.surveyIntervalM === null;
+  const targetMdReview = result.curvedSolution?.warnings.some(
+    (warning) => warning.code === "TARGET_MD_REVIEW_REQUIRED",
+  );
+  const advancedPathReview = result.curvedSolution?.warnings.some(
+    (warning) => warning.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+  );
+  const guidanceUnavailable = Boolean(targetMdReview || advancedPathReview);
+  const guidanceReviewLabel = targetMdReview
+    ? "Review target MD"
+    : advancedPathReview
+      ? "Review entry direction"
+      : undefined;
 
   return (
     <section
@@ -77,16 +89,24 @@ export function TrajectoryMetricStrip({
     >
       <MetricCell
         label="Next-Survey Dip"
-        primary={next ? formatDegrees(next.dipDegrees) : "—"}
+        primary={
+          guidanceUnavailable
+            ? "Unavailable"
+            : next
+              ? formatDegrees(next.dipDegrees)
+              : "—"
+        }
         secondary={
-          next
-            ? `At ${formatMetresValue(next.measuredDepthM)} MD`
-            : intervalMissing
-              ? "Survey interval required"
-              : undefined
+          guidanceUnavailable
+            ? guidanceReviewLabel
+            : next
+              ? `At ${formatMetresValue(next.measuredDepthM)} MD`
+              : intervalMissing
+                ? "Survey interval required"
+                : undefined
         }
         tertiary={
-          next
+          !guidanceUnavailable && next
             ? `Current ${formatDegrees(next.currentDipDegrees)} · Required change ${formatSignedDegrees(next.requiredDipChangeDegrees)}`
             : undefined
         }
@@ -95,19 +115,23 @@ export function TrajectoryMetricStrip({
       <MetricCell
         label="Next-Survey Azimuth"
         primary={
-          next
-            ? `${formatDegrees(next.azimuthDegrees)} ${northLabel(result)}`
-            : "—"
+          guidanceUnavailable
+            ? "Unavailable"
+            : next
+              ? `${formatDegrees(next.azimuthDegrees)} ${northLabel(result)}`
+              : "—"
         }
         secondary={
-          next
-            ? `At ${formatMetresValue(next.measuredDepthM)} MD`
-            : intervalMissing
-              ? "Survey interval required"
-              : undefined
+          guidanceUnavailable
+            ? guidanceReviewLabel
+            : next
+              ? `At ${formatMetresValue(next.measuredDepthM)} MD`
+              : intervalMissing
+                ? "Survey interval required"
+                : undefined
         }
         tertiary={
-          next
+          !guidanceUnavailable && next
             ? `Current ${formatDegrees(next.currentAzimuthDegrees)} · Required change ${formatSignedDegrees(next.requiredAzimuthChangeDegrees)}`
             : undefined
         }
@@ -125,8 +149,8 @@ export function TrajectoryMetricStrip({
         secondary={
           projection
             ? projection.intersectsTarget
-              ? "Inside / intersects target"
-              : `${formatMetresValue(projection.missOutsideTargetM)} outside target`
+              ? "Intersects if attitude held"
+              : "Outside if current attitude held"
             : result.target
               ? undefined
               : "Set a target"
@@ -134,7 +158,9 @@ export function TrajectoryMetricStrip({
         tertiary={
           projection && result.target
             ? `Closest approach ${formatMetresValue(projection.closestApproachM)} · Radius ${formatMetresValue(result.target.diameterM / 2)}`
-            : undefined
+            : latest
+              ? "Hold current Survey attitude"
+              : undefined
         }
         testId="trajectory-metric-projected-miss"
       />
@@ -145,7 +171,15 @@ export function TrajectoryMetricStrip({
             ? formatMetresValue(distanceM)
             : "—"
         }
-        secondary="Straight spatial distance"
+        secondary={
+          result.curvedSolution &&
+          (result.curvedSolution.status === "SOLVED" ||
+            result.curvedSolution.status === "REVIEW_REQUIRED") &&
+          result.curvedSolution.targetResidualM !== null &&
+          !guidanceUnavailable
+            ? `Recovery residual ${formatMetresValue(result.curvedSolution.targetResidualM)}`
+            : "Straight spatial distance"
+        }
         tertiary={
           remaining !== null &&
           remaining !== undefined &&

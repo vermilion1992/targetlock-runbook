@@ -7,17 +7,20 @@
 
 import { Canvas, useThree } from "@react-three/fiber";
 import { Grid, Line, OrbitControls, Sphere } from "@react-three/drei";
-import { useEffect, useMemo } from "react";
+import { useEffect, useMemo, useState } from "react";
 import * as THREE from "three";
 
 import {
   toSceneCoordinates,
   verticalScaleFactor,
   verticalScaleLabel,
+  type TrajectoryMarkerPoint,
   type TrajectoryPathPoint,
   type TrajectoryVerticalScaleMode,
   type TrajectoryViewModel,
 } from "@/domain";
+
+type HoveredMarker = TrajectoryMarkerPoint;
 
 function pathToVectors(
   path: readonly TrajectoryPathPoint[],
@@ -48,12 +51,54 @@ function FitCamera({
   return null;
 }
 
+function MarkerMesh({
+  marker,
+  model,
+  verticalScale,
+  color,
+  radius,
+  emissive,
+  onHover,
+}: {
+  marker: TrajectoryMarkerPoint;
+  model: TrajectoryViewModel;
+  verticalScale: number;
+  color: string;
+  radius: number;
+  emissive?: string;
+  onHover: (marker: HoveredMarker | null) => void;
+}) {
+  const scene = toSceneCoordinates(marker, model.bounds, verticalScale);
+  return (
+    <mesh
+      position={[scene.x, scene.y, scene.z]}
+      onPointerOver={(event) => {
+        event.stopPropagation();
+        onHover(marker);
+        document.body.style.cursor = "pointer";
+      }}
+      onPointerOut={(event) => {
+        event.stopPropagation();
+        onHover(null);
+        document.body.style.cursor = "auto";
+      }}
+    >
+      <sphereGeometry args={[radius, 16, 16]} />
+      <meshStandardMaterial color={color} emissive={emissive} />
+    </mesh>
+  );
+}
+
 function TrajectoryScene({
   model,
   verticalScaleMode,
+  orbitLocked,
+  onHoverMarker,
 }: {
   model: TrajectoryViewModel;
   verticalScaleMode: TrajectoryVerticalScaleMode;
+  orbitLocked: boolean;
+  onHoverMarker: (marker: HoveredMarker | null) => void;
 }) {
   const verticalScale = verticalScaleFactor(verticalScaleMode);
   const actual = useMemo(
@@ -102,10 +147,19 @@ function TrajectoryScene({
   const targetCentre = model.target
     ? toSceneCoordinates(model.target, model.bounds, verticalScale)
     : null;
-  const latest = model.markers.find((marker) => marker.kind === "SELECTED_SURVEY");
-  const latestScene = latest
-    ? toSceneCoordinates(latest, model.bounds, verticalScale)
+  const collar = model.markers.find((marker) => marker.kind === "COLLAR");
+  const collarScene = collar
+    ? toSceneCoordinates(collar, model.bounds, verticalScale)
     : null;
+  const latest = model.markers.find(
+    (marker) => marker.kind === "SELECTED_SURVEY",
+  );
+  const surveyMarkers = model.markers.filter(
+    (marker) => marker.kind === "SURVEY_STATION",
+  );
+  const stationRadius = Math.max(model.bounds.spanM * 0.008, 0.4);
+  const latestRadius = Math.max(model.bounds.spanM * 0.014, 0.7);
+  const collarSize = Math.max(model.bounds.spanM * 0.018, 0.9);
   const axisLen = Math.max(model.bounds.spanM * 0.25, 10);
 
   return (
@@ -161,28 +215,47 @@ function TrajectoryScene({
         />
       ) : null}
 
-      {model.markers
-        .filter((marker) => marker.kind === "SURVEY_STATION")
-        .map((marker) => {
-          const scene = toSceneCoordinates(marker, model.bounds, verticalScale);
-          return (
-            <mesh
-              key={`${marker.sourceId ?? marker.measuredDepthM}-${marker.eastingM}`}
-              position={[scene.x, scene.y, scene.z]}
-            >
-              <sphereGeometry args={[Math.max(model.bounds.spanM * 0.008, 0.4), 12, 12]} />
-              <meshStandardMaterial color="#1e4a8a" />
-            </mesh>
-          );
-        })}
-
-      {latestScene ? (
-        <mesh position={[latestScene.x, latestScene.y, latestScene.z]}>
-          <sphereGeometry
-            args={[Math.max(model.bounds.spanM * 0.014, 0.7), 16, 16]}
-          />
-          <meshStandardMaterial color="#d33c45" emissive="#7f1d1d" />
+      {collarScene && collar ? (
+        <mesh
+          position={[collarScene.x, collarScene.y, collarScene.z]}
+          onPointerOver={(event) => {
+            event.stopPropagation();
+            onHoverMarker(collar);
+            document.body.style.cursor = "pointer";
+          }}
+          onPointerOut={(event) => {
+            event.stopPropagation();
+            onHoverMarker(null);
+            document.body.style.cursor = "auto";
+          }}
+        >
+          <boxGeometry args={[collarSize, collarSize, collarSize]} />
+          <meshStandardMaterial color="#0f172a" />
         </mesh>
+      ) : null}
+
+      {surveyMarkers.map((marker) => (
+        <MarkerMesh
+          key={`${marker.sourceId ?? marker.measuredDepthM}-${marker.eastingM}`}
+          marker={marker}
+          model={model}
+          verticalScale={verticalScale}
+          color="#1e4a8a"
+          radius={stationRadius}
+          onHover={onHoverMarker}
+        />
+      ))}
+
+      {latest ? (
+        <MarkerMesh
+          marker={latest}
+          model={model}
+          verticalScale={verticalScale}
+          color="#d33c45"
+          radius={latestRadius}
+          emissive="#7f1d1d"
+          onHover={onHoverMarker}
+        />
       ) : null}
 
       {closest ? (
@@ -210,13 +283,50 @@ function TrajectoryScene({
           args={[targetRadius, 24, 16]}
           position={[targetCentre.x, targetCentre.y, targetCentre.z]}
         >
-          <meshBasicMaterial color="#b86e00" wireframe transparent opacity={0.55} />
+          <meshBasicMaterial
+            color="#b86e00"
+            wireframe
+            transparent
+            opacity={0.55}
+          />
         </Sphere>
       ) : null}
 
-      <OrbitControls makeDefault enablePan enableZoom enableRotate />
+      <OrbitControls
+        makeDefault
+        enablePan={!orbitLocked}
+        enableZoom={!orbitLocked}
+        enableRotate={!orbitLocked}
+      />
       <FitCamera model={model} verticalScale={verticalScale} />
     </>
+  );
+}
+
+function formatHoverDegrees(value: number | undefined): string {
+  if (value === undefined || !Number.isFinite(value)) return "—";
+  return `${value.toFixed(1)}°`;
+}
+
+function HoverTooltip({ marker }: { marker: HoveredMarker }) {
+  return (
+    <div
+      className="pointer-events-none absolute left-3 bottom-3 max-w-xs rounded-md bg-white/95 px-3 py-2 text-xs text-[var(--tl-ink)] shadow-sm"
+      data-testid="trajectory-r3f-hover-tooltip"
+    >
+      <p className="font-semibold">{marker.label}</p>
+      <p className="mt-1 tabular-nums text-[var(--tl-ink-muted)]">
+        MD {marker.measuredDepthM.toFixed(1)} m
+      </p>
+      <p className="tabular-nums text-[var(--tl-ink-muted)]">
+        Dip / Az {formatHoverDegrees(marker.dipDegrees)} /{" "}
+        {formatHoverDegrees(marker.azimuthDegrees)}
+      </p>
+      <p className="tabular-nums text-[var(--tl-ink-muted)]">
+        E / N / RL {marker.eastingM.toFixed(1)} / {marker.northingM.toFixed(1)}{" "}
+        / {marker.rlM.toFixed(1)}
+      </p>
+    </div>
   );
 }
 
@@ -227,22 +337,87 @@ export function TrajectoryR3FViewer({
   model: TrajectoryViewModel;
   verticalScaleMode?: TrajectoryVerticalScaleMode;
 }) {
+  const [orbitLocked, setOrbitLocked] = useState(false);
+  const [hovered, setHovered] = useState<HoveredMarker | null>(null);
+  const hasCurved = (model.curvedRecoveryPath?.length ?? 0) > 1;
+  const hasProjected = (model.projectedContinuationPath?.length ?? 0) > 1;
+  const hasMiss = model.missVector !== undefined;
+
   return (
     <div
-      className="relative h-[28rem] overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)]"
+      className="relative h-[32rem] overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)]"
       data-testid="trajectory-r3f-viewer"
     >
       <Canvas camera={{ position: [40, 30, 40], fov: 50 }}>
-        <TrajectoryScene model={model} verticalScaleMode={verticalScaleMode} />
+        <TrajectoryScene
+          model={model}
+          verticalScaleMode={verticalScaleMode}
+          orbitLocked={orbitLocked}
+          onHoverMarker={setHovered}
+        />
       </Canvas>
-      <div className="pointer-events-none absolute left-3 top-3 space-y-1 rounded-md bg-white/85 px-2 py-1 text-xs text-[var(--tl-ink)] shadow-sm">
+
+      <div className="pointer-events-none absolute left-3 top-3 space-y-1 rounded-md bg-white/90 px-2 py-1.5 text-xs text-[var(--tl-ink)] shadow-sm">
         <p className="font-semibold">3D · East / North / RL</p>
-        <p>Vertical scale {verticalScaleLabel(verticalScaleMode)} (labelled)</p>
-        <p>N = +Z · E = +X · RL = +Y</p>
+        <p>Vertical scale {verticalScaleLabel(verticalScaleMode)}</p>
+        <p className="text-[var(--tl-ink-muted)]">N = +Z · E = +X · RL = +Y</p>
       </div>
-      <div className="pointer-events-none absolute bottom-3 right-3 rounded-md bg-white/85 px-2 py-1 text-xs text-[var(--tl-ink-muted)] shadow-sm">
-        Orbit · pan · zoom · fit on load
+
+      <div
+        className="pointer-events-none absolute right-3 top-3 space-y-1 rounded-md bg-white/90 px-2 py-1.5 text-xs text-[var(--tl-ink)] shadow-sm"
+        data-testid="trajectory-r3f-legend"
+      >
+        <p className="font-semibold">Key</p>
+        <p>
+          <span className="mr-1 inline-block h-2 w-2 bg-[#0f172a]" /> Collar
+        </p>
+        <p>
+          <span className="mr-1 inline-block h-0.5 w-3 bg-[#1f6feb]" /> Actual
+        </p>
+        {hasProjected ? (
+          <p>
+            <span className="mr-1 inline-block h-0.5 w-3 border-t border-dashed border-[#94a3b8]" />{" "}
+            Current direction
+          </p>
+        ) : null}
+        {hasCurved ? (
+          <p>
+            <span className="mr-1 inline-block h-0.5 w-3 border-t border-dashed border-[#b86e00]" />{" "}
+            Recommended recovery
+          </p>
+        ) : null}
+        <p>
+          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#d33c45]" />{" "}
+          Latest Survey
+        </p>
+        <p>
+          <span className="mr-1 inline-block h-2 w-2 rounded-full bg-[#b86e00]/40" />{" "}
+          Target
+        </p>
+        {hasMiss ? (
+          <p>
+            <span className="mr-1 inline-block h-0.5 w-3 border-t border-dashed border-[#d33c45]" />{" "}
+            Projected miss
+          </p>
+        ) : null}
       </div>
+
+      <div className="absolute bottom-3 right-3 flex items-center gap-2">
+        <button
+          type="button"
+          className="rounded-md bg-white/95 px-3 py-1.5 text-xs font-semibold text-[var(--tl-ink)] shadow-sm"
+          onClick={() => setOrbitLocked((value) => !value)}
+          data-testid="trajectory-r3f-orbit-lock"
+          aria-pressed={orbitLocked}
+        >
+          {orbitLocked ? "Unlock view" : "Lock view"}
+        </button>
+        <span className="rounded-md bg-white/85 px-2 py-1 text-xs text-[var(--tl-ink-muted)] shadow-sm">
+          {orbitLocked ? "View locked" : "Orbit · pan · zoom"}
+        </span>
+      </div>
+
+      {hovered ? <HoverTooltip marker={hovered} /> : null}
     </div>
   );
 }

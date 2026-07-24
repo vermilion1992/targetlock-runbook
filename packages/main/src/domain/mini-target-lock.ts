@@ -493,7 +493,7 @@ export function calculateMiniTargetLock(
       station.sourceType === "COLLAR" ||
       !built.selectedSurveys.some((survey) => Number(survey.depthDm) > 0);
 
-    let target: MiniTargetLockTarget | null = resolvedTarget;
+    const target: MiniTargetLockTarget | null = resolvedTarget;
     let directToTarget: MiniTargetLockDirectToTarget | null = null;
     let requiredChange: MiniTargetLockRequiredChange | null = null;
     let projection: MiniTargetLockProjection | null = null;
@@ -564,7 +564,13 @@ export function calculateMiniTargetLock(
           holeId: input.holeId,
         });
 
+        const guidanceBlocked = curvedSolution.warnings.some(
+          (warning) =>
+            warning.code === "TARGET_MD_REVIEW_REQUIRED" ||
+            warning.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+        );
         if (
+          !guidanceBlocked &&
           curvedSolution.nextSurveyTarget &&
           nextSurveyMeasuredDepthM !== null
         ) {

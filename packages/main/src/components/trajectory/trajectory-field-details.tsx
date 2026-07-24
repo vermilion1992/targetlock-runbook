@@ -92,7 +92,49 @@ export function TrajectoryFieldDetails({
         </section>
       ) : null}
 
-      {reviewCurvature ? (
+      {curved?.warnings.some((w) => w.code === "TARGET_MD_REVIEW_REQUIRED") ? (
+        <section
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-surface)] p-4"
+          data-testid="target-md-review-banner"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-warning)]">
+            Target depth requires review
+          </h2>
+          <p className="mt-2 whitespace-pre-line text-sm">
+            {
+              curved.warnings.find((w) => w.code === "TARGET_MD_REVIEW_REQUIRED")
+                ?.message
+            }
+          </p>
+        </section>
+      ) : null}
+
+      {curved?.warnings.some(
+        (w) => w.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+      ) ? (
+        <section
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-surface)] p-4"
+          data-testid="advanced-path-review-banner"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-warning)]">
+            Target entry direction requires a complex path
+          </h2>
+          <p className="mt-2 whitespace-pre-line text-sm">
+            {
+              curved.warnings.find(
+                (w) => w.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+              )?.message
+            }
+          </p>
+        </section>
+      ) : null}
+
+      {reviewCurvature &&
+      !curved?.warnings.some(
+        (w) =>
+          w.code === "TARGET_MD_REVIEW_REQUIRED" ||
+          w.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+      ) ? (
         <section
           className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-surface)] p-4"
           data-testid="review-curvature-banner"
@@ -195,6 +237,31 @@ export function TrajectoryFieldDetails({
                 </div>
                 <div>
                   <dt className="text-[var(--tl-ink-muted)]">
+                    Diameter / radius
+                  </dt>
+                  <dd className="font-semibold tabular-nums">
+                    {target.diameterM.toFixed(1)} m /{" "}
+                    {(target.diameterM / 2).toFixed(1)} m
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--tl-ink-muted)]">
+                    Target entry direction
+                  </dt>
+                  <dd
+                    className="font-semibold tabular-nums"
+                    data-testid="target-entry-mode"
+                  >
+                    {target.attitudeMode === "MATCH_ENTRY_DIRECTION" ||
+                    target.attitudeMode === "CUSTOM"
+                      ? "Specified"
+                      : target.attitudeMode === "SAME_AS_COLLAR"
+                        ? "Same as collar"
+                        : "Automatic smoothest path"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--tl-ink-muted)]">
                     Hold-attitude miss
                   </dt>
                   <dd className="font-semibold tabular-nums">
@@ -207,7 +274,7 @@ export function TrajectoryFieldDetails({
                 </div>
                 <div>
                   <dt className="text-[var(--tl-ink-muted)]">
-                    Steered path residual
+                    Recommended recovery residual
                   </dt>
                   <dd className="font-semibold tabular-nums">
                     {curved?.targetResidualM !== null &&

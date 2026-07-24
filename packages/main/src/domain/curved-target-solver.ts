@@ -30,6 +30,10 @@ import {
   slerpDirection,
   vectorFromDipAz,
 } from "./trajectory-geometry";
+import {
+  isAutoSmoothAttitudeMode,
+  isMatchEntryAttitudeMode,
+} from "./target-migration";
 import type {
   CalculatedTrajectoryStation,
   ReferenceConfiguration,
@@ -55,12 +59,23 @@ export type CurvedTargetSolutionStatus =
 export type CurvedTargetWarningCode =
   | "TARGET_UNREACHABLE_AT_MD"
   | "TARGET_MD_SHALLOWER_THAN_SURVEY"
+  | "TARGET_MD_REVIEW_REQUIRED"
+  | "ADVANCED_PATH_REVIEW_REQUIRED"
   | "SURVEY_AT_TARGET_OUTSIDE"
   | "MISSING_NEXT_SURVEY_DEPTH"
   | "SHARP_CURVATURE"
   | "ATTITUDE_RESIDUAL"
   | "POSITION_RESIDUAL"
   | "COLLAR_BASED_GUIDANCE";
+
+/** Significant signed rate threshold (°/30 m) before counting a reversal. */
+const REVERSAL_RATE_THRESHOLD_PER_30M = 2.0;
+/** Cross-track overshoot threshold as a fraction of plan chord length. */
+const CROSS_TRACK_OVERSHOOT_FRACTION = 0.12;
+/** Minimum absolute cross-track (m) before overshoot is considered. */
+const CROSS_TRACK_OVERSHOOT_MIN_M = 4;
+/** Surplus MD ratio that can force lateral looping without attitude constraint. */
+const EXCESS_MD_SLACK_RATIO = 1.35;
 
 export interface CurvedTargetWarning {
   readonly code: CurvedTargetWarningCode;
@@ -104,6 +119,17 @@ export interface RecoveryPathDiagnostics {
     readonly dipDegrees: number;
     readonly azimuthDegrees: number;
   };
+}
+
+export interface RecoveryPathQuality {
+  readonly hasBuildReversal: boolean;
+  readonly hasTurnReversal: boolean;
+  readonly hasCrossTrackOvershoot: boolean;
+  readonly maximumDoglegPer30m: number;
+  readonly maximumDoglegChangePer30m: number;
+  readonly endpointResidualM: number;
+  readonly targetMdReviewRequired: boolean;
+  readonly advancedPathReviewRequired: boolean;
 }
 
 export interface CurvedTargetSolutionInput {
@@ -164,6 +190,7 @@ export interface CurvedTargetSolution {
     readonly toMdM: number;
   } | null;
   readonly intervalDiagnostics?: readonly RecoveryIntervalDiagnostic[];
+  readonly pathQuality?: RecoveryPathQuality;
   readonly solverConverged: boolean;
   readonly engineVersion: typeof TRAJECTORY_ENGINE_VERSION;
   readonly solverVersion: typeof CURVED_TARGET_SOLVER_VERSION;
@@ -323,6 +350,134 @@ export function summariseRecoveryPathDiagnostics(
   };
 }
 
+function hasSignedRateReversal(
+  rates: readonly number[],
+  threshold: number,
+): boolean {
+  let lastSignificant: number | null = null;
+  for (const rate of rates) {
+    if (Math.abs(rate) < threshold) continue;
+    if (lastSignificant !== null && rate * lastSignificant < 0) {
+      return true;
+    }
+    lastSignificant = rate;
+  }
+  return false;
+}
+
+function planCrossTrackExtremes(
+  stations: readonly {
+    readonly eastingM: number;
+    readonly northingM: number;
+  }[],
+  start: { readonly eastingM: number; readonly northingM: number },
+  target: { readonly eastingM: number; readonly northingM: number },
+): { maxPositiveM: number; maxNegativeM: number; chordLengthM: number } {
+  const chordE = target.eastingM - start.eastingM;
+  const chordN = target.northingM - start.northingM;
+  const chordLengthM = Math.hypot(chordE, chordN);
+  if (chordLengthM < 1e-6 || stations.length < 2) {
+    return { maxPositiveM: 0, maxNegativeM: 0, chordLengthM };
+  }
+  const unitE = chordE / chordLengthM;
+  const unitN = chordN / chordLengthM;
+  let maxPositiveM = 0;
+  let maxNegativeM = 0;
+  for (const station of stations) {
+    const relE = station.eastingM - start.eastingM;
+    const relN = station.northingM - start.northingM;
+    // Signed plan cross-track: left positive relative to start→target.
+    const cross = relE * unitN - relN * unitE;
+    maxPositiveM = Math.max(maxPositiveM, cross);
+    maxNegativeM = Math.min(maxNegativeM, cross);
+  }
+  return { maxPositiveM, maxNegativeM, chordLengthM };
+}
+
+export function assessRecoveryPathQuality(input: {
+  readonly intervals: readonly RecoveryIntervalDiagnostic[];
+  readonly stations: readonly {
+    readonly eastingM: number;
+    readonly northingM: number;
+  }[];
+  readonly start: { readonly eastingM: number; readonly northingM: number };
+  readonly target: { readonly eastingM: number; readonly northingM: number };
+  readonly endpointResidualM: number;
+  readonly remainingMeasuredDepthM: number;
+  readonly straightDistanceM: number;
+  readonly autoSmooth: boolean;
+  readonly matchEntryDirection: boolean;
+}): RecoveryPathQuality {
+  const buildRates = input.intervals.map(
+    (interval) => interval.buildRatePer30mDegrees,
+  );
+  const turnRates = input.intervals.map(
+    (interval) => interval.turnRatePer30mDegrees,
+  );
+  const hasBuildReversal = hasSignedRateReversal(
+    buildRates,
+    REVERSAL_RATE_THRESHOLD_PER_30M,
+  );
+  const hasTurnReversal = hasSignedRateReversal(
+    turnRates,
+    REVERSAL_RATE_THRESHOLD_PER_30M,
+  );
+  const extremes = planCrossTrackExtremes(
+    input.stations,
+    input.start,
+    input.target,
+  );
+  const overshootLimit = Math.max(
+    CROSS_TRACK_OVERSHOOT_MIN_M,
+    extremes.chordLengthM * CROSS_TRACK_OVERSHOOT_FRACTION,
+  );
+  const hasCrossTrackOvershoot =
+    extremes.maxPositiveM > overshootLimit &&
+    Math.abs(extremes.maxNegativeM) > overshootLimit;
+
+  let maximumDoglegPer30m = 0;
+  let maximumDoglegChangePer30m = 0;
+  for (let i = 0; i < input.intervals.length; i += 1) {
+    const dls = input.intervals[i]!.doglegPer30mDegrees;
+    maximumDoglegPer30m = Math.max(maximumDoglegPer30m, dls);
+    if (i > 0) {
+      maximumDoglegChangePer30m = Math.max(
+        maximumDoglegChangePer30m,
+        Math.abs(dls - input.intervals[i - 1]!.doglegPer30mDegrees),
+      );
+    }
+  }
+
+  // Surplus path length often forces lateral looping.
+  const hasExcessMeasuredDepth =
+    input.straightDistanceM > 1e-6 &&
+    input.remainingMeasuredDepthM / input.straightDistanceM >
+      EXCESS_MD_SLACK_RATIO;
+
+  // AUTO_SMOOTH rejects lateral S-curves and turn reversals. Mild build
+  // oscillation alone is ranked down but only blocks when MD is also surplus.
+  const targetMdReviewRequired =
+    input.autoSmooth &&
+    (hasCrossTrackOvershoot ||
+      hasTurnReversal ||
+      (hasBuildReversal && hasExcessMeasuredDepth));
+
+  const advancedPathReviewRequired =
+    input.matchEntryDirection &&
+    (hasCrossTrackOvershoot || hasTurnReversal || hasBuildReversal);
+
+  return {
+    hasBuildReversal,
+    hasTurnReversal,
+    hasCrossTrackOvershoot,
+    maximumDoglegPer30m,
+    maximumDoglegChangePer30m,
+    endpointResidualM: input.endpointResidualM,
+    targetMdReviewRequired,
+    advancedPathReviewRequired,
+  };
+}
+
 function convertAttitude(
   dipDegrees: number,
   azimuthDegrees: number,
@@ -341,11 +496,14 @@ function convertAttitude(
   };
 }
 
+/** Free-end sentinel used inside the optimiser (AUTO_SMOOTH / legacy UNCONSTRAINED). */
+type EndpointAttitudeFixed = AttitudePair | "AUTO_SMOOTH";
+
 function resolveEndpointAttitude(
   input: CurvedTargetSolutionInput,
-): AttitudePair | "UNCONSTRAINED" | null {
+): EndpointAttitudeFixed | null {
   const mode = input.target.attitudeMode;
-  if (mode === "UNCONSTRAINED") return "UNCONSTRAINED";
+  if (isAutoSmoothAttitudeMode(mode)) return "AUTO_SMOOTH";
   if (mode === "SAME_AS_COLLAR") {
     if (!input.collarAttitude) return null;
     return convertAttitude(
@@ -448,6 +606,9 @@ interface PathEvalMetrics {
   curvatureVariationCost: number;
   buildVariationCost: number;
   turnVariationCost: number;
+  hasBuildReversal: boolean;
+  hasTurnReversal: boolean;
+  hasCrossTrackOvershoot: boolean;
   intervals: RecoveryIntervalDiagnostic[];
   endpoint: SolverStationPose;
   stations: readonly SolverStationPose[];
@@ -534,7 +695,7 @@ function evaluatePathDegrees(
     let attitudeResidual:
       | { dipDegrees: number; azimuthDegrees: number }
       | undefined;
-    if (fixed && fixed !== "UNCONSTRAINED") {
+    if (fixed && fixed !== "AUTO_SMOOTH") {
       attitudeResidual = {
         dipDegrees: endpoint.dipDegrees - fixed.dipDegrees,
         azimuthDegrees: shortestAzimuthDifferenceDegrees(
@@ -543,6 +704,23 @@ function evaluatePathDegrees(
         ),
       };
     }
+    const remainingMeasuredDepthM =
+      input.target.measuredDepthM - input.currentStation.measuredDepthM;
+    const straightDistanceM = spatialDistance(
+      input.currentStation,
+      input.target,
+    );
+    const quality = assessRecoveryPathQuality({
+      intervals,
+      stations,
+      start: input.currentStation,
+      target: input.target,
+      endpointResidualM: residualM,
+      remainingMeasuredDepthM,
+      straightDistanceM,
+      autoSmooth: isAutoSmoothAttitudeMode(input.target.attitudeMode),
+      matchEntryDirection: isMatchEntryAttitudeMode(input.target.attitudeMode),
+    });
     return {
       residualM,
       attitudeResidual,
@@ -554,6 +732,9 @@ function evaluatePathDegrees(
       curvatureVariationCost,
       buildVariationCost,
       turnVariationCost,
+      hasBuildReversal: quality.hasBuildReversal,
+      hasTurnReversal: quality.hasTurnReversal,
+      hasCrossTrackOvershoot: quality.hasCrossTrackOvershoot,
       intervals,
       endpoint,
       stations,
@@ -631,7 +812,7 @@ function evaluatePath(
     );
     const fixed = resolveEndpointAttitude(input);
     let attitudeResidual = degreeEval.attitudeResidual;
-    if (fixed && fixed !== "UNCONSTRAINED") {
+    if (fixed && fixed !== "AUTO_SMOOTH") {
       attitudeResidual = {
         dipDegrees: degreeEval.endpoint.dipDegrees - fixed.dipDegrees,
         azimuthDegrees: shortestAzimuthDifferenceDegrees(
@@ -705,7 +886,8 @@ function isFeasible(evalResult: PathEvalMetrics): boolean {
 
 /**
  * Residual-seeking objective used during coordinate descent. Keep this close to
- * the proven converging formulation — path quality must not block endpoint fit.
+ * the proven converging formulation — path quality must not block endpoint fit,
+ * but soft monotonic penalties steer away from lateral S-curves early.
  */
 function residualSeekingCost(evalResult: PathEvalMetrics): number {
   const attitudePenalty = evalResult.attitudeResidual
@@ -715,19 +897,31 @@ function residualSeekingCost(evalResult: PathEvalMetrics): number {
   const curvaturePenalty =
     Math.max(0, evalResult.maxDoglegPer30m - CURVED_SOLVER_REVIEW_DLS_PER_30M) **
     2;
+  const reversalPenalty =
+    (evalResult.hasBuildReversal ? 8 : 0) +
+    (evalResult.hasTurnReversal ? 12 : 0) +
+    (evalResult.hasCrossTrackOvershoot ? 20 : 0);
   return (
     evalResult.residualM ** 2 * 100 +
     attitudePenalty * 4 +
     curvaturePenalty * 0.05 +
-    evalResult.maxDogleg * 0.01
+    evalResult.maxDogleg * 0.01 +
+    reversalPenalty
   );
 }
 
 /**
  * Path-quality ranking among feasible solutions (smoothness, not tool limits).
+ * Unnecessary signed reversals / lateral excursion rank far worse than a
+ * slightly larger residual within tolerance.
  */
 function smoothnessRank(evalResult: PathEvalMetrics): number {
+  const reversalPenalty =
+    (evalResult.hasBuildReversal ? 5_000 : 0) +
+    (evalResult.hasTurnReversal ? 8_000 : 0) +
+    (evalResult.hasCrossTrackOvershoot ? 12_000 : 0);
   return (
+    reversalPenalty +
     evalResult.maxDoglegPer30m ** 2 * 2 +
     evalResult.curvatureVariationCost * 1.5 +
     evalResult.buildVariationCost * 0.3 +
@@ -740,14 +934,14 @@ function smoothnessRank(evalResult: PathEvalMetrics): number {
 
 function seedAttitudes(
   input: CurvedTargetSolutionInput,
-  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  endpointFixed: EndpointAttitudeFixed,
 ): [AttitudePair, AttitudePair, AttitudePair] {
   const start: AttitudePair = {
     dipDegrees: input.currentStation.dipDegrees,
     azimuthDegrees: normalizeAzimuthDegrees(input.currentStation.azimuthDegrees),
   };
   let end: AttitudePair;
-  if (endpointFixed === "UNCONSTRAINED") {
+  if (endpointFixed === "AUTO_SMOOTH") {
     const aim = dipAzFromVector({
       e: input.target.eastingM - input.currentStation.eastingM,
       n: input.target.northingM - input.currentStation.northingM,
@@ -782,7 +976,7 @@ function applyParamDelta(
   param: number,
   delta: number,
   freeEnd: boolean,
-  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  endpointFixed: EndpointAttitudeFixed,
 ): [AttitudePair, AttitudePair, AttitudePair] {
   const next = cloneAttitudes(attitudes);
   const stationIndex = Math.floor(param / 2);
@@ -799,7 +993,7 @@ function applyParamDelta(
       attitude.azimuthDegrees + delta,
     );
   }
-  if (!freeEnd && endpointFixed !== "UNCONSTRAINED") {
+  if (!freeEnd && endpointFixed !== "AUTO_SMOOTH") {
     next[2] = { ...endpointFixed };
   }
   return next;
@@ -807,7 +1001,7 @@ function applyParamDelta(
 
 function buildSeedVariants(
   input: CurvedTargetSolutionInput,
-  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  endpointFixed: EndpointAttitudeFixed,
 ): Array<[AttitudePair, AttitudePair, AttitudePair]> {
   const primary = seedAttitudes(input, endpointFixed);
   const start: AttitudePair = {
@@ -824,7 +1018,7 @@ function buildSeedVariants(
     azimuthDegrees: normalizeAzimuthDegrees(aim.azimuth),
   };
   const end =
-    endpointFixed === "UNCONSTRAINED" ? chordAttitude : endpointFixed;
+    endpointFixed === "AUTO_SMOOTH" ? chordAttitude : endpointFixed;
 
   // Chord hold: progressive entry to position-aim attitude, then settle to end.
   // Avoids duplicating the terminal attitude across control stations.
@@ -867,7 +1061,7 @@ function refineFromSeed(
   seed: readonly [AttitudePair, AttitudePair, AttitudePair],
   md1: number,
   md2: number,
-  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  endpointFixed: EndpointAttitudeFixed,
   freeEnd: boolean,
   paramCount: number,
 ): {
@@ -975,7 +1169,7 @@ function polishSmoothness(
   attitudes: [AttitudePair, AttitudePair, AttitudePair],
   md1: number,
   md2: number,
-  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  endpointFixed: EndpointAttitudeFixed,
   freeEnd: boolean,
   paramCount: number,
 ): {
@@ -1023,9 +1217,9 @@ function optimiseAttitudes(
   input: CurvedTargetSolutionInput,
   md1: number,
   md2: number,
-  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  endpointFixed: EndpointAttitudeFixed,
 ): NonNullable<ReturnType<typeof evaluatePath>> | null {
-  const freeEnd = endpointFixed === "UNCONSTRAINED";
+  const freeEnd = endpointFixed === "AUTO_SMOOTH";
   const paramCount = freeEnd ? 6 : 4;
 
   let bestAttitudes: [AttitudePair, AttitudePair, AttitudePair] | null = null;
@@ -1222,10 +1416,15 @@ export function solveCurvedTarget(
       {
         code: "ATTITUDE_RESIDUAL",
         message:
-          "Target attitude mode requires collar or custom dip/azimuth/reference.",
+          "Target entry direction requires collar or entry dip/azimuth/reference.",
       },
     ], { remainingMeasuredDepthM, straightDistanceM });
   }
+
+  const autoSmooth = isAutoSmoothAttitudeMode(input.target.attitudeMode);
+  const matchEntryDirection = isMatchEntryAttitudeMode(
+    input.target.attitudeMode,
+  );
 
   // Control stations at ~30% / ~70% of remaining MD — longer mid hold than
   // equal thirds, without starving the entry/exit transition intervals.
@@ -1244,6 +1443,18 @@ export function solveCurvedTarget(
       { remainingMeasuredDepthM, straightDistanceM },
     );
   }
+
+  const pathQuality = assessRecoveryPathQuality({
+    intervals: evaluated.intervals,
+    stations: evaluated.stations,
+    start: current,
+    target,
+    endpointResidualM: evaluated.residualM,
+    remainingMeasuredDepthM,
+    straightDistanceM,
+    autoSmooth,
+    matchEntryDirection,
+  });
 
   const converged =
     evaluated.residualM <= CURVED_SOLVER_POSITION_TOLERANCE_M &&
@@ -1274,6 +1485,54 @@ export function solveCurvedTarget(
     }
   }
 
+  // AUTO_SMOOTH must not return a lateral S-curve just to consume surplus MD.
+  if (converged && pathQuality.targetMdReviewRequired) {
+    return emptySolution(
+      "REVIEW_REQUIRED",
+      [
+        {
+          code: "TARGET_MD_REVIEW_REQUIRED",
+          message: [
+            "TARGET DEPTH REQUIRES REVIEW",
+            "",
+            "A smooth path to the target cannot be produced at the",
+            "entered target MD without reversing direction or creating",
+            "excessive curvature.",
+            "",
+            "Remaining MD",
+            `${remainingMeasuredDepthM.toFixed(1)} m`,
+            "",
+            "Straight distance",
+            `${straightDistanceM.toFixed(1)} m`,
+            "",
+            "Review the target MD or use advanced target entry direction.",
+          ].join("\n"),
+        },
+      ],
+      {
+        remainingMeasuredDepthM,
+        straightDistanceM,
+        pathQuality,
+        targetResidualM: evaluated.residualM,
+      },
+    );
+  }
+
+  if (converged && pathQuality.advancedPathReviewRequired) {
+    warnings.push({
+      code: "ADVANCED_PATH_REVIEW_REQUIRED",
+      message: [
+        "TARGET ENTRY DIRECTION REQUIRES A COMPLEX PATH",
+        "",
+        "The entered target dip and azimuth require the Hole to",
+        "reverse build or turn direction before reaching the target.",
+        "",
+        "Review the target entry direction or use the automatic",
+        "smoothest-path mode.",
+      ].join("\n"),
+    });
+  }
+
   const concentrated =
     evaluated.maxDoglegChangePer30m >
       Math.max(6, evaluated.meanDoglegPer30m * 1.5) &&
@@ -1297,6 +1556,8 @@ export function solveCurvedTarget(
     });
   }
 
+  const suppressGuidance = pathQuality.advancedPathReviewRequired;
+
   let nextSurveyTarget: CurvedTargetSolution["nextSurveyTarget"] = null;
   if (
     input.nextSurveyMeasuredDepthM === undefined ||
@@ -1306,7 +1567,7 @@ export function solveCurvedTarget(
       code: "MISSING_NEXT_SURVEY_DEPTH",
       message: "Survey interval required before next-Survey KPIs can be calculated.",
     });
-  } else {
+  } else if (!suppressGuidance) {
     const nextMd = clampTrajectory(
       input.nextSurveyMeasuredDepthM,
       current.measuredDepthM,
@@ -1335,7 +1596,8 @@ export function solveCurvedTarget(
   const path = evaluated.stations.map(toSolutionStation);
   const status: CurvedTargetSolutionStatus = !converged
     ? "NO_SOLUTION"
-    : evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M
+    : pathQuality.advancedPathReviewRequired ||
+        evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M
       ? "REVIEW_REQUIRED"
       : "SOLVED";
 
@@ -1366,6 +1628,7 @@ export function solveCurvedTarget(
       ? { fromMdM: maxInterval.fromMdM, toMdM: maxInterval.toMdM }
       : null,
     intervalDiagnostics: evaluated.intervals,
+    pathQuality,
     solverConverged: converged,
     engineVersion: TRAJECTORY_ENGINE_VERSION,
     solverVersion: CURVED_TARGET_SOLVER_VERSION,

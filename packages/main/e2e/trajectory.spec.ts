@@ -60,11 +60,11 @@ test("Workflow 3 — Three views and field details", async ({ page }) => {
   await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
   await expect(page.getByTestId("trajectory-field-details")).toBeVisible();
   await expect(
-    page.getByText(/geometric minimum-curvature path/i).first(),
+    page.getByText(/Geometric minimum-curvature guidance/i).first(),
   ).toBeVisible();
 });
 
-test("Workflow 4 — Edit target with custom attitude", async ({ page }) => {
+test("Workflow 4 — Edit target with entry direction", async ({ page }) => {
   await page.goto("/holes/DDH041/trajectory");
   await expect(page.getByTestId("trajectory-edit-target")).toBeVisible({
     timeout: 30_000,
@@ -72,9 +72,9 @@ test("Workflow 4 — Edit target with custom attitude", async ({ page }) => {
   await page.getByTestId("trajectory-edit-target").click();
   await expect(page.getByTestId("set-target-dialog")).toBeVisible();
   await page.getByTestId("target-md-input").fill("650.0");
-  await page.getByLabel("Custom target dip and azimuth").check();
-  await page.getByLabel("Target dip (°)").fill("-74.0");
-  await page.getByLabel("Target azimuth (°)").fill("145.0");
+  await page.getByTestId("specify-entry-direction").check();
+  await page.getByTestId("entry-dip-input").fill("-74.0");
+  await page.getByTestId("entry-azimuth-input").fill("145.0");
   await page.getByRole("button", { name: "Save target" }).click();
   await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
   await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
@@ -123,7 +123,7 @@ test("Workflow 6 — Duplicate Survey selection", async ({ page }) => {
   await expect(page.getByText(/Survey History is unchanged/i)).toBeVisible();
 });
 
-test("Workflow 7 — New Hole with custom target attitude", async ({ page }) => {
+test("Workflow 7 — New Hole with target entry direction", async ({ page }) => {
   const holeId = `E2E${Date.now().toString().slice(-6)}`;
   await page.goto("/holes/new");
   await expect(page.getByTestId("new-hole-form")).toBeVisible({
@@ -139,9 +139,9 @@ test("Workflow 7 — New Hole with custom target attitude", async ({ page }) => 
   await page.getByLabel("Target Easting (m)").fill("382575.0");
   await page.getByLabel("Target Northing (m)").fill("6543246.0");
   await page.getByLabel("Target RL (m)").fill("-105.0");
-  await page.getByLabel("Custom target dip and azimuth").check();
-  await page.getByLabel("Target dip (°)").fill("-74.0");
-  await page.getByLabel("Target azimuth (°)").fill("145.0");
+  await page.getByTestId("new-hole-specify-entry-direction").check();
+  await page.getByTestId("new-hole-entry-dip").fill("-74.0");
+  await page.getByTestId("new-hole-entry-azimuth").fill("145.0");
   await page.getByTestId("new-hole-submit").click();
   await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/trajectory`), {
     timeout: 30_000,

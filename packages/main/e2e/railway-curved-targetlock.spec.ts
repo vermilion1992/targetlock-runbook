@@ -27,9 +27,9 @@ async function createHoleWithoutCollar(
     await page.getByLabel("Target Easting (m)").fill("382575.0");
     await page.getByLabel("Target Northing (m)").fill("6543246.0");
     await page.getByLabel("Target RL (m)").fill("-105.0");
-    await page.getByLabel("Custom target dip and azimuth").check();
-    await page.getByLabel("Target dip (°)").fill("-74.0");
-    await page.getByLabel("Target azimuth (°)").fill("145.0");
+    await page.getByTestId("new-hole-specify-entry-direction").check();
+    await page.getByTestId("new-hole-entry-dip").fill("-74.0");
+    await page.getByTestId("new-hole-entry-azimuth").fill("145.0");
   }
 
   await page.getByTestId("new-hole-submit").click();
@@ -61,7 +61,9 @@ test("Railway A — health and key routes load", async ({ page, request }) => {
   });
 });
 
-test("Railway B — new hole with custom target attitude", async ({ page }) => {
+test("Railway B — new hole with specified target entry direction", async ({
+  page,
+}) => {
   const holeId = `RLV${Date.now().toString().slice(-6)}`;
   await page.goto("/holes/new");
   await expect(page.getByTestId("new-hole-form")).toBeVisible({
@@ -77,9 +79,12 @@ test("Railway B — new hole with custom target attitude", async ({ page }) => {
   await page.getByLabel("Target Easting (m)").fill("382575.0");
   await page.getByLabel("Target Northing (m)").fill("6543246.0");
   await page.getByLabel("Target RL (m)").fill("-105.0");
-  await page.getByLabel("Custom target dip and azimuth").check();
-  await page.getByLabel("Target dip (°)").fill("-74.0");
-  await page.getByLabel("Target azimuth (°)").fill("145.0");
+  await expect(
+    page.getByTestId("new-hole-advanced-target-options"),
+  ).toBeVisible();
+  await page.getByTestId("new-hole-specify-entry-direction").check();
+  await page.getByTestId("new-hole-entry-dip").fill("-74.0");
+  await page.getByTestId("new-hole-entry-azimuth").fill("145.0");
   await page.getByTestId("new-hole-submit").click();
   await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/trajectory`), {
     timeout: 30_000,
@@ -89,11 +94,12 @@ test("Railway B — new hole with custom target attitude", async ({ page }) => {
     /Edit Target/i,
   );
   await expect(page.getByTestId("collar-guidance-banner")).toBeVisible();
-  await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "CUSTOM",
+  await page.getByTestId("trajectory-more-details-toggle").click();
+  await expect(page.getByTestId("target-entry-mode")).toContainText(
+    "Specified",
   );
   await expect(page.getByTestId("current-trajectory-tracking")).toContainText(
-    /At .+ MD/i,
+    /At .+ MD|Unavailable|Review/i,
   );
 });
 
@@ -124,8 +130,9 @@ test("Railway C — empty collar state then activate with coordinates", async ({
   await expect(page.getByTestId("trajectory-collar-empty-state")).toHaveCount(
     0,
   );
-  await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "CUSTOM",
+  await page.getByTestId("trajectory-more-details-toggle").click();
+  await expect(page.getByTestId("target-entry-mode")).toContainText(
+    "Specified",
   );
 });
 
@@ -160,14 +167,18 @@ test("Railway D — DDH041 KPIs, residual, radius, views, projection", async ({
   await expect(page.getByTestId("trajectory-target-status")).toContainText(
     "radius 3.0 m",
   );
+  await page.getByTestId("trajectory-more-details-toggle").click();
   await expect(page.getByTestId("trajectory-field-details")).toContainText(
     "6.0 m / 3.0 m",
   );
   await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "Endpoint residual",
+    "Recommended recovery residual",
+  );
+  await expect(page.getByTestId("target-entry-mode")).toContainText(
+    /Automatic smoothest path|Specified/i,
   );
   await expect(
-    page.getByText(/geometric minimum-curvature path/i).first(),
+    page.getByText(/Geometric minimum-curvature guidance/i).first(),
   ).toBeVisible();
 
   await page.getByTestId("trajectory-view-plan").click();
@@ -199,9 +210,9 @@ test("Railway E — refresh preserves hole, target, attitude, interval", async (
   await expect(page.getByTestId("set-target-dialog")).toBeVisible();
   await page.getByTestId("target-md-input").fill("650.0");
   await page.getByLabel("Target diameter (m)").fill("6.0");
-  await page.getByLabel("Custom target dip and azimuth").check();
-  await page.getByLabel("Target dip (°)").fill("-74.0");
-  await page.getByLabel("Target azimuth (°)").fill("145.0");
+  await page.getByTestId("specify-entry-direction").check();
+  await page.getByTestId("entry-dip-input").fill("-74.0");
+  await page.getByTestId("entry-azimuth-input").fill("145.0");
   await page.getByRole("button", { name: "Save target" }).click();
   await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
 
@@ -209,8 +220,9 @@ test("Railway E — refresh preserves hole, target, attitude, interval", async (
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "CUSTOM",
+  await page.getByTestId("trajectory-more-details-toggle").click();
+  await expect(page.getByTestId("target-entry-mode")).toContainText(
+    "Specified",
   );
   await expect(page.getByText(/Target MD 650\.0 m/i)).toBeVisible();
 

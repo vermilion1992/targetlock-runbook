@@ -9,6 +9,8 @@ import {
 import {
   DEFAULT_TARGET_DIAMETER_M,
   diameterMToRadiusDm,
+  isAutoSmoothAttitudeMode,
+  isMatchEntryAttitudeMode,
   parseAzimuthInput,
   parseDipInput,
   parseMetreInput,
@@ -29,12 +31,20 @@ function parseSignedMetresToDm(value: string): number | null {
   return negative ? -Number(parsed.value) : Number(parsed.value);
 }
 
+function northShortLabel(ref: NorthReference): string {
+  if (ref === "GRID") return "Grid";
+  if (ref === "TRUE") return "True";
+  if (ref === "MAGNETIC") return "Magnetic";
+  return "Azimuth";
+}
+
 export function TrajectorySetTargetDialog({
   holeId,
   open,
   onClose,
   onSaved,
   initial,
+  calculatedEntry,
 }: {
   holeId: string;
   open: boolean;
@@ -51,7 +61,23 @@ export function TrajectorySetTargetDialog({
     desiredAzimuthDegrees?: number;
     desiredNorthReference?: NorthReference;
   };
+  calculatedEntry?: {
+    dipDegrees?: number;
+    azimuthDegrees?: number;
+    northReference?: NorthReference;
+    residualDipDegrees?: number;
+    residualAzimuthDegrees?: number;
+  };
 }) {
+  const initialMatchEntry =
+    isMatchEntryAttitudeMode(initial?.attitudeMode) &&
+    initial?.attitudeMode !== "SAME_AS_COLLAR"
+      ? true
+      : Boolean(
+          initial?.desiredDipDegrees !== undefined ||
+            initial?.desiredAzimuthDegrees !== undefined,
+        ) && !isAutoSmoothAttitudeMode(initial?.attitudeMode);
+
   const [measuredDepth, setMeasuredDepth] = useState(
     initial?.measuredDepthM?.toFixed(1) ?? "",
   );
@@ -65,8 +91,13 @@ export function TrajectorySetTargetDialog({
   const [diameter, setDiameter] = useState(
     (initial?.diameterM ?? DEFAULT_TARGET_DIAMETER_M).toFixed(1),
   );
-  const [attitudeMode, setAttitudeMode] = useState<TargetAttitudeMode>(
-    initial?.attitudeMode ?? "UNCONSTRAINED",
+  const [specifyEntryDirection, setSpecifyEntryDirection] = useState(
+    initialMatchEntry || initial?.attitudeMode === "SAME_AS_COLLAR"
+      ? Boolean(
+          initial?.desiredDipDegrees !== undefined ||
+            initial?.attitudeMode === "SAME_AS_COLLAR",
+        )
+      : false,
   );
   const [desiredDip, setDesiredDip] = useState(
     initial?.desiredDipDegrees?.toFixed(1) ?? "",
@@ -116,14 +147,18 @@ export function TrajectorySetTargetDialog({
       return;
     }
 
+    const attitudeMode: TargetAttitudeMode = specifyEntryDirection
+      ? "MATCH_ENTRY_DIRECTION"
+      : "AUTO_SMOOTH";
+
     let desiredDipTenths: number | undefined;
     let desiredAzimuthTenths: number | undefined;
     let desiredNorthReference: NorthReference | undefined;
-    if (attitudeMode === "CUSTOM") {
+    if (specifyEntryDirection) {
       const dip = parseDipInput(desiredDip);
       const az = parseAzimuthInput(desiredAzimuth);
       if (!dip.ok || !az.ok) {
-        setMessage("Custom target dip and azimuth are required.");
+        setMessage("Target entry dip and azimuth are required.");
         return;
       }
       desiredDipTenths = dip.value;
@@ -174,12 +209,7 @@ export function TrajectorySetTargetDialog({
     }
   }
 
-  const attitudeLabel =
-    attitudeMode === "CUSTOM"
-      ? "Custom"
-      : attitudeMode === "SAME_AS_COLLAR"
-        ? "Same as collar"
-        : "Unconstrained";
+  const calcRef = calculatedEntry?.northReference ?? "GRID";
 
   return (
     <div
@@ -215,17 +245,6 @@ export function TrajectorySetTargetDialog({
             Position E {easting || "—"} · N {northing || "—"} · RL {rl || "—"}
           </p>
           <p>Diameter {diameter || "—"} m</p>
-          <p>Target attitude {attitudeLabel}</p>
-          {attitudeMode === "CUSTOM" ? (
-            <p>
-              Dip {desiredDip || "—"}° · Azimuth {desiredAzimuth || "—"}°{" "}
-              {desiredRef === "GRID"
-                ? "Grid"
-                : desiredRef === "TRUE"
-                  ? "True"
-                  : "Magnetic"}
-            </p>
-          ) : null}
         </div>
 
         <label className="block space-y-1 text-sm">
@@ -280,69 +299,127 @@ export function TrajectorySetTargetDialog({
           </span>
         </label>
 
-        <fieldset className="space-y-2 text-sm">
-          <legend className="font-semibold">Target attitude</legend>
-          {(
-            [
-              ["UNCONSTRAINED", "Unconstrained"],
-              ["SAME_AS_COLLAR", "Same as collar"],
-              ["CUSTOM", "Custom target dip and azimuth"],
-            ] as const
-          ).map(([value, label]) => (
-            <label key={value} className="flex items-center gap-2">
-              <input
-                type="radio"
-                name="attitude-mode"
-                checked={attitudeMode === value}
-                onChange={() => setAttitudeMode(value)}
-              />
-              <span>{label}</span>
-            </label>
-          ))}
-        </fieldset>
-
-        {attitudeMode === "CUSTOM" ? (
-          <div className="grid gap-3 sm:grid-cols-3">
-            <label className="block space-y-1 text-sm">
-              <span className="font-semibold">Target dip (°)</span>
-              <input
-                value={desiredDip}
-                onChange={(event) => setDesiredDip(event.target.value)}
-                className="w-full rounded-md border border-[var(--tl-border)] px-3 py-2"
-                required
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="font-semibold">Target azimuth (°)</span>
-              <input
-                value={desiredAzimuth}
-                onChange={(event) => setDesiredAzimuth(event.target.value)}
-                className="w-full rounded-md border border-[var(--tl-border)] px-3 py-2"
-                required
-              />
-            </label>
-            <label className="block space-y-1 text-sm">
-              <span className="font-semibold">Target reference</span>
-              <select
-                value={desiredRef}
-                onChange={(event) =>
-                  setDesiredRef(event.target.value as NorthReference)
-                }
-                className="w-full rounded-md border border-[var(--tl-border)] px-3 py-2"
-              >
-                {NORTH_OPTIONS.map((option) => (
-                  <option key={option} value={option}>
-                    {option === "GRID"
-                      ? "Grid North"
-                      : option === "TRUE"
-                        ? "True North"
-                        : "Magnetic North"}
-                  </option>
-                ))}
-              </select>
-            </label>
+        {!specifyEntryDirection &&
+        calculatedEntry?.dipDegrees !== undefined &&
+        calculatedEntry.azimuthDegrees !== undefined ? (
+          <div
+            className="rounded-md border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-3 text-sm"
+            data-testid="calculated-entry-direction"
+          >
+            <p className="font-semibold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+              Calculated entry direction
+            </p>
+            <p className="mt-1">
+              Dip {calculatedEntry.dipDegrees.toFixed(1)}°
+            </p>
+            <p>
+              Azimuth {calculatedEntry.azimuthDegrees.toFixed(1)}°{" "}
+              {northShortLabel(calcRef)}
+            </p>
           </div>
         ) : null}
+
+        <fieldset
+          className="space-y-2 text-sm"
+          data-testid="advanced-target-options"
+        >
+          <legend className="font-semibold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+            Advanced target options
+          </legend>
+          <p className="text-xs text-[var(--tl-ink-muted)]">
+            TargetLock normally calculates the smoothest entry direction
+            automatically. Specify an entry direction only when the Hole must
+            enter the target at a particular dip and azimuth.
+          </p>
+          <label className="flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={specifyEntryDirection}
+              onChange={(event) =>
+                setSpecifyEntryDirection(event.target.checked)
+              }
+              data-testid="specify-entry-direction"
+            />
+            <span>Specify target entry direction</span>
+          </label>
+          {specifyEntryDirection ? (
+            <>
+              <div className="grid gap-3 sm:grid-cols-3">
+                <label className="block space-y-1 text-sm">
+                  <span className="font-semibold">Target entry dip (°)</span>
+                  <input
+                    value={desiredDip}
+                    onChange={(event) => setDesiredDip(event.target.value)}
+                    className="w-full rounded-md border border-[var(--tl-border)] px-3 py-2"
+                    required
+                    data-testid="entry-dip-input"
+                  />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  <span className="font-semibold">Target entry azimuth (°)</span>
+                  <input
+                    value={desiredAzimuth}
+                    onChange={(event) => setDesiredAzimuth(event.target.value)}
+                    className="w-full rounded-md border border-[var(--tl-border)] px-3 py-2"
+                    required
+                    data-testid="entry-azimuth-input"
+                  />
+                </label>
+                <label className="block space-y-1 text-sm">
+                  <span className="font-semibold">
+                    Target entry north reference
+                  </span>
+                  <select
+                    value={desiredRef}
+                    onChange={(event) =>
+                      setDesiredRef(event.target.value as NorthReference)
+                    }
+                    className="w-full rounded-md border border-[var(--tl-border)] px-3 py-2"
+                  >
+                    {NORTH_OPTIONS.map((option) => (
+                      <option key={option} value={option}>
+                        {option === "GRID"
+                          ? "Grid North"
+                          : option === "TRUE"
+                            ? "True North"
+                            : "Magnetic North"}
+                      </option>
+                    ))}
+                  </select>
+                </label>
+              </div>
+              <div
+                className="rounded-md border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-3 text-sm"
+                data-testid="requested-entry-direction"
+              >
+                <p className="font-semibold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+                  Requested entry direction
+                </p>
+                <p className="mt-1">Dip {desiredDip || "—"}°</p>
+                <p>
+                  Azimuth {desiredAzimuth || "—"}° {northShortLabel(desiredRef)}
+                </p>
+              </div>
+              {calculatedEntry?.residualDipDegrees !== undefined &&
+              calculatedEntry.residualAzimuthDegrees !== undefined ? (
+                <div
+                  className="rounded-md border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-3 text-sm"
+                  data-testid="calculated-entry-residual"
+                >
+                  <p className="font-semibold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+                    Calculated residual
+                  </p>
+                  <p className="mt-1">
+                    Dip {calculatedEntry.residualDipDegrees.toFixed(1)}°
+                  </p>
+                  <p>
+                    Azimuth {calculatedEntry.residualAzimuthDegrees.toFixed(1)}°
+                  </p>
+                </div>
+              ) : null}
+            </>
+          ) : null}
+        </fieldset>
 
         {message ? (
           <p role="alert" className="text-sm text-[var(--tl-danger)]">

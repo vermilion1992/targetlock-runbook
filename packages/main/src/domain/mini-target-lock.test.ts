@@ -93,7 +93,7 @@ describe("mini-target-lock geometry", () => {
       northingDm: 0,
       rlDm: 0,
       radiusDm: 30,
-      attitudeMode: "UNCONSTRAINED",
+      attitudeMode: "AUTO_SMOOTH",
       version: 1,
       updatedAt: EPOCH,
     };
@@ -148,7 +148,7 @@ describe("calculateMiniTargetLock", () => {
       northingDm: 2_001_460,
       rlDm: -1_050,
       radiusDm: 30,
-      targetMeasuredDepthDm: 6_500,
+      targetMeasuredDepthDm: decimetres(6_500),
       attitudeMode: "CUSTOM",
       desiredDipTenths: -740,
       desiredAzimuthTenths: 1_450,
@@ -171,7 +171,7 @@ describe("calculateMiniTargetLock", () => {
     });
     expect(result.blocked).toBe(true);
     expect(result.blockCode).toBe("MISSING_COLLAR_COORDINATES");
-    expect(result.target?.attitudeMode).toBe("CUSTOM");
+    expect(result.target?.attitudeMode).toBe("MATCH_ENTRY_DIRECTION");
     expect(result.target?.diameterM).toBe(6);
   });
 
@@ -193,7 +193,7 @@ describe("calculateMiniTargetLock", () => {
       northingDm: Math.round((200_000 + dn) * 10),
       rlDm: Math.round((500 + drl) * 10),
       radiusDm: 30,
-      targetMeasuredDepthDm: 3_000,
+      targetMeasuredDepthDm: decimetres(3_000),
       attitudeMode: "CUSTOM",
       desiredDipTenths: -600,
       desiredAzimuthTenths: 900,
@@ -207,7 +207,7 @@ describe("calculateMiniTargetLock", () => {
       coordinateConfiguration: coordinateConfig(),
       actualConfiguration: {
         ...actualConfig(),
-        preferredSurveyIntervalDm: 300,
+        preferredSurveyIntervalDm: decimetres(300),
       },
       selections: [],
       referenceConfiguration: referenceConfig(),
@@ -215,7 +215,7 @@ describe("calculateMiniTargetLock", () => {
     });
     expect(result.blocked).toBe(false);
     expect(result.guidanceFromCollarOnly).toBe(true);
-    expect(result.target?.attitudeMode).toBe("CUSTOM");
+    expect(result.target?.attitudeMode).toBe("MATCH_ENTRY_DIRECTION");
     expect(result.latestSurvey?.sourceType).toBe("COLLAR");
     expect(result.nextSurveyGuidance).not.toBeNull();
     expect(result.curvedSolution?.status).toMatch(/SOLVED|REVIEW_REQUIRED/);

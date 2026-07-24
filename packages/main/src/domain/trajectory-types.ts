@@ -64,9 +64,23 @@ export interface PlannedTrajectoryStation {
 
 export type PlannedTrajectoryStatus = "DRAFT" | "ACTIVE" | "SUPERSEDED";
 
+/**
+ * Target entry-direction modes.
+ *
+ * Canonical:
+ * - AUTO_SMOOTH — solve smoothest path; endpoint dip/az free
+ * - MATCH_ENTRY_DIRECTION — require target entry dip/az
+ *
+ * Legacy storage (migrated on read):
+ * - UNCONSTRAINED → AUTO_SMOOTH
+ * - CUSTOM → MATCH_ENTRY_DIRECTION
+ * - SAME_AS_COLLAR → MATCH_ENTRY_DIRECTION using collar (kept for reproducibility)
+ */
 export type TargetAttitudeMode =
-  | "UNCONSTRAINED"
+  | "AUTO_SMOOTH"
+  | "MATCH_ENTRY_DIRECTION"
   | "SAME_AS_COLLAR"
+  | "UNCONSTRAINED"
   | "CUSTOM";
 
 export interface HoleTarget {

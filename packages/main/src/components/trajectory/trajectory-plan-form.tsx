@@ -256,7 +256,9 @@ export function TrajectoryPlanForm({ holeId }: { holeId: string }) {
             radiusDm: Number(radius.value),
             targetMeasuredDepthDm: 6_500,
             attitudeMode:
-              dip.ok || az.ok ? ("CUSTOM" as const) : ("UNCONSTRAINED" as const),
+              dip.ok || az.ok
+                ? ("MATCH_ENTRY_DIRECTION" as const)
+                : ("AUTO_SMOOTH" as const),
             desiredDipTenths: dip.ok ? dip.value : undefined,
             desiredAzimuthTenths: az.ok ? az.value : undefined,
             desiredNorthReference: northReference,

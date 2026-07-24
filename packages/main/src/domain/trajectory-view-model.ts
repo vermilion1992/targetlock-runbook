@@ -3,8 +3,18 @@
  *
  * Consumes verified Implementation 5 calculated coordinates only.
  * Does not recompute desurvey, dogleg, or tracking mathematics.
+ *
+ * Curved recovery paths are densified for display with the same
+ * minimum-curvature sampling used for actual/planned renderPath.
  */
 
+import type { CurvedTargetSolutionStation } from "./curved-target-solver";
+import {
+  dipAzFromVector,
+  minCurveDisplacement,
+  slerpDirection,
+  vectorFromDipAz,
+} from "./trajectory-geometry";
 import {
   projectOntoSection,
   sectionBearingDegrees,
@@ -30,6 +40,9 @@ export const TRAJECTORY_GRAPHICS_DISCLAIMER =
 
 export const EXAGGERATED_VERTICAL_SCALE = 3;
 
+/** Match DEFAULT_RENDER_SEGMENT_DM (5.0 m) used by the MC engine. */
+const CURVED_RECOVERY_RENDER_SEGMENT_M = 5;
+
 export interface TrajectoryPathPoint {
   readonly eastingM: number;
   readonly northingM: number;
@@ -47,6 +60,8 @@ export interface TrajectoryMarkerPoint extends TrajectoryPathPoint {
     | "SELECTED_SURVEY";
   readonly label: string;
   readonly sourceId?: string;
+  readonly dipDegrees?: number;
+  readonly azimuthDegrees?: number;
 }
 
 export interface TrajectoryViewBounds {
@@ -111,6 +126,80 @@ function toPathPoint(
     rlM: station.rlM,
     measuredDepthM: station.measuredDepthM,
   };
+}
+
+/**
+ * Densify a sparse curved-recovery station list with MC mid-samples so the
+ * graphics polyline follows the curve instead of straight chords.
+ */
+export function densifyCurvedRecoveryPath(
+  stations: readonly CurvedTargetSolutionStation[],
+  maximumSegmentM: number = CURVED_RECOVERY_RENDER_SEGMENT_M,
+): TrajectoryPathPoint[] {
+  if (stations.length === 0) return [];
+  if (stations.length === 1) {
+    const only = stations[0]!;
+    return [
+      {
+        eastingM: only.eastingM,
+        northingM: only.northingM,
+        rlM: only.rlM,
+        measuredDepthM: only.measuredDepthM,
+      },
+    ];
+  }
+
+  const segmentM = Math.max(0.5, maximumSegmentM);
+  const path: TrajectoryPathPoint[] = [];
+
+  for (let i = 0; i < stations.length; i += 1) {
+    const station = stations[i]!;
+    if (i === 0) {
+      path.push({
+        eastingM: station.eastingM,
+        northingM: station.northingM,
+        rlM: station.rlM,
+        measuredDepthM: station.measuredDepthM,
+      });
+      continue;
+    }
+
+    const previous = stations[i - 1]!;
+    const spanM = station.measuredDepthM - previous.measuredDepthM;
+    const steps = Math.max(1, Math.ceil(spanM / segmentM));
+
+    for (let step = 1; step < steps; step += 1) {
+      const t = step / steps;
+      const lengthM = spanM * t;
+      const aim = dipAzFromVector(
+        slerpDirection(
+          vectorFromDipAz(previous.dipDegrees, previous.azimuthDegrees),
+          vectorFromDipAz(station.dipDegrees, station.azimuthDegrees),
+          t,
+        ),
+      );
+      const displacement = minCurveDisplacement(
+        { dip: previous.dipDegrees, azimuth: previous.azimuthDegrees },
+        { dip: aim.dip, azimuth: aim.azimuth },
+        lengthM,
+      );
+      path.push({
+        eastingM: previous.eastingM + displacement.e,
+        northingM: previous.northingM + displacement.n,
+        rlM: previous.rlM - displacement.d,
+        measuredDepthM: previous.measuredDepthM + lengthM,
+      });
+    }
+
+    path.push({
+      eastingM: station.eastingM,
+      northingM: station.northingM,
+      rlM: station.rlM,
+      measuredDepthM: station.measuredDepthM,
+    });
+  }
+
+  return path;
 }
 
 function emptyBounds(): TrajectoryViewBounds {
@@ -517,6 +606,8 @@ export function buildFieldTrajectoryViewModel(
       ...toPathPoint({ ...actual.collar, measuredDepthM: 0 }),
       kind: "COLLAR",
       label: "Collar",
+      dipDegrees: actual.collar.dipDegrees,
+      azimuthDegrees: actual.collar.azimuthDegrees,
     });
   }
   for (const station of actual?.stations ?? []) {
@@ -526,6 +617,8 @@ export function buildFieldTrajectoryViewModel(
       kind: "SURVEY_STATION",
       label: `Survey ${station.measuredDepthM.toFixed(1)} m`,
       sourceId: station.sourceId,
+      dipDegrees: station.dipDegrees,
+      azimuthDegrees: station.azimuthDegrees,
     });
   }
   if (result.latestSurvey) {
@@ -537,6 +630,8 @@ export function buildFieldTrajectoryViewModel(
       kind: "SELECTED_SURVEY",
       label: `Latest ${result.latestSurvey.measuredDepthM.toFixed(1)} m`,
       sourceId: result.latestSurvey.sourceId,
+      dipDegrees: result.latestSurvey.dipDegrees,
+      azimuthDegrees: result.latestSurvey.azimuthDegrees,
     });
   }
 
@@ -572,12 +667,7 @@ export function buildFieldTrajectoryViewModel(
       result.curvedSolution.status === "REVIEW_REQUIRED") &&
     result.curvedSolution.path.length > 0
   ) {
-    curvedRecoveryPath = result.curvedSolution.path.map((station) => ({
-      eastingM: station.eastingM,
-      northingM: station.northingM,
-      rlM: station.rlM,
-      measuredDepthM: station.measuredDepthM,
-    }));
+    curvedRecoveryPath = densifyCurvedRecoveryPath(result.curvedSolution.path);
   } else if (result.latestSurvey && result.target && result.directToTarget) {
     // Fallback technical overlay only when curved solution unavailable.
     directToTargetLine = {

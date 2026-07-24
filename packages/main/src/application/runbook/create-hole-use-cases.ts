@@ -118,7 +118,7 @@ export async function createHoleWithTrajectoryDefaults(
         "A target requires measured depth plus Easting, Northing and RL together.",
       );
     }
-    const attitudeMode = input.target.attitudeMode ?? "UNCONSTRAINED";
+    const attitudeMode = input.target.attitudeMode ?? "AUTO_SMOOTH";
     const attitudeError = validateHoleTargetAttitude({
       attitudeMode,
       desiredDipTenths:
@@ -217,7 +217,10 @@ export async function createHoleWithTrajectoryDefaults(
     let hasTarget = false;
     if (input.target) {
       const diameterM = input.target.diameterM ?? DEFAULT_TARGET_DIAMETER_M;
-      const attitudeMode = input.target.attitudeMode ?? "UNCONSTRAINED";
+      const attitudeMode = input.target.attitudeMode ?? "AUTO_SMOOTH";
+      const matchEntry =
+        attitudeMode === "MATCH_ENTRY_DIRECTION" ||
+        attitudeMode === "CUSTOM";
       const rlSign = input.target.rlM < 0 ? -1 : 1;
       await services.trajectory.saveTarget({
         operationId: `${input.operationId}:target`,
@@ -233,19 +236,16 @@ export async function createHoleWithTrajectoryDefaults(
         ),
         attitudeMode,
         desiredDipTenths:
-          attitudeMode === "CUSTOM" &&
-          input.target.desiredDipDegrees !== undefined
+          matchEntry && input.target.desiredDipDegrees !== undefined
             ? Math.round(input.target.desiredDipDegrees * 10)
             : undefined,
         desiredAzimuthTenths:
-          attitudeMode === "CUSTOM" &&
-          input.target.desiredAzimuthDegrees !== undefined
+          matchEntry && input.target.desiredAzimuthDegrees !== undefined
             ? Math.round(input.target.desiredAzimuthDegrees * 10)
             : undefined,
-        desiredNorthReference:
-          attitudeMode === "CUSTOM"
-            ? input.target.desiredNorthReference
-            : undefined,
+        desiredNorthReference: matchEntry
+          ? input.target.desiredNorthReference
+          : undefined,
         occurredAt: input.occurredAt,
       });
       hasTarget = true;

@@ -102,8 +102,11 @@ const referenceSchema = z.object({
 });
 
 const targetAttitudeModeSchema = z.enum([
-  "UNCONSTRAINED",
+  "AUTO_SMOOTH",
+  "MATCH_ENTRY_DIRECTION",
   "SAME_AS_COLLAR",
+  // Legacy storage values — migrated on read.
+  "UNCONSTRAINED",
   "CUSTOM",
 ]);
 

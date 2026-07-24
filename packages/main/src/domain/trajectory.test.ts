@@ -353,7 +353,7 @@ describe("target tracking", () => {
       northingDm: 0,
       rlDm: -1000,
       radiusDm: 50,
-      attitudeMode: "UNCONSTRAINED",
+      attitudeMode: "AUTO_SMOOTH",
       version: 1,
       updatedAt: "2026-07-24T00:00:00.000Z",
     };
@@ -523,7 +523,7 @@ describe("comparison orchestration", () => {
         northingDm: -1800,
         rlDm: -4500,
         radiusDm: 50,
-        attitudeMode: "UNCONSTRAINED",
+        attitudeMode: "AUTO_SMOOTH",
         version: 1,
         updatedAt: "2026-07-24T00:00:00.000Z",
       },

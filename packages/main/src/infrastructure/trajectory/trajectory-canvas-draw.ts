@@ -303,10 +303,13 @@ function drawLegend(
   colors: DrawColors,
   verticalMode: TrajectoryVerticalScaleMode,
   viewMode: TrajectoryGraphicViewMode,
+  fieldMode?: boolean,
 ): void {
   const scaleLabel = verticalScaleLabel(verticalMode);
   const lines = [
-    "Planned = dashed · Actual = solid · Target = diamond",
+    fieldMode
+      ? "Collar · Actual = solid · Current direction / Recommended recovery = dashed · Target = diamond"
+      : "Planned = dashed · Actual = solid · Target = diamond",
     viewMode === "VIEW_3D"
       ? `3D view · vertical scale ${scaleLabel === "1×" ? "equal" : scaleLabel}`
       : viewMode === "PLAN"
@@ -728,7 +731,13 @@ export function drawTrajectoryGraphics(
     }
   }
 
-  drawLegend(ctx, colors, options.verticalScaleMode, viewMode);
+  drawLegend(
+    ctx,
+    colors,
+    options.verticalScaleMode,
+    viewMode,
+    model.fieldMode,
+  );
   ctx.restore();
 }
 
