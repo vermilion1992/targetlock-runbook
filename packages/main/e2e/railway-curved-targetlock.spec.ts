@@ -158,7 +158,7 @@ test("Railway D — DDH041 KPIs, residual, radius, views, projection", async ({
     page.getByTestId("trajectory-metric-projected-miss"),
   ).toBeVisible();
   await expect(page.getByTestId("trajectory-metric-target")).toContainText(
-    "Straight spatial distance",
+    /Distance to Target|Remaining MD/i,
   );
 
   await expect(page.getByTestId("trajectory-target-status")).toContainText(
@@ -181,6 +181,9 @@ test("Railway D — DDH041 KPIs, residual, radius, views, projection", async ({
     page.getByText(/Geometric minimum-curvature guidance/i).first(),
   ).toBeVisible();
 
+  await expect(page.getByTestId("trajectory-r3f-viewer")).toBeVisible();
+  await page.getByTestId("trajectory-toggle-plan-section").click();
+  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
   await page.getByTestId("trajectory-view-plan").click();
   await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
   await page.getByTestId("trajectory-view-vertical_section").click();
@@ -224,7 +227,12 @@ test("Railway E — refresh preserves hole, target, attitude, interval", async (
   await expect(page.getByTestId("target-entry-mode")).toContainText(
     "Specified",
   );
-  await expect(page.getByText(/Target MD 650\.0 m/i)).toBeVisible();
+  await expect(page.getByTestId("trajectory-field-details")).toContainText(
+    "650.0 m",
+  );
+  await expect(
+    page.getByText(/Latest Survey .+ · Target MD 650\.0 m/i),
+  ).toBeVisible();
 
   await page.goto("/holes/DDH041/survey-settings");
   await expect(page.getByTestId("survey-interval-input")).toHaveValue("30.0");

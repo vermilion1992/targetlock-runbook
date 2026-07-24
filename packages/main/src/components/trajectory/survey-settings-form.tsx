@@ -239,7 +239,7 @@ export function SurveySettingsForm({ holeId }: { holeId: string }) {
       );
 
       setMessage(
-        preferredSurveyIntervalDm !== undefined
+        preferredSurveyIntervalDm !== null
           ? `Survey settings saved. Default Survey interval ${defaultIntervalM} m.`
           : "Survey settings saved. Survey interval cleared — next-Survey KPIs unavailable until set.",
       );
