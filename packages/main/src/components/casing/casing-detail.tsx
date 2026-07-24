@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, MoveDown, PencilLine, Save } from "lucide-react";
+import { MoveDown, PencilLine, Save } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -13,6 +13,7 @@ import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { Textarea } from "@/components/ui/textarea";
 import type { CasingEvent, CasingStatus, CasingString } from "@/domain";
@@ -158,15 +159,7 @@ export function CasingDetail({
         eyebrow="Stage 3 · casing control"
         title={casing?.label || (casing ? `${casing.casingSize} casing` : "Casing detail")}
         description="Current projection, lifecycle actions, and permanent event history."
-        action={
-          <Link
-            href={runbookRoutes.casing(holeId)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Casing history
-          </Link>
-        }
+        backTarget={namedBackTarget(runbookRoutes.casing(holeId), "Casing")}
       />
 
       {confirmation ? (

@@ -38,6 +38,8 @@ import {
   LocalPrototypeNotice,
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   HOLE_COMPLETION_REASONS,
@@ -83,6 +85,9 @@ export function HoleCompletionReview({
   const [componentOutcomes, setComponentOutcomes] = useState<
     Record<string, HoleCompletionComponentOutcomeCode>
   >({});
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const moreHref = runbookRoutes.more(holeId);
 
   const reload = useCallback(async () => {
     const services = createBrowserRunbookServices();
@@ -235,6 +240,7 @@ export function HoleCompletionReview({
               ? `${snapshot.projectNameSnapshot} · final ${formatMetres(snapshot.finalDepthDm)} · ${completionReasonLabel(snapshot.reason)}`
               : "This hole is locked."
           }
+          backTarget={namedBackTarget(moreHref, "More")}
           action={
             <StatusPill tone={status === "ABANDONED" ? "danger" : "success"}>
               {holeStatusLabel(status)}
@@ -283,11 +289,17 @@ export function HoleCompletionReview({
   const advisories = evaluation.unacknowledgedAdvisories;
 
   return (
-    <div className="space-y-5 sm:space-y-6">
+    <div
+      className="space-y-5 sm:space-y-6"
+      onChange={() => setIsDirty(true)}
+    >
       <StagePageHeader
         eyebrow="Hole completion"
         title="Final hole review"
         description={`${context.projectName} · ${context.rigName} · reconcile before locking ${holeId}.`}
+        backTarget={namedBackTarget(moreHref, "More", {
+          onNavigate: requestLeave,
+        })}
         action={
           <StatusPill tone={evaluation.canComplete ? "success" : "warning"}>
             {evaluation.canComplete ? "Ready to lock" : "Blocked"}
@@ -712,6 +724,7 @@ export function HoleCompletionReview({
                     },
                     services,
                   );
+                  setIsDirty(false);
                   router.push(
                     `${runbookRoutes.currentHole(holeId)}?notice=hole-completed&status=${result.completion.finalStatus}`,
                   );
@@ -730,16 +743,11 @@ export function HoleCompletionReview({
             <Lock aria-hidden="true" className="size-5" />
             Complete and lock hole
           </FieldActionButton>
-          <Link
-            href={runbookRoutes.currentHole(holeId)}
-            className="inline-flex min-h-12 items-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] px-5 font-bold no-underline"
-          >
-            Cancel
-          </Link>
         </div>
       </SectionPanel>
 
       <LocalPrototypeNotice />
+      {discardDialog}
     </div>
   );
 }

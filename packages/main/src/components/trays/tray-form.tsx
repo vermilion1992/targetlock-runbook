@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Save } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -13,6 +13,8 @@ import {
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { PhotoInput } from "@/components/media/photo-input";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   parseMetreInput,
@@ -50,6 +52,9 @@ export function TrayForm({ holeId }: { holeId: string }) {
   const [warnings, setWarnings] = useState<readonly TrayValidationIssue[]>([]);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.trays(holeId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -154,6 +159,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
         },
         services,
       );
+      setIsDirty(false);
       router.push(`${runbookRoutes.currentHole(holeId)}?notice=tray-saved`);
     } catch (caught) {
       if (caught instanceof TrayWarningConfirmationRequired) {
@@ -186,11 +192,8 @@ export function TrayForm({ holeId }: { holeId: string }) {
         eyebrow="Stage 4 · local media"
         title="Photograph completed tray"
         description={`Save a completed core tray for ${holeId}. Runs remain separate and overlap is derived from depth.`}
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link href={runbookRoutes.trays(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Tray library
-      </Link>
 
       {warnings.length > 0 ? (
         <div
@@ -242,7 +245,11 @@ export function TrayForm({ holeId }: { holeId: string }) {
       ) : null}
       {error ? <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4 font-bold">{error}</p> : null}
 
-      <form onSubmit={submit} className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 md:grid-cols-2">
+      <form
+        onSubmit={submit}
+        onChange={() => setIsDirty(true)}
+        className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 md:grid-cols-2"
+      >
         <div className="md:col-span-2">
           <p className="text-xs font-bold uppercase text-[var(--tl-ink-muted)]">Hole</p>
           <p className="mt-1 text-xl font-bold">{holeId}</p>
@@ -280,6 +287,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
           {saving ? "Photograph save in progress. The tray is not complete until local media is verified." : ""}
         </p>
       </form>
+      {discardDialog}
     </div>
   );
 }

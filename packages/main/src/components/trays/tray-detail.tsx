@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, ChevronLeft, ChevronRight, Edit3, RefreshCw } from "lucide-react";
+import { ChevronLeft, ChevronRight, Edit3, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -10,6 +10,7 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { LocalMediaImage } from "@/components/media/local-media-image";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   decimetres,
@@ -126,6 +127,7 @@ export function TrayDetail({
         eyebrow="Stage 4 · tray detail"
         title={`Tray ${tray.trayNumber}`}
         description={`${holeId} · ${range(tray)}`}
+        backTarget={namedBackTarget(runbookRoutes.trays(holeId), "Trays")}
         action={
           <div className="flex flex-wrap gap-2">
             <Link href={runbookRoutes.correctTray(holeId, tray.localId)} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 font-bold no-underline">
@@ -139,10 +141,6 @@ export function TrayDetail({
           </div>
         }
       />
-      <Link href={runbookRoutes.trays(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Tray library
-      </Link>
       <section className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 lg:grid-cols-[minmax(0,2fr)_minmax(16rem,1fr)]">
         <div className="overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-sunken)]">
           <LocalMediaImage photo={photo} alt={photo?.description ?? `Completed core tray ${tray.trayNumber}`} priority className="max-h-[75vh] w-full object-contain" />

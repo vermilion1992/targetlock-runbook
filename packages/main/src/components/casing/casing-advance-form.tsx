@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, MoveDown, Save } from "lucide-react";
-import Link from "next/link";
+import { MoveDown, Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
 
@@ -14,6 +13,8 @@ import { MetreInput } from "@/components/field/metre-input";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -52,6 +53,9 @@ export function CasingAdvanceForm({
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.casingDetail(holeId, casingId);
   const errorRef = useRef<HTMLDivElement>(null);
   const warningRef = useRef<HTMLDivElement>(null);
 
@@ -189,6 +193,7 @@ export function CasingAdvanceForm({
         },
         services,
       );
+      setIsDirty(false);
       router.push(
         `${runbookRoutes.casingDetail(holeId, casing.localId)}?notice=advanced`,
       );
@@ -201,23 +206,13 @@ export function CasingAdvanceForm({
     }
   };
 
-  const detailHref = runbookRoutes.casingDetail(holeId, casingId);
-
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
         eyebrow="Stage 3 · casing control"
         title="Advance casing"
         description="Extend an active casing string and append a permanent advance event."
-        action={
-          <Link
-            href={detailHref}
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Casing detail
-          </Link>
-        }
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
       {message ? (
@@ -230,7 +225,12 @@ export function CasingAdvanceForm({
       </div>
 
       {casing ? (
-        <form onSubmit={submit} className="space-y-5" noValidate>
+        <form
+          onSubmit={submit}
+          onChange={() => setIsDirty(true)}
+          className="space-y-5"
+          noValidate
+        >
           <SectionPanel
             title={casing.label || `${casing.casingSize} casing`}
             description={`${casing.casingSize} · ${casing.status.toLocaleLowerCase("en-AU")}`}
@@ -341,12 +341,6 @@ export function CasingAdvanceForm({
           </SectionPanel>
 
           <div className="flex flex-col-reverse gap-3 sm:flex-row sm:justify-end">
-            <Link
-              href={detailHref}
-              className="inline-flex min-h-12 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] px-5 font-bold no-underline"
-            >
-              Cancel
-            </Link>
             <FieldActionButton
               type="submit"
               busy={saving}
@@ -361,6 +355,7 @@ export function CasingAdvanceForm({
           </div>
         </form>
       ) : null}
+      {discardDialog}
     </div>
   );
 }

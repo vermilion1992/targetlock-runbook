@@ -3,6 +3,8 @@
 import Link from "next/link";
 
 import type { MiniTargetLockResult } from "@/domain";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
+import { RunbookPageBackLink } from "@/components/navigation/runbook-page-back-link";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 
 import { formatMetresValue } from "./trajectory-format";
@@ -62,9 +64,18 @@ export function TrajectoryCockpitHeader({
           ? "Magnetic North"
           : "Azimuth reference";
 
+  const surveySettingsHref = runbookRoutes.surveySettings(holeId, {
+    returnTo: runbookRoutes.trajectory(holeId),
+  });
+
   return (
     <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
       <div className="min-w-0 space-y-1">
+        <div className="-ml-1">
+          <RunbookPageBackLink
+            target={namedBackTarget(runbookRoutes.more(holeId), "More")}
+          />
+        </div>
         <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--tl-ink-muted)]">
           {holeId} — TRAJECTORY
         </p>
@@ -96,7 +107,7 @@ export function TrajectoryCockpitHeader({
             Export Image
           </button>
           <Link
-            href={runbookRoutes.surveySettings(holeId)}
+            href={surveySettingsHref}
             className="inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 text-sm font-semibold"
           >
             Survey Settings

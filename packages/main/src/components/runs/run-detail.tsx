@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Share2 } from "lucide-react";
+import { Share2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -10,6 +10,7 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   decimetres,
@@ -225,6 +226,7 @@ export function RunDetail({
                 ? "Completed and corrected"
                 : "Completed within one shift"
         }
+        backTarget={namedBackTarget(runbookRoutes.runbook(holeId), "Runbook")}
         action={
           isVoid ? (
             <StatusPill tone="warning">VOID</StatusPill>
@@ -240,9 +242,6 @@ export function RunDetail({
           )
         }
       />
-      <Link href={runbookRoutes.runbook(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-        <ArrowLeft aria-hidden="true" className="size-5" /> Back to runbook
-      </Link>
       {!isVoid ? (
         <div className="flex flex-wrap gap-3">
           <Link

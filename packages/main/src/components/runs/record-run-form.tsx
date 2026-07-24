@@ -9,7 +9,6 @@ import {
   RotateCcw,
   Save,
 } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState } from "react";
 import {
@@ -27,6 +26,8 @@ import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { Textarea } from "@/components/ui/textarea";
 import {
   calculateCoreLossOrGain,
@@ -59,7 +60,6 @@ import {
   type RunDraftContext,
   type RunDraftPayload,
 } from "@/infrastructure/drafts";
-import { runbookRoutes } from "@/components/navigation/runbook-routes";
 
 type Ddh041CurrentState =
   typeof import("@/infrastructure/seed").ddh041CurrentState;
@@ -681,14 +681,10 @@ export function RecordRunForm({
         eyebrow="Stage 2 · shift-owned run capture"
         title={`Record run ${context.runNumber}`}
         description="Complete the field measurements below. Derived values come only from the shared TargetLock domain functions."
-        action={
-          <Link
-            href={`/holes/${encodeURIComponent(holeId)}/current`}
-            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 text-sm font-bold text-[var(--tl-ink)] no-underline"
-          >
-            Back to current hole
-          </Link>
-        }
+        backTarget={namedBackTarget(
+          runbookRoutes.currentHole(holeId),
+          "Current Hole",
+        )}
       />
 
       <aside

@@ -2,34 +2,54 @@ import { HardDrive, Save } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { StatusPill } from "@/components/field/status-pill";
+import { RunbookPageBackLink } from "@/components/navigation/runbook-page-back-link";
+import type { RunbookBackTarget } from "@/components/navigation/runbook-page-back";
 
-interface StagePageHeaderProps {
-  eyebrow: string;
+export interface StagePageHeaderProps {
   title: string;
-  description: string;
+  description?: string;
+  eyebrow?: string;
+  backTarget?: RunbookBackTarget;
+  /** @deprecated Prefer `actions`. Kept for existing call sites. */
   action?: ReactNode;
+  actions?: ReactNode;
 }
 
 export function StagePageHeader({
   eyebrow,
   title,
   description,
+  backTarget,
   action,
+  actions,
 }: StagePageHeaderProps) {
+  const trailing = actions ?? action;
+
   return (
     <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0">
-        <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--tl-primary)]">
-          {eyebrow}
-        </p>
-        <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[var(--tl-ink)] sm:text-3xl">
-          {title}
-        </h1>
-        <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--tl-ink-muted)] sm:text-base">
-          {description}
-        </p>
+      <div className="min-w-0 space-y-2">
+        {backTarget ? (
+          <div className="-ml-1">
+            <RunbookPageBackLink target={backTarget} />
+          </div>
+        ) : null}
+        <div className="min-w-0">
+          {eyebrow ? (
+            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--tl-primary)]">
+              {eyebrow}
+            </p>
+          ) : null}
+          <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[var(--tl-ink)] sm:text-3xl">
+            {title}
+          </h1>
+          {description ? (
+            <p className="mt-2 max-w-3xl text-sm leading-6 text-[var(--tl-ink-muted)] sm:text-base">
+              {description}
+            </p>
+          ) : null}
+        </div>
       </div>
-      {action ? <div className="shrink-0">{action}</div> : null}
+      {trailing ? <div className="shrink-0">{trailing}</div> : null}
     </header>
   );
 }

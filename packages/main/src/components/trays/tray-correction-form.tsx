@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Save } from "lucide-react";
-import Link from "next/link";
+import { Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -10,6 +9,8 @@ import {
   createBrowserRunbookServices,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { parseMetreInput, type Decimetres, type Tray } from "@/domain";
 
@@ -36,6 +37,9 @@ export function TrayCorrectionForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.trayDetail(holeId, trayId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -116,7 +120,8 @@ export function TrayCorrectionForm({
         },
         services,
       );
-      router.push(runbookRoutes.trayDetail(holeId, trayId));
+      setIsDirty(false);
+      router.push(parentHref);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Correction could not be saved.");
     } finally {
@@ -131,14 +136,15 @@ export function TrayCorrectionForm({
         eyebrow="Stage 4 · audited correction"
         title="Edit tray details"
         description="Depth and number corrections retain their previous values and reason."
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link href={runbookRoutes.trayDetail(holeId, trayId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Back to tray
-      </Link>
       {error ? <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4 font-bold">{error}</p> : null}
       {tray ? (
-        <form onSubmit={submit} className="grid gap-4 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 sm:grid-cols-2 sm:p-5">
+        <form
+          onSubmit={submit}
+          onChange={() => setIsDirty(true)}
+          className="grid gap-4 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 sm:grid-cols-2 sm:p-5"
+        >
           <label>
             <span className="text-sm font-bold">Tray number</span>
             <input required inputMode="numeric" value={trayNumber} onChange={(event) => setTrayNumber(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3" />
@@ -170,6 +176,7 @@ export function TrayCorrectionForm({
           </button>
         </form>
       ) : null}
+      {discardDialog}
     </div>
   );
 }

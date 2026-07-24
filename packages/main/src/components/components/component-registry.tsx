@@ -9,6 +9,11 @@ import {
   getComponentRegistry,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
+import {
+  DEFAULT_HOLE_ID,
+  runbookRoutes,
+} from "@/components/navigation/runbook-routes";
 import { Input } from "@/components/ui/input";
 import {
   calculateComponentUsage,
@@ -131,6 +136,7 @@ export function ComponentRegistry() {
         eyebrow="Stage 3 · component control"
         title="Component registry"
         description="Search all bits and reamers registered to this organisation, including available, active, inspection, and retired equipment."
+        backTarget={namedBackTarget(runbookRoutes.more(DEFAULT_HOLE_ID), "More")}
         action={
           <Link
             href="/components/new"

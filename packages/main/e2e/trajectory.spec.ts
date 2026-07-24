@@ -52,6 +52,14 @@ test("Workflow 3 — Three views and field details", async ({ page }) => {
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
+  // R3F is the default viewer; reveal canvas Plan/Section tabs when present.
+  const planSectionToggle = page.getByTestId("trajectory-toggle-plan-section");
+  if (await planSectionToggle.isVisible().catch(() => false)) {
+    await planSectionToggle.click();
+  }
+  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByTestId("trajectory-view-plan").click();
   await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
   await page.getByTestId("trajectory-view-vertical_section").click();

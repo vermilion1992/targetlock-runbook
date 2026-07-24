@@ -53,7 +53,10 @@ src/
     reports/               Report Centre generate/download/share/email draft
     reports/history/       Report Activity filters and version history
     timeline/              repository-backed operational timeline
-    more/                  implemented navigation including reports
+    more/                  More Tools landing (stable parent for secondary tools)
+    trajectory/            trajectory cockpit (+ plan/setup redirects)
+    survey-settings/       Survey & Reference Settings (optional returnTo)
+    statistics/            hole analytics
   app/(RunbookLayout)/holes/completed/
     page.tsx               completed/abandoned/reopened hole list
   app/(RunbookLayout)/components/
@@ -67,12 +70,15 @@ src/
     field/                 shared field controls and states
     holes/                 dashboard, completion review, reopen, locked panel
     media/                 camera/file input and local-media rendering
-    navigation/            phone and tablet navigation
+    navigation/            primary rail/bottom nav, runbookRoutes,
+                           resolveSafeReturnPath, RunbookPageBackLink,
+                           discard leave guard
     reports/               Report Centre and Report Activity UI
     runs/                  Record Run client workflow
     shifts/                start/close/handover/history/detail workflows
     surveys/               record/history/detail/correction/tool workflows
     trays/                 capture/library/detail/correction/replacement
+    trajectory/            cockpit, survey settings, graphics
   application/runbook/     UI-independent run, shift, casing/component,
                            and hole-completion use cases plus mutation guard
   application/reports/     snapshot builder, generate/share/email use cases
@@ -93,6 +99,19 @@ src/
 ```
 
 Domain calculations do not depend on React or browser storage.
+
+## Runbook navigation model
+
+Primary destinations (no in-page Back): Current Hole, Runbook, Trays, Timeline,
+More — shared by desktop rail and phone bottom nav via `RunbookNavigation`.
+
+Secondary pages use `StagePageHeader.backTarget` with a named parent. Canonical
+parents for More tools resolve to `/holes/[holeId]/more`. Nested detail pages
+return to their collection (Shifts, Reports, Runbook, Casing, Surveys, Trays).
+Survey Settings may accept a sanitized `?returnTo=` (for example Trajectory);
+`resolveSafeReturnPath` rejects open redirects and cross-hole paths.
+
+See ADR-047 and `docs/runbook-navigation-matrix.md`.
 
 ## Runtime and data flow
 

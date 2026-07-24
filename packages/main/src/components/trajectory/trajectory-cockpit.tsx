@@ -138,7 +138,9 @@ export function TrajectoryCockpit({
               Add collar coordinates
             </button>
             <Link
-              href={runbookRoutes.surveySettings(holeId)}
+              href={runbookRoutes.surveySettings(holeId, {
+                returnTo: runbookRoutes.trajectory(holeId),
+              })}
               className="inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 text-sm font-semibold uppercase tracking-wide"
             >
               Open Survey Settings
@@ -176,7 +178,9 @@ export function TrajectoryCockpit({
         </p>
         {result.blockCode === "MISSING_ACTUAL_CONFIGURATION" ? (
           <Link
-            href={runbookRoutes.surveySettings(holeId)}
+            href={runbookRoutes.surveySettings(holeId, {
+                returnTo: runbookRoutes.trajectory(holeId),
+              })}
             className="inline-flex text-sm font-semibold text-[var(--tl-primary)]"
           >
             Open Survey Settings

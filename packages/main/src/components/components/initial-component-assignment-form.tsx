@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, PackagePlus, Save } from "lucide-react";
+import { PackagePlus, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -15,6 +15,9 @@ import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { Component, ComponentAssignment, ComponentType, Decimetres } from "@/domain";
 import { ComponentRepositoryError } from "@/infrastructure/components";
 
@@ -48,6 +51,9 @@ export function InitialComponentAssignmentForm({
   const [componentId, setComponentId] = useState("");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.holeComponents(holeId);
 
   useEffect(() => {
     let active = true;
@@ -127,8 +133,9 @@ export function InitialComponentAssignmentForm({
         },
         services,
       );
+      setIsDirty(false);
       router.push(
-        `/holes/${encodeURIComponent(holeId)}/components?notice=${componentType === "BIT" ? "bit-assigned" : "reamer-assigned"}`,
+        `${parentHref}?notice=${componentType === "BIT" ? "bit-assigned" : "reamer-assigned"}`,
       );
     } catch (cause) {
       setError(
@@ -150,15 +157,7 @@ export function InitialComponentAssignmentForm({
         eyebrow="Stage 3 · initial assignment"
         title={`Assign initial ${componentType.toLocaleLowerCase("en-AU")}`}
         description={`Select an available or serviceable ${componentType.toLocaleLowerCase("en-AU")}. Its assignment starts at the current completed depth.`}
-        action={
-          <Link
-            href={`/holes/${encodeURIComponent(holeId)}/components`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Components
-          </Link>
-        }
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
       {error ? <OperationNotice tone="error">{error}</OperationNotice> : null}
@@ -180,7 +179,7 @@ export function InitialComponentAssignmentForm({
         />
       </section>
 
-      <form onSubmit={handleSubmit}>
+      <form onSubmit={handleSubmit} onChange={() => setIsDirty(true)}>
         <SectionPanel
           title="Incoming component"
           description="Only registry records currently available for assignment are shown."
@@ -192,7 +191,10 @@ export function InitialComponentAssignmentForm({
           <select
             id="initial-component"
             value={componentId}
-            onChange={(event) => setComponentId(event.target.value)}
+            onChange={(event) => {
+              setComponentId(event.target.value);
+              setIsDirty(true);
+            }}
             required
             disabled={
               context === null ||
@@ -240,6 +242,7 @@ export function InitialComponentAssignmentForm({
           </div>
         </SectionPanel>
       </form>
+      {discardDialog}
     </div>
   );
 }

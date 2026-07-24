@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, FileSpreadsheet, FileText, Share2 } from "lucide-react";
+import { FileSpreadsheet, FileText, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -18,6 +18,7 @@ import {
   LocalPrototypeNotice,
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   REPORT_FORMATS,
@@ -177,15 +178,8 @@ export function ReportActivity({ holeId }: { holeId: string }) {
         eyebrow="Reports"
         title="Report Activity"
         description="Locally generated report versions for this hole. Status means generated, downloaded, shared, or drafted — never delivered."
+        backTarget={namedBackTarget(runbookRoutes.reports(holeId), "Reports")}
       />
-
-      <Link
-        href={runbookRoutes.reports(holeId)}
-        className="inline-flex min-h-11 items-center gap-2 text-sm font-bold text-[var(--tl-primary)] no-underline"
-      >
-        <ArrowLeft aria-hidden="true" className="size-4" />
-        Back to Report Centre
-      </Link>
 
       <section
         aria-label="Filters"

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Save } from "lucide-react";
+import { Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
@@ -11,6 +11,8 @@ import {
   previewRunCorrectionForHole,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   decimetres,
@@ -49,6 +51,9 @@ export function RunCorrectionForm({
   const [success, setSuccess] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [locked, setLocked] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.runDetail(holeId, runId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -269,7 +274,8 @@ export function RunCorrectionForm({
         services,
       );
       setSuccess(`Run ${run.runNumber} corrected.`);
-      router.push(runbookRoutes.runDetail(holeId, runId));
+      setIsDirty(false);
+      router.push(parentHref);
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Correction could not be saved.",
@@ -293,6 +299,7 @@ export function RunCorrectionForm({
           eyebrow="Run correction"
           title={`Correct Run ${run.runNumber}`}
           description={`${holeId} is completed and locked.`}
+          backTarget={cancelBackTarget(parentHref)}
         />
         <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4">
           Reopen the hole before correcting operational run data.
@@ -321,13 +328,8 @@ export function RunCorrectionForm({
         eyebrow="Audited correction"
         title={`Correct Run ${run.runNumber}`}
         description="Correct source values. Calculated R/S, depth, drilled and recovery stay derived."
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link
-        href={runbookRoutes.runDetail(holeId, runId)}
-        className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]"
-      >
-        <ArrowLeft aria-hidden="true" className="size-5" /> Back to run detail
-      </Link>
 
       <section className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-4">
         <h2 className="font-bold">Current record</h2>
@@ -359,7 +361,11 @@ export function RunCorrectionForm({
         </dl>
       </section>
 
-      <form onSubmit={submit} className="space-y-5">
+      <form
+        onSubmit={submit}
+        onChange={() => setIsDirty(true)}
+        className="space-y-5"
+      >
         <fieldset>
           <legend className="font-bold">What needs correcting?</legend>
           <div className="mt-3 grid gap-3 sm:grid-cols-2">
@@ -379,7 +385,10 @@ export function RunCorrectionForm({
                     ? "border-[var(--tl-primary)] bg-[var(--tl-primary-soft)]"
                     : "border-[var(--tl-border)]"
                 }`}
-                onClick={() => setChoice(value)}
+                onClick={() => {
+                  setChoice(value);
+                  setIsDirty(true);
+                }}
               >
                 {label}
               </button>
@@ -535,12 +544,6 @@ export function RunCorrectionForm({
         ) : null}
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href={runbookRoutes.runDetail(holeId, runId)}
-            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 font-bold"
-          >
-            Cancel
-          </Link>
           <button
             type="submit"
             disabled={
@@ -555,6 +558,7 @@ export function RunCorrectionForm({
           </button>
         </div>
       </form>
+      {discardDialog}
     </div>
   );
 }

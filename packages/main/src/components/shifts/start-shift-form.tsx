@@ -16,8 +16,10 @@ import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
-import { decimetres, formatMetres, type ShiftType } from "@/domain";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { decimetres, formatMetres, type ShiftType } from "@/domain";
 
 interface DrillerOption {
   readonly id: string;
@@ -55,6 +57,9 @@ export function StartShiftForm({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.currentHole(holeId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -113,7 +118,8 @@ export function StartShiftForm({
         services,
       );
       setMessage(`${shiftType === "DAY" ? "Day" : "Night"} Shift started.`);
-      router.push(`${runbookRoutes.currentHole(holeId)}?notice=shift-started`);
+      setIsDirty(false);
+      router.push(`${parentHref}?notice=shift-started`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The shift was not started.");
       requestAnimationFrame(() => document.getElementById(errorId)?.focus());
@@ -130,6 +136,7 @@ export function StartShiftForm({
         eyebrow="Stage 2 · shift continuity"
         title="Start runbook shift"
         description={`Assign the shift that will own new runs for ${holeId}.`}
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
         action={<StatusPill tone="info">Local-only</StatusPill>}
       />
 
@@ -181,7 +188,11 @@ export function StartShiftForm({
           </Link>
         </SectionPanel>
       ) : (
-        <form onSubmit={submit} className="space-y-5">
+        <form
+          onSubmit={submit}
+          onChange={() => setIsDirty(true)}
+          className="space-y-5"
+        >
           <SectionPanel
             title="Shift assignment"
             description="The operational date remains the date on which this shift begins."
@@ -262,6 +273,7 @@ export function StartShiftForm({
           </FieldActionButton>
         </form>
       )}
+      {discardDialog}
     </div>
   );
 }

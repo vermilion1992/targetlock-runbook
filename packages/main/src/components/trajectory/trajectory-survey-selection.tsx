@@ -8,6 +8,7 @@ import {
   saveTrajectorySurveySelection,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatTenths, type Survey } from "@/domain";
 
@@ -111,6 +112,7 @@ export function TrajectorySurveySelection({ holeId }: { holeId: string }) {
         eyebrow="Trajectory"
         title="Trajectory Survey review"
         description="Choose one Survey reading per duplicate depth for trajectory calculation. Survey History remains unchanged."
+        backTarget={namedBackTarget(runbookRoutes.trajectory(holeId), "Trajectory")}
         action={
           <Link
             href={runbookRoutes.trajectory(holeId)}

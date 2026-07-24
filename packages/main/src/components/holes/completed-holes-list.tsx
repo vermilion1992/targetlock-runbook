@@ -20,7 +20,11 @@ import {
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
-import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
+import {
+  DEFAULT_HOLE_ID,
+  runbookRoutes,
+} from "@/components/navigation/runbook-routes";
 import { formatMetres } from "@/domain";
 
 type StatusFilter = "ALL" | "COMPLETED" | "ABANDONED";
@@ -73,6 +77,7 @@ export function CompletedHolesList() {
         eyebrow="Stage 5 · completed holes"
         title="Completed and abandoned holes"
         description="Immutable completion snapshots with final depth, reason, and lock-aware actions."
+        backTarget={namedBackTarget(runbookRoutes.more(DEFAULT_HOLE_ID), "More")}
         action={
           <StatusPill tone="neutral">{filtered.length} shown</StatusPill>
         }

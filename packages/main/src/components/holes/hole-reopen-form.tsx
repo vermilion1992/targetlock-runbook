@@ -1,7 +1,6 @@
 "use client";
 
 import { AlertTriangle } from "lucide-react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -24,6 +23,8 @@ import {
   LocalPrototypeNotice,
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, normalizeHoleStatus } from "@/domain";
 
@@ -38,6 +39,9 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
   const [completionId, setCompletionId] = useState<string | undefined>();
   const [finalDepth, setFinalDepth] = useState<string>("—");
   const [completionReason, setCompletionReason] = useState<string>("—");
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.more(holeId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -99,6 +103,7 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
         },
         services,
       );
+      setIsDirty(false);
       router.push(
         holeId === "DDH041"
           ? `${runbookRoutes.currentHole(holeId)}?notice=hole-reopened`
@@ -122,6 +127,9 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
         eyebrow="Stage 5 · reopen"
         title={`Reopen ${holeId}`}
         description="Restores the hole to Active without opening a shift or assigning components."
+        backTarget={cancelBackTarget(parentHref, {
+          onNavigate: locked ? requestLeave : undefined,
+        })}
         action={
           status ? (
             <StatusPill
@@ -160,7 +168,11 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
       </SectionPanel>
 
       {locked ? (
-        <form onSubmit={submit} className="space-y-5">
+        <form
+          onSubmit={submit}
+          onChange={() => setIsDirty(true)}
+          className="space-y-5"
+        >
           <SectionPanel
             title="Reopen reason"
             description="Depth, casing, surveys, and trays are retained. A continuity-review banner will appear on the dashboard."
@@ -192,12 +204,6 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
             >
               Reopen hole
             </FieldActionButton>
-            <Link
-              href={runbookRoutes.currentHole(holeId)}
-              className="inline-flex min-h-12 items-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] px-5 font-bold no-underline"
-            >
-              Cancel
-            </Link>
           </div>
         </form>
       ) : status === null ? (
@@ -207,16 +213,11 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
           <p className="text-sm text-[var(--tl-ink-muted)]">
             Only completed or abandoned holes can be reopened.
           </p>
-          <Link
-            href={runbookRoutes.currentHole(holeId)}
-            className="mt-3 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-          >
-            Return to current hole
-          </Link>
         </SectionPanel>
       )}
 
       <LocalPrototypeNotice />
+      {discardDialog}
     </div>
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Drill, History, PackagePlus, RefreshCw } from "lucide-react";
+import { Drill, History, PackagePlus, RefreshCw } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -15,6 +15,7 @@ import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   formatRecoveryPercentTenths,
@@ -171,15 +172,7 @@ export function HoleComponentSummary({
         eyebrow="Stage 3 · hole equipment"
         title={`${holeId} components`}
         description="Current bit and reamer assignments, exact-depth change history, and completed-run usage statistics."
-        action={
-          <Link
-            href={runbookRoutes.currentHole(holeId)}
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Current hole
-          </Link>
-        }
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
       />
 
       {noticeMessage ? <OperationNotice tone="success">{noticeMessage}</OperationNotice> : null}

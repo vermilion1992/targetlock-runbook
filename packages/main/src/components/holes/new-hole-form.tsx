@@ -8,7 +8,12 @@ import {
   createHoleWithTrajectoryDefaults,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
-import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
+import {
+  DEFAULT_HOLE_ID,
+  runbookRoutes,
+} from "@/components/navigation/runbook-routes";
 import {
   DEFAULT_TARGET_DIAMETER_M,
   parseAzimuthInput,
@@ -47,6 +52,9 @@ export function NewHoleForm() {
   const [targetRef, setTargetRef] = useState<NorthReference>("GRID");
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.more(DEFAULT_HOLE_ID);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -173,7 +181,8 @@ export function NewHoleForm() {
           trajectory: services.trajectory,
         },
       );
-      router.push(runbookRoutes.trajectory(result.hole.localId));
+      setIsDirty(false);
+      router.replace(runbookRoutes.trajectory(result.hole.localId));
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "Unable to create hole.",
@@ -189,10 +198,12 @@ export function NewHoleForm() {
         eyebrow="Holes"
         title="New Hole"
         description="Create a hole with collar direction. Optional collar coordinates and target details can be entered now."
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
       <form
         onSubmit={handleSubmit}
+        onChange={() => setIsDirty(true)}
         className="space-y-4 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)]"
       >
         <fieldset className="space-y-3">
@@ -433,6 +444,7 @@ export function NewHoleForm() {
           {busy ? "Creating…" : "Create hole"}
         </button>
       </form>
+      {discardDialog}
     </div>
   );
 }

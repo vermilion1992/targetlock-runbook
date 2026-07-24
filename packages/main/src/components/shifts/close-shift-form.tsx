@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Flag, LogOut, Share2 } from "lucide-react";
+import { AlertTriangle, Flag, LogOut, Share2 } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -22,6 +22,8 @@ import {
   defaultCompletionActor,
 } from "@/components/holes/completion-support";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, type RunbookShift, type ShiftAnalytics } from "@/domain";
 import { CloseShiftAnalyticsPreview } from "./shift-analytics-panels";
@@ -40,6 +42,9 @@ export function CloseShiftForm({
   const [note, setNote] = useState("");
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.shiftDetail(holeId, shiftId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -97,6 +102,7 @@ export function CloseShiftForm({
         },
         services,
       );
+      setIsDirty(false);
       router.push(`${runbookRoutes.handover(holeId)}?notice=handover-created`);
     } catch (error) {
       setMessage(
@@ -128,6 +134,7 @@ export function CloseShiftForm({
         },
         services,
       );
+      setIsDirty(false);
       router.push(
         `${runbookRoutes.currentHole(holeId)}?notice=final-shift-closed`,
       );
@@ -164,6 +171,7 @@ export function CloseShiftForm({
         eyebrow="Shift close"
         title={`Close ${shift.shiftType === "DAY" ? "Day" : "Night"} Shift`}
         description={`${shift.shiftDate} · ${shift.primaryDrillerNameSnapshot}`}
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
         action={<StatusPill tone="warning">Open</StatusPill>}
       />
 
@@ -270,7 +278,11 @@ export function CloseShiftForm({
         </SectionPanel>
       ) : null}
 
-      <form onSubmit={submitHandover} className="space-y-4">
+      <form
+        onSubmit={submitHandover}
+        onChange={() => setIsDirty(true)}
+        className="space-y-4"
+      >
         <SectionPanel
           title="Handover note"
           description="Optional operational context for the incoming shift."
@@ -289,12 +301,6 @@ export function CloseShiftForm({
           />
         </SectionPanel>
         <div className="grid gap-3 sm:grid-cols-2">
-          <Link
-            href={runbookRoutes.currentHole(holeId)}
-            className="inline-flex min-h-14 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" /> Return to hole
-          </Link>
           <FieldActionButton
             type="submit"
             fieldSize="major"
@@ -330,6 +336,7 @@ export function CloseShiftForm({
           </FieldActionButton>
         </div>
       </SectionPanel>
+      {discardDialog}
     </div>
   );
 }

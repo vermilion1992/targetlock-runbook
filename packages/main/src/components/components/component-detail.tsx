@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, History, Save, Wrench } from "lucide-react";
-import Link from "next/link";
+import { History, Save, Wrench } from "lucide-react";
 import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
@@ -13,6 +12,8 @@ import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -262,11 +263,14 @@ export function ComponentDetail({
   if (detail === null) {
     return (
       <div className="space-y-4">
+        <StagePageHeader
+          title="Component"
+          backTarget={namedBackTarget(
+            runbookRoutes.componentRegistry(),
+            "Component Registry",
+          )}
+        />
         {message ? <OperationNotice tone={message.tone}>{message.text}</OperationNotice> : null}
-        <Link href="/components" className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-          <ArrowLeft aria-hidden="true" className="size-5" />
-          Back to registry
-        </Link>
       </div>
     );
   }
@@ -278,15 +282,10 @@ export function ComponentDetail({
         eyebrow={`Stage 3 · ${titleCase(component.type)}`}
         title={component.serialNumber}
         description={`${component.manufacturer ?? "Manufacturer not recorded"}${component.model ? ` · ${component.model}` : ""} · ${component.size}`}
-        action={
-          <Link
-            href="/components"
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Registry
-          </Link>
-        }
+        backTarget={namedBackTarget(
+          runbookRoutes.componentRegistry(),
+          "Component Registry",
+        )}
       />
 
       {message ? <OperationNotice tone={message.tone}>{message.text}</OperationNotice> : null}

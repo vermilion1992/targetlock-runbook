@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Plus, Wrench } from "lucide-react";
-import Link from "next/link";
+import { Plus, Wrench } from "lucide-react";
 import { useEffect, useState, type FormEvent } from "react";
 
 import {
@@ -11,6 +10,7 @@ import {
 } from "@/application/runbook";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { NorthReference, SurveyTool } from "@/domain";
 
@@ -112,11 +112,8 @@ export function SurveyToolRegistry({ holeId }: { holeId: string }) {
         eyebrow="Stage 4 · reusable survey tools"
         title="Survey tools"
         description="A lightweight local registry for tool and serial inheritance. Calibration and maintenance remain outside V1."
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
       />
-      <Link href={runbookRoutes.surveys(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Survey history
-      </Link>
       {notice ? <p role="status" aria-live="polite" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-success)] bg-[var(--tl-success-soft)] p-3 font-bold">{notice}</p> : null}
       {error ? <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-3 font-bold">{error}</p> : null}
       <section aria-labelledby="tool-list-heading">

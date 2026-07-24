@@ -29,6 +29,7 @@ import {
   LocalPrototypeNotice,
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   REPORT_FORMATS,
@@ -436,6 +437,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
         eyebrow="Reports"
         title="Reports"
         description="Generate local PDF, Excel and CSV runbook exports from repository data. Sharing opens a device share sheet or download — TargetLock does not send email."
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
       />
 
       <p className="rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface-muted,transparent)] px-3 py-2 text-sm text-[var(--tl-ink-muted)]">

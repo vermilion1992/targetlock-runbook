@@ -11,7 +11,10 @@ import {
   saveReferenceConfiguration,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveSafeReturnPath } from "@/components/navigation/resolve-safe-return-path";
 import {
   convertAzimuthDegrees,
   parseAzimuthInput,
@@ -34,7 +37,13 @@ function northLabel(ref: NorthReference): string {
   return "Not specified";
 }
 
-export function SurveySettingsForm({ holeId }: { holeId: string }) {
+export function SurveySettingsForm({
+  holeId,
+  returnTo,
+}: {
+  holeId: string;
+  returnTo?: string;
+}) {
   const [surveyAzimuthRef, setSurveyAzimuthRef] =
     useState<NorthReference>("GRID");
   const [defaultIntervalM, setDefaultIntervalM] = useState("30.0");
@@ -55,6 +64,14 @@ export function SurveySettingsForm({ holeId }: { holeId: string }) {
   const [selectionCount, setSelectionCount] = useState(0);
   const [message, setMessage] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+
+  const parent = resolveSafeReturnPath({
+    requestedReturnTo: returnTo,
+    canonicalFallback: runbookRoutes.more(holeId),
+    currentHoleId: holeId,
+  });
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -238,6 +255,7 @@ export function SurveySettingsForm({ holeId }: { holeId: string }) {
         services,
       );
 
+      setIsDirty(false);
       setMessage(
         preferredSurveyIntervalDm !== null
           ? `Survey settings saved. Default Survey interval ${defaultIntervalM} m.`
@@ -253,11 +271,18 @@ export function SurveySettingsForm({ holeId }: { holeId: string }) {
   }
 
   return (
-    <div className="space-y-4" data-testid="survey-settings-form">
+    <div
+      className="space-y-4"
+      data-testid="survey-settings-form"
+      onChange={() => setIsDirty(true)}
+    >
       <StagePageHeader
         eyebrow="Trajectory"
         title="Survey & Reference Settings"
         description="Survey azimuth reference, north conversion, and collar configuration for trajectory calculations."
+        backTarget={namedBackTarget(parent.href, parent.label, {
+          onNavigate: requestLeave,
+        })}
         action={
           <Link
             href={runbookRoutes.trajectory(holeId)}
@@ -267,6 +292,7 @@ export function SurveySettingsForm({ holeId }: { holeId: string }) {
           </Link>
         }
       />
+      {discardDialog}
 
       <section className="space-y-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
         <h2 className="text-lg font-semibold">Survey input</h2>

@@ -80,15 +80,34 @@ function MoreItemCard({ item }: { item: MoreItem }) {
   );
 }
 
+function MoreSection({
+  headingId,
+  title,
+  items,
+}: {
+  headingId: string;
+  title: string;
+  items: readonly MoreItem[];
+}) {
+  return (
+    <section aria-labelledby={headingId}>
+      <h2
+        id={headingId}
+        className="mb-3 text-xs font-bold uppercase tracking-[0.12em] text-[var(--tl-ink-muted)]"
+      >
+        {title}
+      </h2>
+      <div className="grid gap-3 lg:grid-cols-3">
+        {items.map((item) => (
+          <MoreItemCard key={item.id} item={item} />
+        ))}
+      </div>
+    </section>
+  );
+}
+
 export function MorePreview({ holeId }: { holeId: string }) {
-  const operations: readonly MoreItem[] = [
-    {
-      id: "surveys",
-      label: "Surveys",
-      description: "Review depth, dip, azimuth, tool, and operator records.",
-      icon: Compass,
-      href: runbookRoutes.surveys(holeId),
-    },
+  const holePlanning: readonly MoreItem[] = [
     {
       id: "trajectory",
       label: "Trajectory",
@@ -105,19 +124,97 @@ export function MorePreview({ holeId }: { holeId: string }) {
       icon: Settings,
       href: runbookRoutes.surveySettings(holeId),
     },
+  ];
+
+  const holeRecords: readonly MoreItem[] = [
+    {
+      id: "casing",
+      label: "Casing",
+      description: "Review surface casing depths and recorded changes.",
+      icon: Cylinder,
+      href: runbookRoutes.casing(holeId),
+    },
+    {
+      id: "components",
+      label: "Bits and components",
+      description: "Review bit and reamer installation and removal events.",
+      icon: CircleDot,
+      href: runbookRoutes.holeComponents(holeId),
+    },
+    {
+      id: "surveys",
+      label: "Surveys",
+      description: "Review depth, dip, azimuth, tool, and operator records.",
+      icon: Compass,
+      href: runbookRoutes.surveys(holeId),
+    },
+  ];
+
+  const analysisOutput: readonly MoreItem[] = [
+    {
+      id: "statistics",
+      label: "Hole statistics",
+      description:
+        "Hole production, Shift, recovery, component, Survey and Tray analytics.",
+      icon: BarChart3,
+      href: runbookRoutes.statistics(holeId),
+    },
+    {
+      id: "reports",
+      label: "Reports",
+      description:
+        "Generate local PDF, Excel and CSV runbook exports and share from this device.",
+      icon: ClipboardList,
+      href: runbookRoutes.reports(holeId),
+    },
+    {
+      id: "report-history",
+      label: "Report history",
+      description: "Open previously generated local report versions for this hole.",
+      icon: History,
+      href: runbookRoutes.reportHistory(holeId),
+    },
+  ];
+
+  const holeManagement: readonly MoreItem[] = [
+    {
+      id: "shifts",
+      label: "Shift history",
+      description:
+        "Review Day and Night Shift snapshots, shared runs, and handovers.",
+      icon: History,
+      href: runbookRoutes.shifts(holeId),
+    },
+    {
+      id: "complete-hole",
+      label: "Complete Hole",
+      description:
+        "Reconcile depth, components, surveys, and trays before locking.",
+      icon: CheckCircle2,
+      href: runbookRoutes.completeHole(holeId),
+    },
+    {
+      id: "reopen-hole",
+      label: "Reopen hole",
+      description:
+        "Restore a completed or abandoned hole to Active with audit history.",
+      icon: RotateCcw,
+      href: runbookRoutes.reopenHole(holeId),
+    },
+    {
+      id: "completed-holes",
+      label: "Completed holes",
+      description:
+        "Browse locked holes with final depth, reason, and reopen actions.",
+      icon: CheckCircle2,
+      href: runbookRoutes.completedHoles(),
+    },
     {
       id: "new-hole",
       label: "New Hole",
       description: "Create a hole with collar direction and optional coordinates.",
       icon: CircleDot,
       href: runbookRoutes.newHole(),
-    },
-    {
-      id: "components",
-      label: "Components",
-      description: "Review bit and reamer installation and removal events.",
-      icon: CircleDot,
-      href: runbookRoutes.holeComponents(holeId),
     },
     {
       id: "component-registry",
@@ -127,62 +224,12 @@ export function MorePreview({ holeId }: { holeId: string }) {
       href: runbookRoutes.componentRegistry(),
     },
     {
-      id: "casing",
-      label: "Casing",
-      description: "Review surface casing depths and recorded changes.",
-      icon: Cylinder,
-      href: runbookRoutes.casing(holeId),
-    },
-    {
-      id: "complete-hole",
-      label: "Final hole review",
-      description: "Reconcile depth, components, surveys, and trays before locking.",
-      icon: CheckCircle2,
-      href: runbookRoutes.completeHole(holeId),
-    },
-    {
-      id: "reopen-hole",
-      label: "Reopen hole",
-      description: "Restore a completed or abandoned hole to Active with audit history.",
-      icon: RotateCcw,
-      href: runbookRoutes.reopenHole(holeId),
-    },
-  ];
-  const management: readonly MoreItem[] = [
-    {
-      id: "completed-holes",
-      label: "Completed holes",
-      description: "Browse locked holes with final depth, reason, and reopen actions.",
-      icon: CheckCircle2,
-      href: runbookRoutes.completedHoles(),
-    },
-    {
-      id: "statistics",
-      label: "Statistics",
-      description: "Hole production, Shift, recovery, component, Survey and Tray analytics.",
-      icon: BarChart3,
-      href: runbookRoutes.statistics(holeId),
-    },
-    {
-      id: "shifts",
-      label: "Shift history",
-      description: "Review Day and Night Shift snapshots, shared runs, and handovers.",
-      icon: History,
-      href: runbookRoutes.shifts(holeId),
-    },
-    {
-      id: "reports",
-      label: "Reports",
-      description: "Generate local PDF, Excel and CSV runbook exports and share from this device.",
-      icon: ClipboardList,
-      href: runbookRoutes.reports(holeId),
-    },
-    {
       id: "settings",
       label: "Settings",
       description: "Hole and organisation configuration.",
       icon: Settings,
-      deferredNote: "Not available in the local pilot. Configuration stays seed-backed.",
+      deferredNote:
+        "Not available in the local pilot. Configuration stays seed-backed.",
     },
   ];
 
@@ -191,36 +238,29 @@ export function MorePreview({ holeId }: { holeId: string }) {
       <StagePageHeader
         eyebrow="More tools"
         title="More runbook tools"
-        description="Hole completion, reports, surveys, trays, casing, components, shifts, and runs for this hole."
+        description="Hole planning, records, analysis, and management tools for this hole."
       />
 
-      <section aria-labelledby="operations-heading">
-        <h2
-          id="operations-heading"
-          className="mb-3 text-lg font-bold text-[var(--tl-ink)]"
-        >
-          Hole operations
-        </h2>
-        <div className="grid gap-3 lg:grid-cols-3">
-          {operations.map((item) => (
-            <MoreItemCard key={item.label} item={item} />
-          ))}
-        </div>
-      </section>
-
-      <section aria-labelledby="management-heading">
-        <h2
-          id="management-heading"
-          className="mb-3 text-lg font-bold text-[var(--tl-ink)]"
-        >
-          Insights and management
-        </h2>
-        <div className="grid gap-3 lg:grid-cols-3">
-          {management.map((item) => (
-            <MoreItemCard key={item.label} item={item} />
-          ))}
-        </div>
-      </section>
+      <MoreSection
+        headingId="hole-planning-heading"
+        title="Hole planning"
+        items={holePlanning}
+      />
+      <MoreSection
+        headingId="hole-records-heading"
+        title="Hole records"
+        items={holeRecords}
+      />
+      <MoreSection
+        headingId="analysis-output-heading"
+        title="Analysis & output"
+        items={analysisOutput}
+      />
+      <MoreSection
+        headingId="hole-management-heading"
+        title="Hole management"
+        items={holeManagement}
+      />
 
       <LocalPrototypeNotice />
     </div>

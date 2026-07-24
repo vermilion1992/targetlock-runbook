@@ -5,10 +5,15 @@ import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function HoleSurveySettingsPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ holeId: string }>;
+  searchParams: Promise<{ returnTo?: string | string[] }>;
 }) {
   const { holeId } = await params;
   if (!isRoutableHoleId(holeId)) notFound();
-  return <SurveySettingsForm holeId={holeId} />;
+  const query = await searchParams;
+  const raw = query.returnTo;
+  const returnTo = Array.isArray(raw) ? raw[0] : raw;
+  return <SurveySettingsForm holeId={holeId} returnTo={returnTo} />;
 }

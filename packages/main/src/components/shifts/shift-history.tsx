@@ -16,6 +16,7 @@ import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, type ShiftAnalytics } from "@/domain";
 import { targetLockStage2Seed } from "@/infrastructure/seed";
@@ -76,6 +77,7 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
         eyebrow="Stage 2 · local history"
         title={`${holeId} shifts`}
         description="Day and Night Shift snapshots, handovers, shared runs, and runbook-focused statistics."
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={<StatusPill tone="info"><History aria-hidden="true" className="size-4" />{groups.length} shifts</StatusPill>}
       />
 

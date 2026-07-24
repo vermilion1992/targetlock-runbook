@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, Save } from "lucide-react";
+import { AlertTriangle, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -13,6 +13,8 @@ import {
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { PhotoInput } from "@/components/media/photo-input";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   formatMetres,
@@ -56,6 +58,9 @@ export function SurveyForm({ holeId }: { holeId: string }) {
   const [normalizedAzimuth, setNormalizedAzimuth] = useState(false);
   const [saving, setSaving] = useState(false);
   const [ready, setReady] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.surveys(holeId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -162,6 +167,7 @@ export function SurveyForm({ holeId }: { holeId: string }) {
         },
         services,
       );
+      setIsDirty(false);
       router.push(`${runbookRoutes.currentHole(holeId)}?notice=survey-saved`);
     } catch (caught) {
       if (caught instanceof SurveyWarningConfirmationRequired) {
@@ -188,14 +194,8 @@ export function SurveyForm({ holeId }: { holeId: string }) {
         eyebrow="Stage 4 · survey record"
         title="Add survey"
         description={`Fast manual survey entry for ${holeId}. Values remain exactly as entered; no reference conversion or trajectory calculation is performed.`}
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link
-        href={runbookRoutes.currentHole(holeId)}
-        className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]"
-      >
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Back to current hole
-      </Link>
 
       {warnings.length > 0 ? (
         <div
@@ -261,6 +261,7 @@ export function SurveyForm({ holeId }: { holeId: string }) {
 
       <form
         onSubmit={onSubmit}
+        onChange={() => setIsDirty(true)}
         className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 md:grid-cols-2"
       >
         <div className="md:col-span-2">
@@ -389,6 +390,7 @@ export function SurveyForm({ holeId }: { holeId: string }) {
           {saving ? "Survey save in progress." : ""}
         </p>
       </form>
+      {discardDialog}
     </div>
   );
 }

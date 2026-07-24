@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, RefreshCw } from "lucide-react";
-import Link from "next/link";
+import { RefreshCw } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -12,6 +11,8 @@ import {
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { LocalMediaImage } from "@/components/media/local-media-image";
 import { PhotoInput } from "@/components/media/photo-input";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { Photo, Tray } from "@/domain";
 
@@ -29,6 +30,9 @@ export function TrayPhotoReplacementForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.trayDetail(holeId, trayId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -87,7 +91,8 @@ export function TrayPhotoReplacementForm({
         },
         services,
       );
-      router.push(runbookRoutes.trayDetail(holeId, trayId));
+      setIsDirty(false);
+      router.push(parentHref);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Photograph could not be replaced.");
     } finally {
@@ -102,14 +107,15 @@ export function TrayPhotoReplacementForm({
         eyebrow="Stage 4 · recoverable media operation"
         title={`Replace tray ${tray?.trayNumber ?? ""} photograph`}
         description="The current photograph remains active until the new original and preview are safely stored."
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link href={runbookRoutes.trayDetail(holeId, trayId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Back to tray
-      </Link>
       {error ? <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4 font-bold">{error}</p> : null}
       {tray ? (
-        <form onSubmit={submit} className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 sm:p-5 lg:grid-cols-2">
+        <form
+          onSubmit={submit}
+          onChange={() => setIsDirty(true)}
+          className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 sm:p-5 lg:grid-cols-2"
+        >
           <section aria-labelledby="current-photo-heading">
             <h2 id="current-photo-heading" className="mb-2 font-bold">Current active photograph</h2>
             <div className="aspect-[4/3] overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)]">
@@ -117,7 +123,16 @@ export function TrayPhotoReplacementForm({
             </div>
           </section>
           <div className="space-y-4">
-            <PhotoInput id="replacement-photo" label="Replacement photograph" file={replacement} onFile={setReplacement} required />
+            <PhotoInput
+              id="replacement-photo"
+              label="Replacement photograph"
+              file={replacement}
+              onFile={(file) => {
+                setReplacement(file);
+                setIsDirty(true);
+              }}
+              required
+            />
             <label className="block">
               <span className="text-sm font-bold">Replacement reason *</span>
               <input required value={reason} onChange={(event) => setReason(event.target.value)} placeholder="For example: First photograph was blurred" className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3" />
@@ -132,6 +147,7 @@ export function TrayPhotoReplacementForm({
           </p>
         </form>
       ) : null}
+      {discardDialog}
     </div>
   );
 }

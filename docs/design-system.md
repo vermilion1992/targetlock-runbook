@@ -53,7 +53,21 @@ TargetLock uses an isolated `RunbookLayout`, not the dashboard shell.
   available.
 - Do not expose unrelated admin navigation, marketing chrome, or dashboard customisation.
 
-Use a restrained content width on desktop while allowing numerical run rows to use available horizontal space. Touch targets should be at least `44 × 44 px`.
+Use a restrained content width on desktop while allowing numerical run rows to use available horizontal space. Touch targets should be at least `44 × 44 px`. In-app Back controls use a minimum `48 × 48 px` target.
+
+### Page header and Back navigation
+
+- Use shared `StagePageHeader` for field pages (eyebrow, title, description,
+  optional actions, optional `backTarget`).
+- Primary destinations (Current Hole, Runbook, Trays, Timeline, More) omit
+  `backTarget`.
+- Secondary pages show a named parent Back control above the title:
+  phone `← More`, desktop `← Back to More` (or the resolved parent name).
+- Accessible name is always destination-based (`Back to More`), never “left
+  arrow”. Place Back near the top of page content — never over bottom
+  navigation or inside an overflow menu.
+- Forms use `← Cancel` (or a named parent) and the discard dialog when dirty.
+- Do not use `router.back()` as the sole escape from a secondary page.
 
 ## Typography and numbers
 
@@ -298,8 +312,10 @@ implemented.
 
 - Prefer product eyebrows (`Hole completion`, `Reports`, `Operational timeline`)
   over stage-number badges in field navigation.
-- More menu Settings stays visible but non-interactive with an explicit deferred
-  note; do not imply configuration editing exists in the local pilot.
+- More is a real landing page (`/holes/[holeId]/more`) with grouped tool tiles
+  (Hole planning, Hole records, Analysis & output, Hole management). Settings
+  stays visible but non-interactive with an explicit deferred note; do not
+  imply configuration editing exists in the local pilot.
 - Local prototype notice language is “local pilot only”, not stage-numbered.
 - Close Shift presents both **Close and hand over** and **Close as final shift**
   with distinct purpose copy so completion remains reachable without handover.

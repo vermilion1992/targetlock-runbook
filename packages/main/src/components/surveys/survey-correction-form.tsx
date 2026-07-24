@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Save } from "lucide-react";
-import Link from "next/link";
+import { Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
 
@@ -10,6 +9,8 @@ import {
   createBrowserRunbookServices,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   parseAzimuthInput,
@@ -37,6 +38,9 @@ export function SurveyCorrectionForm({
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.surveyDetail(holeId, surveyId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -107,7 +111,8 @@ export function SurveyCorrectionForm({
         },
         services,
       );
-      router.push(runbookRoutes.surveyDetail(holeId, surveyId));
+      setIsDirty(false);
+      router.push(parentHref);
     } catch (caught) {
       setError(caught instanceof Error ? caught.message : "Correction could not be saved.");
     } finally {
@@ -123,18 +128,13 @@ export function SurveyCorrectionForm({
         eyebrow="Stage 4 · audited correction"
         title="Correct survey"
         description="The original values remain available in correction and audit history."
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link
-        href={runbookRoutes.surveyDetail(holeId, surveyId)}
-        className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]"
-      >
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Back to survey
-      </Link>
       {error ? <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4 font-bold">{error}</p> : null}
       {survey ? (
         <form
           onSubmit={submit}
+          onChange={() => setIsDirty(true)}
           className="grid gap-4 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 sm:grid-cols-2 sm:p-5"
         >
           <label>
@@ -172,6 +172,7 @@ export function SurveyCorrectionForm({
           </button>
         </form>
       ) : null}
+      {discardDialog}
     </div>
   );
 }

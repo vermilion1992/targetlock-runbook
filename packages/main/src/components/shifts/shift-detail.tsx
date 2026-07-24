@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Share2, UserRound } from "lucide-react";
+import { Share2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -15,6 +15,7 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, type AuditEntry, type ShiftAnalytics } from "@/domain";
 import { targetLockStage2Seed } from "@/infrastructure/seed";
@@ -82,6 +83,7 @@ export function ShiftDetail({
         eyebrow="Stage 2 · shift detail"
         title={`${shift.shiftType === "DAY" ? "Day Shift" : "Night Shift"} — ${shift.shiftDate}`}
         description={`Primary driller: ${shift.primaryDrillerNameSnapshot}`}
+        backTarget={namedBackTarget(runbookRoutes.shifts(holeId), "Shifts")}
         action={
           <StatusPill
             tone={
@@ -97,30 +99,26 @@ export function ShiftDetail({
         }
       />
 
-      <div className="flex flex-wrap gap-2">
-        <Link
-          href={runbookRoutes.shifts(holeId)}
-          className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-        >
-          <ArrowLeft aria-hidden="true" className="size-5" /> Shift history
-        </Link>
-        {shift.status === "OPEN" ? (
-          <Link
-            href={runbookRoutes.closeShift(holeId, shift.localId)}
-            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-warning)] px-4 font-bold text-black no-underline"
-          >
-            Close shift
-          </Link>
-        ) : null}
-        {shift.status === "HANDOVER_PENDING" ? (
-          <Link
-            href={runbookRoutes.handover(holeId)}
-            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 font-bold text-white no-underline"
-          >
-            Accept handover
-          </Link>
-        ) : null}
-      </div>
+      {shift.status === "OPEN" || shift.status === "HANDOVER_PENDING" ? (
+        <div className="flex flex-wrap gap-2">
+          {shift.status === "OPEN" ? (
+            <Link
+              href={runbookRoutes.closeShift(holeId, shift.localId)}
+              className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-warning)] px-4 font-bold text-black no-underline"
+            >
+              Close shift
+            </Link>
+          ) : null}
+          {shift.status === "HANDOVER_PENDING" ? (
+            <Link
+              href={runbookRoutes.handover(holeId)}
+              className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 font-bold text-white no-underline"
+            >
+              Accept handover
+            </Link>
+          ) : null}
+        </div>
+      ) : null}
 
       {analytics ? (
         <ShiftDetailAnalyticsSections analytics={analytics} />

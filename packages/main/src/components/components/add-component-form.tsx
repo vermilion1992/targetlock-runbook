@@ -1,7 +1,6 @@
 "use client";
 
-import { ArrowLeft, Save } from "lucide-react";
-import Link from "next/link";
+import { Save } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
@@ -12,6 +11,9 @@ import {
 import { FieldActionButton } from "@/components/field/field-action-button";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { Input } from "@/components/ui/input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -80,6 +82,9 @@ export function AddComponentForm({
   const [status, setStatus] = useState<NewComponentStatus>("AVAILABLE");
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.componentRegistry();
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -136,8 +141,9 @@ export function AddComponentForm({
         },
         services,
       );
+      setIsDirty(false);
       router.push(
-        `/components/${encodeURIComponent(id)}?notice=component-created`,
+        `${runbookRoutes.componentDetail(id)}?notice=component-created`,
       );
     } catch (cause) {
       setError(
@@ -158,18 +164,14 @@ export function AddComponentForm({
         eyebrow="Stage 3 · registry entry"
         title="Add component"
         description="Create an audited local registry record. Active status is set only through an assignment workflow."
-        action={
-          <Link
-            href="/components"
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Registry
-          </Link>
-        }
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        onChange={() => setIsDirty(true)}
+        className="space-y-5"
+      >
         <SectionPanel
           title="Registry details"
           description="Serial number uniqueness is enforced within each component type."
@@ -282,6 +284,7 @@ export function AddComponentForm({
           </FieldActionButton>
         </div>
       </form>
+      {discardDialog}
     </div>
   );
 }

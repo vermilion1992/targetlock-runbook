@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, ArrowLeft, RefreshCw, Save } from "lucide-react";
+import { AlertTriangle, RefreshCw, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import {
@@ -25,6 +25,9 @@ import { MetreInput } from "@/components/field/metre-input";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { Textarea } from "@/components/ui/textarea";
 import {
   calculateComponentUsage,
@@ -92,6 +95,9 @@ export function ChangeComponentForm({
   const [confirmWithinRun, setConfirmWithinRun] = useState(false);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.holeComponents(holeId);
   const errorRef = useRef<HTMLDivElement>(null);
   const warningRef = useRef<HTMLDivElement>(null);
 
@@ -249,8 +255,9 @@ export function ChangeComponentForm({
       } else {
         await changeReamer(input, services);
       }
+      setIsDirty(false);
       router.push(
-        `/holes/${encodeURIComponent(holeId)}/components?notice=${componentType === "BIT" ? "bit-changed" : "reamer-changed"}`,
+        `${parentHref}?notice=${componentType === "BIT" ? "bit-changed" : "reamer-changed"}`,
       );
     } catch (cause) {
       setError(
@@ -277,15 +284,7 @@ export function ChangeComponentForm({
         eyebrow="Stage 3 · exact-depth change"
         title={`Change ${typeLabel}`}
         description={`Close the outgoing ${typeLabel.toLocaleLowerCase("en-AU")} and activate its replacement at one exact depth. Completed runs and current depth are loaded from this browser.`}
-        action={
-          <Link
-            href={`/holes/${encodeURIComponent(holeId)}/components`}
-            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
-          >
-            <ArrowLeft aria-hidden="true" className="size-5" />
-            Components
-          </Link>
-        }
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
       {error ? (
@@ -331,7 +330,11 @@ export function ChangeComponentForm({
         />
       </section>
 
-      <form onSubmit={handleSubmit} className="space-y-5">
+      <form
+        onSubmit={handleSubmit}
+        onChange={() => setIsDirty(true)}
+        className="space-y-5"
+      >
         <div className="grid gap-5 md:grid-cols-2">
           <SectionPanel
             title={`Outgoing ${typeLabel}`}
@@ -551,6 +554,7 @@ export function ChangeComponentForm({
           </p>
         </div>
       </form>
+      {discardDialog}
     </div>
   );
 }

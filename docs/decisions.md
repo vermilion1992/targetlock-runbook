@@ -77,7 +77,7 @@
 
 ```text
 BHA - CSU = 4.3 - 1.8 = 2.5 m
-(108 √ó 6.0 m) + (4 √ó 3.0 m) = 660.0 m
+(108 ù 6.0 m) + (4 ù 3.0 m) = 660.0 m
 Base R/S 2.5 m + active rods 660.0 m = Current R/S 662.5 m
 Rod number = 108 + 4 = 112
 ```
@@ -104,7 +104,7 @@ The `DDH041` seed can represent the latest change as previous rod 111/R/S `659.5
 
 **Context:** The original `/` route opened a generic admin dashboard, while Stage 1 must demonstrate the field workflow without backend setup.
 
-**Decision:** Redirect `/` to `/holes/DDH041/current`. Keep the original template‚Äôs other routes and components intact for reference.
+**Decision:** Redirect `/` to `/holes/DDH041/current`. Keep the original templateùs other routes and components intact for reference.
 
 **Consequences:** Running `packages/main` opens the TargetLock prototype immediately. No existing demo feature is deleted, but the generic dashboard is no longer the default landing page.
 
@@ -379,7 +379,7 @@ V4 capture continues to persist both assignment ID and serial snapshot.
 
 **Context:** Field users need a searchable station record now, but trajectory,
 coordinate, declination, reference-conversion, and vendor-import behavior need
-separate geospatial requirements. Floating-point degree arithmetic and na√Øve
+separate geospatial requirements. Floating-point degree arithmetic and naùve
 absolute azimuth difference would also create inconsistent warnings near north.
 
 **Decision:** Store survey depth as integer decimetres and dip/azimuth as
@@ -437,7 +437,7 @@ service, and vendor telemetry remain deferred.
 - **Status:** Accepted
 
 **Context:** A physical run can cross a tray boundary and a tray can contain
-several runs. Splitting runs to fit tray photographs would corrupt Stage 1‚Äì3
+several runs. Splitting runs to fit tray photographs would corrupt Stage 1ù3
 run identity, shift ownership, component snapshots, and recovery totals.
 
 **Decision:** Store a tray's optional integer-decimetre range but no run IDs.
@@ -500,7 +500,7 @@ operation envelope.
 
 **Context:** Stage 4 adds survey/tray repositories but does not change run
 ownership or component/casing snapshots. Replacing the Stage 3 seed or bumping
-run persistence would risk breaking V1‚ÄìV4 migration and deterministic browser
+run persistence would risk breaking V1ùV4 migration and deterministic browser
 bootstrap.
 
 **Decision:** Build `targetLockStage4Seed` by spreading the Stage 3 seed,
@@ -511,7 +511,7 @@ first local write persists it, and later hydration uses the local envelope.
 Keep run schema V4 and its conservative Stage 3 assignment resolution and
 legacy hole mapping unchanged.
 
-**Consequences:** Stage 1‚Äì3 identifiers and migrations remain stable, seed data
+**Consequences:** Stage 1ù3 identifiers and migrations remain stable, seed data
 does not duplicate after a local write, and Stage 5 must preserve this bootstrap
 contract or provide an explicit migration.
 
@@ -635,8 +635,8 @@ can orphan the other; recovery fails clearly. No cloud backup in V1.
 Share sheets and mailto drafts are not email delivery.
 
 **Decision:** Stage generation as
-`SNAPSHOT_BUILDING` ‚Üí `SNAPSHOT_SAVED` ‚Üí `DOCUMENT_GENERATING` ‚Üí
-`DOCUMENT_GENERATED` ‚Üí `FILE_SAVING` ‚Üí `FILE_VERIFIED` ‚Üí `METADATA_SAVED` ‚Üí
+`SNAPSHOT_BUILDING` ? `SNAPSHOT_SAVED` ? `DOCUMENT_GENERATING` ?
+`DOCUMENT_GENERATED` ? `FILE_SAVING` ? `FILE_VERIFIED` ? `METADATA_SAVED` ?
 `COMPLETED` / `FAILED`, idempotent by `operationId` + fingerprint. Legacy
 `FILE_SAVED` remains readable for resume. Activity statuses are Generated /
 Downloaded / Shared / Email draft / Failed. Outbox uses `DRAFT` /
@@ -680,7 +680,7 @@ versioned `GeneratedReportRecord`. Report use cases never call hole mutators.
 reports survive reopen. Legacy Stage 1 `SentReport` seed remains unused by
 Report Activity.
 
-## ADR-040: Final pilot audit ‚Äî lock-safe recovery and continuous rod history
+## ADR-040: Final pilot audit ù lock-safe recovery and continuous rod history
 
 - **Date:** 2026-07-22
 - **Status:** Accepted
@@ -740,7 +740,7 @@ or rod formulas in React or report adapters would drift.
    `medianInteger` / elapsed helpers in `domain/numeric.ts`.
 2. Credit completed metres to `completedShiftId` (shared Runs stay labelled
    shared; metres are not split).
-3. Weighted recovery = total recovered √∑ total drilled (not a simple average).
+3. Weighted recovery = total recovered ù total drilled (not a simple average).
 4. Persist `closeAnalyticsSnapshot` once on Shift close; never overwrite it.
    Current views always recompute from effective data.
 5. Reports consume the shared result via `ReportDocumentData.shiftAnalytics`;
@@ -773,7 +773,7 @@ formulas or inventing a BI dashboard framework.
 4. PDF/Excel consume `ReportDocumentData.holeAnalytics` tables and chart text
    summaries. Deterministic chart-image embedding into pdf-lib is deferred to
    avoid regressing ADR-035.
-5. Completeness uses per-category statuses only ‚Äî no combined Hole score.
+5. Completeness uses per-category statuses only ù no combined Hole score.
 6. Exclude trajectory/TVD/DLS, employee rankings, and component causation claims.
    Observed component recovery retains partial-Run estimate labels.
 
@@ -803,7 +803,7 @@ target distance without steering or anti-collision.
    actual; interpolate mid-interval MD via MC+slerp; sample render paths with
    `maximumRenderSegmentDm` (default 5.0 m).
 4. Precision: double-precision metres internally; round only for display/export.
-5. Near-vertical threshold `|dip| >= 85∞` (IQ-compatible); suppress exaggerated
+5. Near-vertical threshold `|dip| >= 85ù` (IQ-compatible); suppress exaggerated
    azimuth alarms while keeping finite coordinates.
 6. Persist hole-scoped trajectory envelope; UI/reports never calculate
    independently. Trajectory source versions participate in report currency.
@@ -847,3 +847,33 @@ anti-collision capability.
 **Consequences:** Rendering may evolve independently; calculated E/N/RL and
 same-depth deviations remain identical to Implementation 5. Steering and
 certified anti-collision stay out of scope.
+
+## ADR-047: Deterministic parent navigation
+
+**Status:** Accepted
+**Date:** 2026-07-25
+
+**Context:** Secondary Runbook pages used inconsistent ad-hoc back links or
+implied browser history. `router.back()` can leave the app, change Hole
+context, or reopen completed forms when pages are opened from bookmarks or
+cross-hole flows.
+
+**Decision:**
+
+1. Primary destinations (Current Hole, Runbook, Trays, Timeline, More) have no
+   in-page Back control; they remain reachable from the rail / bottom nav.
+2. Every secondary page declares a named canonical parent (for example More,
+   Trajectory, Reports, Shifts, Runbook). The in-app Back control navigates to
+   that parent ó never to browser history as application truth.
+3. More is a stable route at `/holes/[holeId]/more`, not a transient popover.
+4. Optional `returnTo` query values are allowed only when sanitized by
+   `resolveSafeReturnPath` (same-hole internal path, no open redirects). Invalid
+   or missing values fall back to the canonical parent.
+5. Creation/edit forms use Cancel (or a named parent) and show a discard
+   confirmation when dirty. Browser history is not globally intercepted.
+6. Shared chrome is `StagePageHeader` + `RunbookPageBackLink` with accessible
+   names (`Back to More`) and ?48ù48 px targets.
+
+**Consequences:** Navigation remains predictable on direct URL load, refresh,
+and completed-Hole viewing. Native browser Back continues to use history stacks
+independently of the in-app Back control.

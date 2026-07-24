@@ -9,6 +9,7 @@ import {
   listHoleAnalyticsVersions,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { HoleAnalytics } from "@/domain";
 
@@ -92,6 +93,7 @@ export function HoleAnalyticsDashboard({ holeId }: { holeId: string }) {
         eyebrow="Analytics"
         title="Hole statistics"
         description={`${holeId} analytical overview from repository-backed effective records.`}
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={
           <Link
             href={runbookRoutes.currentHole(holeId)}

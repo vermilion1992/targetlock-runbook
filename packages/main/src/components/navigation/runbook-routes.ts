@@ -9,6 +9,21 @@ function holeBase(holeId: string): string {
   return `/holes/${encodeURIComponent(usableHoleId(holeId))}`;
 }
 
+export interface SurveySettingsRouteOptions {
+  readonly returnTo?: string;
+}
+
+function appendReturnToQuery(
+  href: string,
+  returnTo: string | undefined,
+): string {
+  if (!returnTo?.trim()) {
+    return href;
+  }
+  const separator = href.includes("?") ? "&" : "?";
+  return `${href}${separator}returnTo=${encodeURIComponent(returnTo.trim())}`;
+}
+
 export const runbookRoutes = {
   currentHole: (holeId: string) => `${holeBase(holeId)}/current`,
   recordRun: (holeId: string) => `${holeBase(holeId)}/runs/new`,
@@ -68,8 +83,11 @@ export const runbookRoutes = {
   trajectory: (holeId: string) => `${holeBase(holeId)}/trajectory`,
   trajectoryPlan: (holeId: string) => `${holeBase(holeId)}/trajectory/plan`,
   trajectorySetup: (holeId: string) => `${holeBase(holeId)}/trajectory/setup`,
-  surveySettings: (holeId: string) =>
-    `${holeBase(holeId)}/survey-settings`,
+  surveySettings: (holeId: string, options?: SurveySettingsRouteOptions) =>
+    appendReturnToQuery(
+      `${holeBase(holeId)}/survey-settings`,
+      options?.returnTo,
+    ),
   trajectorySurveys: (holeId: string) =>
     `${holeBase(holeId)}/trajectory/surveys`,
   completeHole: (holeId: string) => `${holeBase(holeId)}/complete`,

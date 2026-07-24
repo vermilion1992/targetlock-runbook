@@ -15,6 +15,7 @@ import {
   LocalPrototypeNotice,
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   calculateSurveyStatistics,
@@ -99,6 +100,7 @@ export function SurveyHistory({ holeId }: { holeId: string }) {
         eyebrow="Stage 4 · survey history"
         title={`${holeId} surveys`}
         description="Repository-backed manual survey records, ordered deepest and latest first."
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={
           <Link
             href={runbookRoutes.addSurvey(holeId)}

@@ -15,6 +15,8 @@ import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   formatMetres,
@@ -59,6 +61,9 @@ export function HandoverForm({
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.currentHole(holeId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -127,7 +132,8 @@ export function HandoverForm({
         },
         services,
       );
-      router.push(`${runbookRoutes.currentHole(holeId)}?notice=handover-accepted`);
+      setIsDirty(false);
+      router.push(`${parentHref}?notice=handover-accepted`);
     } catch (error) {
       setMessage(error instanceof Error ? error.message : "The handover was not accepted.");
     } finally {
@@ -141,11 +147,13 @@ export function HandoverForm({
   if (pending === null) {
     return (
       <div className="space-y-5">
-        <StagePageHeader eyebrow="Stage 2 · handover" title="No pending handover" description={`There is no handover awaiting acceptance for ${holeId}.`} />
+        <StagePageHeader
+          eyebrow="Stage 2 · handover"
+          title="No pending handover"
+          description={`There is no handover awaiting acceptance for ${holeId}.`}
+          backTarget={cancelBackTarget(parentHref)}
+        />
         {message ? <p role="alert">{message}</p> : null}
-        <Link href={runbookRoutes.currentHole(holeId)} className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">
-          Return to Current Hole
-        </Link>
       </div>
     );
   }
@@ -156,11 +164,16 @@ export function HandoverForm({
     pending.endingRodStringDm ?? pending.startingRodStringDm;
 
   return (
-    <form onSubmit={submit} className="space-y-5 sm:space-y-6">
+    <form
+      onSubmit={submit}
+      onChange={() => setIsDirty(true)}
+      className="space-y-5 sm:space-y-6"
+    >
       <StagePageHeader
         eyebrow="Stage 2 · run continuity"
         title={`${shiftTypeLabel(pending.shiftType).toUpperCase()} HANDOVER`}
         description={`Outgoing driller: ${pending.primaryDrillerNameSnapshot}`}
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
         action={<StatusPill tone="warning">Acceptance required</StatusPill>}
       />
 
@@ -229,6 +242,7 @@ export function HandoverForm({
           </div>
         </SectionPanel>
       </div>
+      {discardDialog}
     </form>
   );
 }

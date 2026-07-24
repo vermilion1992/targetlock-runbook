@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowLeft, Edit3, ImageIcon } from "lucide-react";
+import { Edit3, ImageIcon } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -10,6 +10,7 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { LocalMediaImage } from "@/components/media/local-media-image";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   formatMetres,
@@ -79,6 +80,7 @@ export function SurveyDetail({
         eyebrow="Stage 4 · survey detail"
         title={`Survey — ${formatMetres(survey.depthDm)}`}
         description="The searchable runbook values and immutable correction history."
+        backTarget={namedBackTarget(runbookRoutes.surveys(holeId), "Surveys")}
         action={
           <Link
             href={runbookRoutes.correctSurvey(holeId, survey.localId)}
@@ -89,13 +91,6 @@ export function SurveyDetail({
           </Link>
         }
       />
-      <Link
-        href={runbookRoutes.surveys(holeId)}
-        className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]"
-      >
-        <ArrowLeft aria-hidden="true" className="size-5" />
-        Survey history
-      </Link>
       <SectionPanel title="Survey result">
         <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
           <MetricDisplay label="Depth" value={formatMetres(survey.depthDm)} emphasis="strong" />

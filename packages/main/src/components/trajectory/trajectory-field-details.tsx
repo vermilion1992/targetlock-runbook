@@ -63,7 +63,9 @@ export function TrajectoryFieldDetails({
             next-Survey dip and azimuth.
           </p>
           <Link
-            href={runbookRoutes.surveySettings(holeId)}
+            href={runbookRoutes.surveySettings(holeId, {
+              returnTo: runbookRoutes.trajectory(holeId),
+            })}
             className="mt-4 inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-4 text-sm font-semibold uppercase tracking-wide text-white"
           >
             Open Survey Settings

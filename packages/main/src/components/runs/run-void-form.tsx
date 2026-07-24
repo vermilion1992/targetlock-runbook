@@ -1,6 +1,5 @@
 "use client";
 
-import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState, type FormEvent } from "react";
@@ -11,6 +10,8 @@ import {
   voidRun,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
+import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { RunCorrectionImpact } from "@/domain";
 import { targetLockStage5Seed } from "@/infrastructure/seed";
@@ -46,6 +47,9 @@ export function RunVoidForm({
   const [locked, setLocked] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
+  const [isDirty, setIsDirty] = useState(false);
+  const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
+  const parentHref = runbookRoutes.runDetail(holeId, runId);
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -194,7 +198,8 @@ export function RunVoidForm({
         },
         services,
       );
-      router.push(runbookRoutes.runDetail(holeId, runId));
+      setIsDirty(false);
+      router.push(parentHref);
     } catch (caught: unknown) {
       setError(
         caught instanceof Error ? caught.message : "Void could not be saved.",
@@ -214,6 +219,7 @@ export function RunVoidForm({
           eyebrow="Void run"
           title={`Void Run ${run.runNumber}`}
           description={`${holeId} is completed and locked.`}
+          backTarget={cancelBackTarget(parentHref)}
         />
         <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4">
           Reopen the hole before voiding operational run data.
@@ -234,15 +240,14 @@ export function RunVoidForm({
         eyebrow="Audited void"
         title={`Void Run ${run.runNumber}`}
         description="The run remains in audit history but is excluded from operational calculations."
+        backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
-      <Link
-        href={runbookRoutes.runDetail(holeId, runId)}
-        className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]"
-      >
-        <ArrowLeft aria-hidden="true" className="size-5" /> Back to run detail
-      </Link>
 
-      <form onSubmit={submit} className="space-y-5">
+      <form
+        onSubmit={submit}
+        onChange={() => setIsDirty(true)}
+        className="space-y-5"
+      >
         <fieldset>
           <legend className="font-bold">Reason</legend>
           <div className="mt-3 space-y-2">
@@ -357,12 +362,6 @@ export function RunVoidForm({
         ) : null}
 
         <div className="flex flex-wrap gap-3">
-          <Link
-            href={runbookRoutes.runDetail(holeId, runId)}
-            className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 font-bold"
-          >
-            Cancel
-          </Link>
           <button
             type="submit"
             disabled={
@@ -377,6 +376,7 @@ export function RunVoidForm({
           </button>
         </div>
       </form>
+      {discardDialog}
     </div>
   );
 }

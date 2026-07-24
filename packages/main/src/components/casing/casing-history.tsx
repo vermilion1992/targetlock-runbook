@@ -11,6 +11,7 @@ import {
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { Decimetres } from "@/domain";
 
@@ -97,6 +98,7 @@ export function CasingHistory({ holeId }: { holeId: string }) {
         eyebrow="Stage 3 · casing control"
         title="Casing history"
         description={`Current casing strings and their permanent event history for ${holeId}. Corrections add events; they never replace the original record.`}
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={
           <Link
             href={runbookRoutes.addCasing(holeId)}
