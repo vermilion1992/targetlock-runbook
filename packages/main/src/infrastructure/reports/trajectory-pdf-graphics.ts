@@ -13,13 +13,38 @@ import {
   type TrajectoryPathPoint,
   type TrajectoryViewModel,
 } from "@/domain/trajectory-view-model";
+import { TRAJECTORY_PDF_RGB } from "@/infrastructure/trajectory/trajectory-visual-theme";
 
-const PLANNED = rgb(0.35, 0.33, 0.31);
-const ACTUAL = rgb(0.06, 0.46, 0.43);
-const TARGET = rgb(0.71, 0.33, 0.04);
-const GRID = rgb(0.78, 0.76, 0.73);
-const INK = rgb(0.1, 0.1, 0.1);
-const MUTED = rgb(0.4, 0.4, 0.4);
+const PLANNED = rgb(
+  TRAJECTORY_PDF_RGB.planned.r,
+  TRAJECTORY_PDF_RGB.planned.g,
+  TRAJECTORY_PDF_RGB.planned.b,
+);
+const ACTUAL = rgb(
+  TRAJECTORY_PDF_RGB.actual.r,
+  TRAJECTORY_PDF_RGB.actual.g,
+  TRAJECTORY_PDF_RGB.actual.b,
+);
+const TARGET = rgb(
+  TRAJECTORY_PDF_RGB.target.r,
+  TRAJECTORY_PDF_RGB.target.g,
+  TRAJECTORY_PDF_RGB.target.b,
+);
+const GRID = rgb(
+  TRAJECTORY_PDF_RGB.grid.r,
+  TRAJECTORY_PDF_RGB.grid.g,
+  TRAJECTORY_PDF_RGB.grid.b,
+);
+const INK = rgb(
+  TRAJECTORY_PDF_RGB.ink.r,
+  TRAJECTORY_PDF_RGB.ink.g,
+  TRAJECTORY_PDF_RGB.ink.b,
+);
+const MUTED = rgb(
+  TRAJECTORY_PDF_RGB.muted.r,
+  TRAJECTORY_PDF_RGB.muted.g,
+  TRAJECTORY_PDF_RGB.muted.b,
+);
 
 function drawPolyline(
   page: PDFPage,

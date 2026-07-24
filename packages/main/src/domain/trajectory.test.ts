@@ -535,6 +535,7 @@ describe("comparison orchestration", () => {
     expect(comparison.targetTracking?.plannedEndpointDistanceM).toBeGreaterThan(
       0,
     );
+    expect(comparison.toleranceConfigured).toBe(false);
   });
 
   it("builds straight plan stations with constant attitude", () => {

@@ -33,6 +33,7 @@ test("Workflow 1 — Straight plan versus actual", async ({ page }) => {
 
   await page.goto("/holes/DDH041/trajectory");
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
+  await page.getByTestId("trajectory-view-plan").click();
   await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
   await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
   await page.reload();
@@ -47,12 +48,15 @@ test("Workflow 2 — Curved plan", async ({ page }) => {
   await expect(page.getByTestId("active-plan-name")).toContainText(
     "Demo curved plan (relative)",
   );
+  await page.getByTestId("trajectory-view-plan").click();
   await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
-  await expect(page.getByTestId("trajectory-vertical-section")).toBeVisible();
-  await expect(page.getByText("Planned stations").first()).toBeVisible();
   await expect(
     page.getByText("equal-scale Easting / Northing"),
   ).toBeVisible();
+  await page.getByTestId("trajectory-view-vertical_section").click();
+  await expect(page.getByTestId("trajectory-vertical-section")).toBeVisible();
+  await page.getByRole("button", { name: "Coordinates" }).click();
+  await expect(page.getByText("Planned stations").first()).toBeVisible();
   await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
   await expect(page.getByTestId("trajectory-graphics-disclaimer")).toContainText(
     /not certified anti-collision/i,
@@ -66,10 +70,10 @@ test("Workflow 2b — Interactive 3D graphics controls", async ({ page }) => {
   });
   await page.getByTestId("trajectory-view-view_3d").click();
   await expect(page.getByTestId("trajectory-canvas")).toBeVisible();
-  await page.getByTestId("trajectory-vertical-scale-toggle").click();
-  await expect(page.getByTestId("trajectory-vertical-scale-toggle")).toContainText(
-    /Exaggerated/i,
-  );
+  await page
+    .getByTestId("trajectory-vertical-scale-toggle")
+    .selectOption("EXAGGERATED");
+  await expect(page.getByText(/VERTICAL SCALE 3×/i)).toBeVisible();
   await page.getByTestId("trajectory-camera-reset").click();
   await page.getByTestId("trajectory-view-plan").click();
   await page.getByTestId("trajectory-view-vertical_section").click();
@@ -85,8 +89,8 @@ test("Workflow 3 — Actual tracking", async ({ page }) => {
   await expect(tracking).toBeVisible({
     timeout: 30_000,
   });
-  await expect(tracking.getByText("Horizontal deviation")).toBeVisible();
-  await expect(tracking.getByText("3D deviation")).toBeVisible();
+  await expect(tracking.getByText("Horizontal")).toBeVisible();
+  await expect(tracking.getByText("3D Deviation")).toBeVisible();
   await expect(page.getByTestId("trajectory-tracking-table")).toBeVisible();
   await expect(
     page.getByTestId("trajectory-current-tracking-callout"),
@@ -98,11 +102,11 @@ test("Workflow 4 and 5 — Target and plan reach check", async ({ page }) => {
   await expect(page.getByTestId("trajectory-target-status")).toBeVisible({
     timeout: 30_000,
   });
+  await expect(page.getByTestId("trajectory-target-status")).toContainText(
+    /PLAN REVIEW REQUIRED|PLAN REACHES TARGET|NO TARGET/i,
+  );
   await expect(
-    page.getByRole("heading", { name: "Target status" }),
-  ).toBeVisible();
-  await expect(
-    page.getByText(/endpoint distance to target/i).first(),
+    page.getByText(/from target|No target coordinates/i).first(),
   ).toBeVisible();
   await expect(page.getByTestId("trajectory-warnings")).toBeVisible();
 });
@@ -176,10 +180,10 @@ test("Workflow 8 — Near vertical warning path", async ({ page }) => {
   await azInputs.nth(2).fill("20.0");
   await page.getByRole("button", { name: "Save and activate" }).click();
   await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-warnings")).toContainText(
-    /Near-vertical/i,
-    { timeout: 30_000 },
-  );
+  const warnings = page.getByTestId("trajectory-warnings");
+  await expect(warnings).toBeVisible({ timeout: 30_000 });
+  await warnings.getByRole("button").click();
+  await expect(warnings).toContainText(/Near-vertical/i);
 });
 
 test("Workflow 9 — Reports include trajectory summary", async ({ page }) => {

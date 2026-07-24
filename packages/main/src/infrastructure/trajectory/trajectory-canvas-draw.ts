@@ -4,7 +4,7 @@
  */
 
 import {
-  EXAGGERATED_VERTICAL_SCALE,
+  findTrackingPointForSurvey,
   projectPointToSection,
   toSceneCoordinates,
   type TrajectoryGraphicViewMode,
@@ -13,7 +13,16 @@ import {
   type TrajectoryVerticalScaleMode,
   type TrajectoryViewModel,
   verticalScaleFactor,
+  verticalScaleLabel,
 } from "@/domain/trajectory-view-model";
+
+import {
+  mergeTrajectoryColors,
+  TRAJECTORY_LIGHT_COLORS,
+  type TrajectoryDrawColors,
+} from "./trajectory-visual-theme";
+
+type DrawColors = TrajectoryDrawColors;
 
 export interface TrajectoryCameraState {
   /** Orbit yaw around vertical axis (radians). */
@@ -51,30 +60,6 @@ export function initialCameraForModel(
   };
 }
 
-interface DrawColors {
-  readonly background: string;
-  readonly grid: string;
-  readonly ink: string;
-  readonly muted: string;
-  readonly planned: string;
-  readonly actual: string;
-  readonly target: string;
-  readonly selected: string;
-  readonly collar: string;
-}
-
-const LIGHT_COLORS: DrawColors = {
-  background: "#f7f6f3",
-  grid: "#d6d3cd",
-  ink: "#1c1917",
-  muted: "#78716c",
-  planned: "#57534e",
-  actual: "#0f766e",
-  target: "#b45309",
-  selected: "#b91c1c",
-  collar: "#1d4ed8",
-};
-
 export interface DrawTrajectoryOptions {
   readonly model: TrajectoryViewModel;
   readonly viewMode: TrajectoryGraphicViewMode;
@@ -88,7 +73,7 @@ export interface DrawTrajectoryOptions {
 }
 
 function mergeColors(partial?: Partial<DrawColors>): DrawColors {
-  return { ...LIGHT_COLORS, ...partial };
+  return mergeTrajectoryColors(partial, TRAJECTORY_LIGHT_COLORS);
 }
 
 function drawDashedPolyline(
@@ -319,17 +304,57 @@ function drawLegend(
   verticalMode: TrajectoryVerticalScaleMode,
   viewMode: TrajectoryGraphicViewMode,
 ): void {
+  const scaleLabel = verticalScaleLabel(verticalMode);
   const lines = [
     "Planned = dashed · Actual = solid · Target = diamond",
     viewMode === "VIEW_3D"
-      ? `3D view · vertical scale ${verticalMode === "EXAGGERATED" ? `${EXAGGERATED_VERTICAL_SCALE}x` : "equal"}`
+      ? `3D view · vertical scale ${scaleLabel === "1×" ? "equal" : scaleLabel}`
       : viewMode === "PLAN"
         ? "Plan view · Easting / Northing · North up"
         : "Vertical section · section distance / RL",
   ];
+  if (verticalMode !== "EQUAL" && viewMode === "VIEW_3D") {
+    lines.push(`VERTICAL SCALE ${scaleLabel} · Geometry visually exaggerated`);
+  }
   lines.forEach((line, index) => {
     annotate(ctx, line, 12, 18 + index * 14, colors);
   });
+}
+
+function drawPlanDeviationVector(
+  ctx: CanvasRenderingContext2D,
+  model: TrajectoryViewModel,
+  map: (point: TrajectoryPathPoint) => { x: number; y: number },
+  colors: DrawColors,
+  selectedSurveyId?: string | null,
+): void {
+  const point =
+    (selectedSurveyId
+      ? findTrackingPointForSurvey(model, selectedSurveyId)
+      : undefined) ?? model.currentTrackingPoint;
+  if (!point) return;
+  const planned = map({
+    eastingM: point.plannedPosition.eastingM,
+    northingM: point.plannedPosition.northingM,
+    rlM: point.plannedPosition.rlM,
+    measuredDepthM: point.measuredDepthM,
+  });
+  const actual = map({
+    eastingM: point.actualPosition.eastingM,
+    northingM: point.actualPosition.northingM,
+    rlM: point.actualPosition.rlM,
+    measuredDepthM: point.measuredDepthM,
+  });
+  drawSolidPolyline(ctx, [planned, actual], colors.selected, 1.5);
+  const midX = (planned.x + actual.x) / 2;
+  const midY = (planned.y + actual.y) / 2;
+  annotate(
+    ctx,
+    `${point.horizontalDeviationM.toFixed(1)} m horiz`,
+    midX + 6,
+    midY - 6,
+    colors,
+  );
 }
 
 function enrichedMarkers(
@@ -476,6 +501,13 @@ export function drawTrajectoryGraphics(
       [8, 5],
     );
     drawSolidPolyline(ctx, model.actualPath.map(map), colors.actual, 2.5);
+    drawPlanDeviationVector(
+      ctx,
+      model,
+      map,
+      colors,
+      options.selectedSurveyId,
+    );
     for (const marker of markers) {
       const p = map(marker);
       drawMarker(ctx, p.x, p.y, marker.kind, colors);
@@ -507,7 +539,16 @@ export function drawTrajectoryGraphics(
       }
       annotate(
         ctx,
-        `Section bearing ${model.sectionBearingDegrees.toFixed(1)} deg (${model.sectionBearingSource})`,
+        `SECTION BEARING ${model.sectionBearingDegrees.toFixed(1)}° GRID`,
+        12,
+        height - 28,
+        colors,
+      );
+      annotate(
+        ctx,
+        model.sectionBearingSource === "collar-to-target"
+          ? "Collar-to-target projection"
+          : model.sectionBearingSource,
         12,
         height - 14,
         colors,

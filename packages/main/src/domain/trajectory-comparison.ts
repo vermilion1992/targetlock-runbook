@@ -69,11 +69,21 @@ export interface CalculateHoleTrajectoryComparisonInput {
   readonly holeCurrentDepthDm?: number;
 }
 
+function toleranceFields(
+  tolerance?: TrajectoryTrackingTolerance | null,
+): Pick<HoleTrajectoryComparison, "toleranceConfigured" | "toleranceSource"> {
+  return {
+    toleranceConfigured: tolerance != null,
+    toleranceSource: tolerance?.source,
+  };
+}
+
 export function calculateHoleTrajectoryComparison(
   input: CalculateHoleTrajectoryComparisonInput,
 ): HoleTrajectoryComparison {
   const warnings: TrajectoryWarning[] = [];
   const sourceVersions: TrajectorySourceVersion[] = [];
+  const toleranceMeta = toleranceFields(input.tolerance);
 
   if (!input.coordinateConfiguration) {
     return {
@@ -92,6 +102,7 @@ export function calculateHoleTrajectoryComparison(
       sourceVersions,
       blocked: true,
       blockReason: "Missing coordinate configuration",
+      ...toleranceMeta,
     };
   }
 
@@ -108,6 +119,7 @@ export function calculateHoleTrajectoryComparison(
       sourceVersions,
       blocked: true,
       blockReason: coordinateBlock.message,
+      ...toleranceMeta,
     };
   }
 
@@ -148,6 +160,7 @@ export function calculateHoleTrajectoryComparison(
       sourceVersions,
       blocked: true,
       blockReason: mineGridBlock.message,
+      ...toleranceMeta,
     };
   }
 
@@ -254,6 +267,7 @@ export function calculateHoleTrajectoryComparison(
       sourceVersions,
       blocked: true,
       blockReason: message,
+      ...toleranceMeta,
     };
   }
 
@@ -340,5 +354,6 @@ export function calculateHoleTrajectoryComparison(
     blockReason: blocked
       ? warnings.find((warning) => warning.severity === "blocker")?.message
       : undefined,
+    ...toleranceMeta,
   };
 }

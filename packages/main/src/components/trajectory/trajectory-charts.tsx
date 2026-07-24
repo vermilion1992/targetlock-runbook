@@ -1,10 +1,12 @@
 "use client";
 
+import type { ReactNode } from "react";
 import {
   CartesianGrid,
   Legend,
   Line,
   LineChart,
+  ReferenceDot,
   ResponsiveContainer,
   Scatter,
   ScatterChart,
@@ -18,8 +20,23 @@ import {
   projectOntoSection,
   sectionBearingDegrees,
   type HoleTrajectoryComparison,
+  type TrajectoryTrackingPoint,
 } from "@/domain";
 
+import {
+  ACTUAL_STROKE,
+  CHART_GRID_STROKE,
+  CHART_MARGIN,
+  CHART_TICK_FILL,
+  formatAxisDegrees,
+  formatAxisMetres,
+  mdDomain,
+  niceTicks,
+  PLANNED_STROKE,
+  SPATIAL_STROKE,
+  TARGET_FILL,
+  VERTICAL_STROKE,
+} from "./trajectory-chart-axis";
 import {
   formatCoordinate,
   formatDegrees,
@@ -54,10 +71,22 @@ function unwrapAzimuthSeries(
   });
 }
 
+function ChartFrame({
+  children,
+  heightClass = "h-80 md:h-[22rem]",
+}: {
+  children: ReactNode;
+  heightClass?: string;
+}) {
+  return <div className={`w-full ${heightClass}`}>{children}</div>;
+}
+
 export function TrajectoryPlanView({
   comparison,
+  selectedPoint,
 }: {
   comparison: HoleTrajectoryComparison;
+  selectedPoint?: TrajectoryTrackingPoint | null;
 }) {
   const planned = comparison.planned?.renderPath.map((point) => ({
     e: point.eastingM,
@@ -89,6 +118,9 @@ export function TrajectoryPlanView({
   const minN = Math.min(...all.map((p) => p.n));
   const maxN = Math.max(...all.map((p) => p.n));
   const span = Math.max(maxE - minE, maxN - minN, 1);
+  const domainE: [number, number] = [minE - span * 0.1, minE + span * 1.1];
+  const domainN: [number, number] = [minN - span * 0.1, minN + span * 1.1];
+  const focus = selectedPoint ?? comparison.currentTrackingPoint;
 
   return (
     <div data-testid="trajectory-plan-view">
@@ -96,23 +128,39 @@ export function TrajectoryPlanView({
         Plan view — equal-scale Easting / Northing. Dashed = Planned, Solid =
         Actual. North is up.
       </p>
-      <div className="h-80 w-full">
+      {focus ? (
+        <p className="mb-2 text-sm tabular-nums">
+          At {formatMetresValue(focus.measuredDepthM)} MD ·{" "}
+          {Math.abs(focus.deltaEastingM).toFixed(1)} m{" "}
+          {focus.deltaEastingM >= 0 ? "east" : "west"} of plan ·{" "}
+          {Math.abs(focus.deltaNorthingM).toFixed(1)} m{" "}
+          {focus.deltaNorthingM >= 0 ? "north" : "south"} of plan ·{" "}
+          {formatMetresValue(focus.horizontalDeviationM)} horizontal
+        </p>
+      ) : null}
+      <ChartFrame>
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+          <ScatterChart margin={CHART_MARGIN}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
             <XAxis
               type="number"
               dataKey="e"
               name="Easting"
-              domain={[minE - span * 0.1, minE + span * 1.1]}
-              tickFormatter={(value: number) => value.toFixed(0)}
+              domain={domainE}
+              ticks={niceTicks(domainE[0], domainE[1], 6)}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
+              label={{ value: "Easting (m)", position: "insideBottom", offset: -12 }}
             />
             <YAxis
               type="number"
               dataKey="n"
               name="Northing"
-              domain={[minN - span * 0.1, minN + span * 1.1]}
-              tickFormatter={(value: number) => value.toFixed(0)}
+              domain={domainN}
+              ticks={niceTicks(domainN[0], domainN[1], 6)}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
+              label={{ value: "Northing (m)", angle: -90, position: "insideLeft" }}
             />
             <ZAxis range={[40, 40]} />
             <Tooltip
@@ -125,41 +173,47 @@ export function TrajectoryPlanView({
             <Scatter
               name="Planned (dashed path)"
               data={planned}
-              line={{ strokeDasharray: "6 4" }}
-              fill="var(--tl-ink-muted)"
+              line={{ strokeDasharray: "6 4", stroke: PLANNED_STROKE }}
+              fill={PLANNED_STROKE}
               shape="circle"
             />
             <Scatter
               name="Actual (solid path)"
               data={actual}
-              line
-              fill="var(--tl-primary)"
+              line={{ stroke: ACTUAL_STROKE }}
+              fill={ACTUAL_STROKE}
               shape="circle"
             />
             {target.length > 0 ? (
               <Scatter
                 name="Target"
                 data={target}
-                fill="var(--tl-warning, #b45309)"
+                fill={TARGET_FILL}
                 shape="diamond"
               />
             ) : null}
           </ScatterChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFrame>
     </div>
   );
 }
 
 export function TrajectoryVerticalSection({
   comparison,
+  selectedPoint,
+  crossSectionOffsetM,
 }: {
   comparison: HoleTrajectoryComparison;
+  selectedPoint?: TrajectoryTrackingPoint | null;
+  crossSectionOffsetM?: number | null;
 }) {
-  const originE = comparison.planned?.collar.eastingM ??
+  const originE =
+    comparison.planned?.collar.eastingM ??
     comparison.actual?.collar.eastingM ??
     0;
-  const originN = comparison.planned?.collar.northingM ??
+  const originN =
+    comparison.planned?.collar.northingM ??
     comparison.actual?.collar.northingM ??
     0;
 
@@ -172,7 +226,7 @@ export function TrajectoryVerticalSection({
       toEastingM: comparison.targetTracking.targetEastingM,
       toNorthingM: comparison.targetTracking.targetNorthingM,
     });
-    bearingSource = "collar-to-target";
+    bearingSource = "Collar-to-target projection";
   }
   if (bearing === null && comparison.planned) {
     bearing = sectionBearingDegrees({
@@ -216,54 +270,181 @@ export function TrajectoryVerticalSection({
       project(point.eastingM, point.northingM, point.rlM),
     ) ?? [];
 
+  const sectionValues = [...planned, ...actual].map((p) => p.section);
+  const rlValues = [...planned, ...actual].map((p) => p.rl);
+  const sectionTicks = niceTicks(
+    Math.min(...sectionValues),
+    Math.max(...sectionValues),
+    6,
+  );
+  const rlTicks = niceTicks(Math.min(...rlValues), Math.max(...rlValues), 6);
+  const focus = selectedPoint ?? comparison.currentTrackingPoint;
+
   return (
     <div data-testid="trajectory-vertical-section">
-      <p className="mb-2 text-sm text-[var(--tl-ink-muted)]">
-        Vertical section bearing {formatDegrees(bearing)} (
-        {comparison.planned?.northReference ?? "GRID"}) — source: {bearingSource}.
-        This is a section view, not an unoriented side view.
+      <p className="mb-1 text-sm font-semibold tabular-nums">
+        SECTION BEARING {formatDegrees(bearing)} GRID
       </p>
-      <div className="h-80 w-full">
+      <p className="mb-2 text-sm text-[var(--tl-ink-muted)]">{bearingSource}</p>
+      {crossSectionOffsetM !== undefined && crossSectionOffsetM !== null ? (
+        <p className="mb-2 text-sm tabular-nums">
+          Cross-section offset {formatMetresValue(Math.abs(crossSectionOffsetM))}
+        </p>
+      ) : null}
+      {focus ? (
+        <p className="mb-2 text-sm tabular-nums text-[var(--tl-ink-muted)]">
+          Selected MD {formatMetresValue(focus.measuredDepthM)} · vertical{" "}
+          {formatMetresValue(Math.abs(focus.verticalDeviationM))}{" "}
+          {focus.verticalDeviationM >= 0 ? "above" : "below"} plan
+        </p>
+      ) : null}
+      <ChartFrame>
         <ResponsiveContainer width="100%" height="100%">
-          <ScatterChart margin={{ top: 16, right: 16, bottom: 16, left: 16 }}>
-            <CartesianGrid strokeDasharray="3 3" />
+          <ScatterChart margin={CHART_MARGIN}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
             <XAxis
               type="number"
               dataKey="section"
               name="Section distance"
-              tickFormatter={(value: number) => value.toFixed(0)}
+              ticks={sectionTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
             />
             <YAxis
               type="number"
               dataKey="rl"
               name="RL"
-              tickFormatter={(value: number) => value.toFixed(0)}
+              ticks={rlTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
             />
             <Tooltip />
             <Legend />
             <Scatter
               name="Planned (dashed)"
               data={planned}
-              line={{ strokeDasharray: "6 4" }}
-              fill="var(--tl-ink-muted)"
+              line={{ strokeDasharray: "6 4", stroke: PLANNED_STROKE }}
+              fill={PLANNED_STROKE}
             />
             <Scatter
               name="Actual (solid)"
               data={actual}
-              line
-              fill="var(--tl-primary)"
+              line={{ stroke: ACTUAL_STROKE }}
+              fill={ACTUAL_STROKE}
             />
           </ScatterChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFrame>
+    </div>
+  );
+}
+
+export function TrajectoryDeviationTrend({
+  comparison,
+  selectedPoint,
+}: {
+  comparison: HoleTrajectoryComparison;
+  selectedPoint?: TrajectoryTrackingPoint | null;
+}) {
+  const data = comparison.trackingPoints.map((point) => ({
+    md: point.measuredDepthM,
+    horizontal: point.horizontalDeviationM,
+    vertical: point.verticalDeviationM,
+    spatial: point.spatialDeviationM,
+  }));
+  if (data.length === 0) {
+    return <p className="text-sm">No tracking points for deviation trend.</p>;
+  }
+  const focus = selectedPoint ?? comparison.currentTrackingPoint;
+  const domain = mdDomain(data.map((d) => d.md));
+  const mdTicks = niceTicks(domain[0], domain[1], 6);
+  const yValues = data.flatMap((d) => [d.horizontal, d.vertical, d.spatial]);
+  const yTicks = niceTicks(Math.min(...yValues), Math.max(...yValues), 6);
+
+  return (
+    <div data-testid="trajectory-deviation-trend">
+      {focus ? (
+        <p className="mb-2 text-sm tabular-nums">
+          At {formatMetresValue(focus.measuredDepthM)}: horizontal{" "}
+          {formatMetresValue(focus.horizontalDeviationM)}, vertical{" "}
+          {formatMetresValue(Math.abs(focus.verticalDeviationM))}{" "}
+          {focus.verticalDeviationM >= 0 ? "above" : "below"}, spatial{" "}
+          {formatMetresValue(focus.spatialDeviationM)}
+        </p>
+      ) : null}
+      <ChartFrame>
+        <ResponsiveContainer width="100%" height="100%">
+          <LineChart data={data} margin={CHART_MARGIN}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+            <XAxis
+              dataKey="md"
+              type="number"
+              domain={domain}
+              ticks={mdTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
+              label={{ value: "MD (m)", position: "insideBottom", offset: -12 }}
+            />
+            <YAxis
+              ticks={yTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
+              label={{ value: "Deviation (m)", angle: -90, position: "insideLeft" }}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => [
+                `${Number(value).toFixed(1)} m`,
+                name,
+              ]}
+              labelFormatter={(md) => `MD ${Number(md).toFixed(1)} m`}
+            />
+            <Legend />
+            <Line
+              type="monotone"
+              dataKey="horizontal"
+              name="Horizontal"
+              stroke={ACTUAL_STROKE}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="vertical"
+              name="Vertical"
+              stroke={VERTICAL_STROKE}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+            />
+            <Line
+              type="monotone"
+              dataKey="spatial"
+              name="Spatial 3D"
+              stroke={SPATIAL_STROKE}
+              strokeWidth={2}
+              dot={{ r: 3 }}
+            />
+            {focus ? (
+              <ReferenceDot
+                x={focus.measuredDepthM}
+                y={focus.spatialDeviationM}
+                r={6}
+                fill="var(--tl-danger)"
+                stroke="var(--tl-ink)"
+              />
+            ) : null}
+          </LineChart>
+        </ResponsiveContainer>
+      </ChartFrame>
     </div>
   );
 }
 
 export function TrajectoryDipTrend({
   comparison,
+  selectedPoint,
 }: {
   comparison: HoleTrajectoryComparison;
+  selectedPoint?: TrajectoryTrackingPoint | null;
 }) {
   const planned =
     comparison.planned?.renderPath.map((point) => ({
@@ -283,31 +464,61 @@ export function TrajectoryDipTrend({
     mdSet.set(point.md, { ...mdSet.get(point.md), ...point });
   }
   const data = [...mdSet.values()].sort((a, b) => a.md - b.md);
-  const current = comparison.currentTrackingPoint;
+  const focus = selectedPoint ?? comparison.currentTrackingPoint;
+  const domain = mdDomain(data.map((d) => d.md));
+  const mdTicks = niceTicks(domain[0], domain[1], 6);
+  const yValues = data.flatMap((d) => [d.planned, d.actual]).filter(
+    (v): v is number => v !== undefined,
+  );
+  const yTicks =
+    yValues.length > 0
+      ? niceTicks(Math.min(...yValues), Math.max(...yValues), 6)
+      : undefined;
 
   return (
     <div data-testid="trajectory-dip-trend">
-      {current ? (
-        <p className="mb-2 text-sm">
-          At {formatMetresValue(current.measuredDepthM)}: planned{" "}
-          {formatDegrees(current.plannedDipDegrees)}, actual{" "}
-          {formatDegrees(current.actualDipDegrees)}, difference{" "}
-          {formatDegrees(current.dipDifferenceDegrees)}
-        </p>
+      {focus ? (
+        <div className="mb-2 space-y-0.5 text-sm tabular-nums">
+          <p className="font-semibold">
+            SELECTED MD {formatMetresValue(focus.measuredDepthM)}
+          </p>
+          <p>
+            Planned {formatDegrees(focus.plannedDipDegrees)} · Actual{" "}
+            {formatDegrees(focus.actualDipDegrees)} · Difference{" "}
+            {formatDegrees(Math.abs(focus.dipDifferenceDegrees))}
+          </p>
+        </div>
       ) : null}
-      <div className="h-72 w-full">
+      <ChartFrame>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="md" />
-            <YAxis />
-            <Tooltip />
+          <LineChart data={data} margin={CHART_MARGIN}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+            <XAxis
+              dataKey="md"
+              type="number"
+              domain={domain}
+              ticks={mdTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
+            />
+            <YAxis
+              ticks={yTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisDegrees}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => [
+                `${Number(value).toFixed(1)}°`,
+                name,
+              ]}
+              labelFormatter={(md) => `MD ${Number(md).toFixed(1)} m`}
+            />
             <Legend />
             <Line
               type="monotone"
               dataKey="planned"
               name="Planned dip"
-              stroke="var(--tl-ink-muted)"
+              stroke={PLANNED_STROKE}
               strokeDasharray="6 4"
               dot={false}
               connectNulls
@@ -316,20 +527,32 @@ export function TrajectoryDipTrend({
               type="monotone"
               dataKey="actual"
               name="Actual dip"
-              stroke="var(--tl-primary)"
+              stroke={ACTUAL_STROKE}
               connectNulls
+              dot={{ r: 3 }}
             />
+            {focus ? (
+              <ReferenceDot
+                x={focus.measuredDepthM}
+                y={focus.actualDipDegrees}
+                r={6}
+                fill="var(--tl-danger)"
+                stroke="var(--tl-ink)"
+              />
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFrame>
     </div>
   );
 }
 
 export function TrajectoryAzimuthTrend({
   comparison,
+  selectedPoint,
 }: {
   comparison: HoleTrajectoryComparison;
+  selectedPoint?: TrajectoryTrackingPoint | null;
 }) {
   const planned =
     comparison.planned?.renderPath.map((point) => ({
@@ -348,35 +571,70 @@ export function TrajectoryAzimuthTrend({
   for (const point of actual) {
     mdSet.set(point.md, { ...mdSet.get(point.md), ...point });
   }
-  const data = unwrapAzimuthSeries(
-    [...mdSet.values()].sort((a, b) => a.md - b.md),
+  const raw = [...mdSet.values()].sort((a, b) => a.md - b.md);
+  const data = unwrapAzimuthSeries(raw);
+  const focus = selectedPoint ?? comparison.currentTrackingPoint;
+  const domain = mdDomain(data.map((d) => d.md));
+  const mdTicks = niceTicks(domain[0], domain[1], 6);
+  const yValues = data.flatMap((d) => [d.planned, d.actual]).filter(
+    (v): v is number => v !== undefined,
   );
-  const current = comparison.currentTrackingPoint;
+  const yTicks =
+    yValues.length > 0
+      ? niceTicks(Math.min(...yValues), Math.max(...yValues), 6)
+      : undefined;
+
+  const selectedPlot = focus
+    ? data.find((row) => Math.abs(row.md - focus.measuredDepthM) < 1e-6)
+    : undefined;
 
   return (
     <div data-testid="trajectory-azimuth-trend">
-      {current ? (
-        <p className="mb-2 text-sm">
-          At {formatMetresValue(current.measuredDepthM)}: planned{" "}
-          {formatDegrees(current.plannedAzimuthDegrees)}, actual{" "}
-          {formatDegrees(current.actualAzimuthDegrees)}, circular difference{" "}
-          {formatDegrees(current.circularAzimuthDifferenceDegrees)}. Chart
-          unwraps 0°/360° for display continuity; tables keep original azimuths.
-        </p>
+      {focus ? (
+        <div className="mb-2 space-y-0.5 text-sm tabular-nums">
+          <p className="font-semibold">
+            SELECTED MD {formatMetresValue(focus.measuredDepthM)}
+          </p>
+          <p>
+            Planned {formatDegrees(focus.plannedAzimuthDegrees)} · Actual{" "}
+            {formatDegrees(focus.actualAzimuthDegrees)} · Difference{" "}
+            {formatDegrees(focus.circularAzimuthDifferenceDegrees)}
+          </p>
+          <p className="text-[var(--tl-ink-muted)]">
+            Chart unwraps 0°/360° for continuity; values remain 0–360°.
+          </p>
+        </div>
       ) : null}
-      <div className="h-72 w-full">
+      <ChartFrame>
         <ResponsiveContainer width="100%" height="100%">
-          <LineChart data={data}>
-            <CartesianGrid strokeDasharray="3 3" />
-            <XAxis dataKey="md" />
-            <YAxis />
-            <Tooltip />
+          <LineChart data={data} margin={CHART_MARGIN}>
+            <CartesianGrid strokeDasharray="3 3" stroke={CHART_GRID_STROKE} />
+            <XAxis
+              dataKey="md"
+              type="number"
+              domain={domain}
+              ticks={mdTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisMetres}
+            />
+            <YAxis
+              ticks={yTicks}
+              tick={{ fill: CHART_TICK_FILL, fontSize: 11 }}
+              tickFormatter={formatAxisDegrees}
+            />
+            <Tooltip
+              formatter={(value: number, name: string) => {
+                const wrapped = ((Number(value) % 360) + 360) % 360;
+                return [`${wrapped.toFixed(1)}°`, name];
+              }}
+              labelFormatter={(md) => `MD ${Number(md).toFixed(1)} m`}
+            />
             <Legend />
             <Line
               type="monotone"
               dataKey="planned"
               name="Planned azimuth"
-              stroke="var(--tl-ink-muted)"
+              stroke={PLANNED_STROKE}
               strokeDasharray="6 4"
               dot={false}
               connectNulls
@@ -385,12 +643,22 @@ export function TrajectoryAzimuthTrend({
               type="monotone"
               dataKey="actual"
               name="Actual azimuth"
-              stroke="var(--tl-primary)"
+              stroke={ACTUAL_STROKE}
               connectNulls
+              dot={{ r: 3 }}
             />
+            {selectedPlot?.actual !== undefined ? (
+              <ReferenceDot
+                x={selectedPlot.md}
+                y={selectedPlot.actual}
+                r={6}
+                fill="var(--tl-danger)"
+                stroke="var(--tl-ink)"
+              />
+            ) : null}
           </LineChart>
         </ResponsiveContainer>
-      </div>
+      </ChartFrame>
     </div>
   );
 }

@@ -6,6 +6,7 @@ import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { usePathname } from "next/navigation";
 
 import { cn } from "@/lib/utils";
+import { StaleServiceWorkerCleanup } from "@/components/app-shell/stale-service-worker-cleanup";
 import { TargetLockBrand } from "@/components/app-shell/target-lock-brand";
 import { ThemeModeControl } from "@/components/app-shell/theme-mode-control";
 import { ConnectivityBadge } from "@/components/field/status-pill";
@@ -45,6 +46,7 @@ export function RunbookShell({ children }: RunbookShellProps) {
 
   return (
     <div className="target-lock">
+      <StaleServiceWorkerCleanup />
       <a
         href="#main-content"
         className="sr-only focus:fixed focus:left-3 focus:top-3 focus:z-[60] focus:not-sr-only focus:rounded-md focus:bg-[var(--tl-primary)] focus:px-4 focus:py-3 focus:font-bold focus:text-white"

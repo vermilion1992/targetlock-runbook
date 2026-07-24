@@ -16,7 +16,13 @@ import type {
 } from "./trajectory-types";
 
 export type TrajectoryGraphicViewMode = "PLAN" | "VERTICAL_SECTION" | "VIEW_3D";
-export type TrajectoryVerticalScaleMode = "EQUAL" | "EXAGGERATED";
+export type TrajectoryVerticalScaleMode = "EQUAL" | "X2" | "EXAGGERATED";
+
+export type TrajectoryDepthIntervalMode =
+  | "FULL_HOLE"
+  | "LATEST_100"
+  | "LATEST_50"
+  | "SELECTED_INTERVAL";
 
 export const TRAJECTORY_GRAPHICS_DISCLAIMER =
   "This visualisation is for operational review only. It is not certified anti-collision software.";
@@ -342,7 +348,97 @@ export function buildTrajectoryViewModel(
 export function verticalScaleFactor(
   mode: TrajectoryVerticalScaleMode,
 ): number {
-  return mode === "EXAGGERATED" ? EXAGGERATED_VERTICAL_SCALE : 1;
+  if (mode === "EXAGGERATED") return EXAGGERATED_VERTICAL_SCALE;
+  if (mode === "X2") return 2;
+  return 1;
+}
+
+export function verticalScaleLabel(mode: TrajectoryVerticalScaleMode): string {
+  if (mode === "EXAGGERATED") return "3×";
+  if (mode === "X2") return "2×";
+  return "1×";
+}
+
+function filterPathByMd(
+  path: readonly TrajectoryPathPoint[],
+  minMd: number,
+  maxMd: number,
+): TrajectoryPathPoint[] {
+  return path.filter(
+    (point) =>
+      point.measuredDepthM >= minMd - 1e-9 &&
+      point.measuredDepthM <= maxMd + 1e-9,
+  );
+}
+
+/**
+ * Presentation filter for graphics. Coordinates are copied from the view-model;
+ * no desurvey recalculation.
+ */
+export function filterTrajectoryViewModelByInterval(
+  model: TrajectoryViewModel,
+  interval: TrajectoryDepthIntervalMode,
+  selectedMeasuredDepthM?: number | null,
+): TrajectoryViewModel {
+  if (interval === "FULL_HOLE") return model;
+
+  const allMd = [
+    ...model.plannedPath.map((p) => p.measuredDepthM),
+    ...model.actualPath.map((p) => p.measuredDepthM),
+  ];
+  if (allMd.length === 0) return model;
+  const maxMd = Math.max(...allMd);
+  let minMd = Math.min(...allMd);
+
+  if (interval === "LATEST_100") {
+    minMd = Math.max(minMd, maxMd - 100);
+  } else if (interval === "LATEST_50") {
+    minMd = Math.max(minMd, maxMd - 50);
+  } else if (interval === "SELECTED_INTERVAL") {
+    const selected =
+      selectedMeasuredDepthM ??
+      model.currentTrackingPoint?.measuredDepthM ??
+      maxMd;
+    minMd = Math.max(minMd, selected - 50);
+    const end = Math.min(maxMd, selected + 25);
+    const plannedPath = filterPathByMd(model.plannedPath, minMd, end);
+    const actualPath = filterPathByMd(model.actualPath, minMd, end);
+    const boundsPoints = [...plannedPath, ...actualPath, ...model.markers];
+    return {
+      ...model,
+      plannedPath,
+      actualPath,
+      bounds: boundsFromPoints(
+        boundsPoints.length > 0 ? boundsPoints : model.plannedPath,
+      ),
+    };
+  }
+
+  const plannedPath = filterPathByMd(model.plannedPath, minMd, maxMd);
+  const actualPath = filterPathByMd(model.actualPath, minMd, maxMd);
+  const boundsPoints = [...plannedPath, ...actualPath, ...model.markers];
+  return {
+    ...model,
+    plannedPath,
+    actualPath,
+    bounds: boundsFromPoints(
+      boundsPoints.length > 0 ? boundsPoints : model.plannedPath,
+    ),
+  };
+}
+
+/** Signed distance off the section plane (metres). Presentation helper only. */
+export function crossSectionOffsetM(input: {
+  eastingM: number;
+  northingM: number;
+  originEastingM: number;
+  originNorthingM: number;
+  bearingDegrees: number;
+}): number {
+  const de = input.eastingM - input.originEastingM;
+  const dn = input.northingM - input.originNorthingM;
+  const bearingRad = (input.bearingDegrees * Math.PI) / 180;
+  return de * Math.cos(bearingRad) - dn * Math.sin(bearingRad);
 }
 
 /** Scene axes: +X east, +Y up (RL), +Z north. */

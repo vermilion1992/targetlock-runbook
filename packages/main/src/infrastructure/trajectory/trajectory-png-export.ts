@@ -15,6 +15,10 @@ import {
   initialCameraForModel,
   type TrajectoryCameraState,
 } from "./trajectory-canvas-draw";
+import {
+  resolveTrajectoryCanvasColors,
+  type TrajectoryDrawColors,
+} from "./trajectory-visual-theme";
 
 export interface TrajectoryPngExportInput {
   readonly model: TrajectoryViewModel;
@@ -24,6 +28,7 @@ export interface TrajectoryPngExportInput {
   readonly selectedSurveyId?: string | null;
   readonly width?: number;
   readonly height?: number;
+  readonly colors?: Partial<TrajectoryDrawColors>;
 }
 
 function canvasToPngBlob(canvas: HTMLCanvasElement): Promise<Blob> {
@@ -68,6 +73,7 @@ export async function exportTrajectoryPng(
     width,
     height,
     showLabels: true,
+    colors: input.colors ?? resolveTrajectoryCanvasColors(),
   });
 
   return canvasToPngBlob(canvas);

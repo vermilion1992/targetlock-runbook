@@ -37,6 +37,7 @@ export function isPilotAccessPublicPath(pathname: string): boolean {
   return (
     pathname.startsWith("/_next/static/") ||
     pathname.startsWith("/_next/image") ||
+    pathname.startsWith("/serwist/") ||
     pathname === "/favicon.ico" ||
     pathname === "/favicon.svg" ||
     pathname === "/robots.txt"

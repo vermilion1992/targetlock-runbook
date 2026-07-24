@@ -4,6 +4,8 @@ import { decimetres } from "./measurements";
 import { calculateHoleTrajectoryComparison } from "./trajectory-comparison";
 import {
   buildTrajectoryViewModel,
+  crossSectionOffsetM,
+  filterTrajectoryViewModelByInterval,
   toSceneCoordinates,
   TRAJECTORY_GRAPHICS_DISCLAIMER,
 } from "./trajectory-view-model";
@@ -174,5 +176,19 @@ describe("trajectory view-model (Implementation 6 presentation)", () => {
     expect(Number.isFinite(scene.x)).toBe(true);
     expect(Number.isFinite(scene.y)).toBe(true);
     expect(Number.isFinite(scene.z)).toBe(true);
+
+    const latest = filterTrajectoryViewModelByInterval(viewModel, "LATEST_50");
+    expect(
+      latest.actualPath.every((point) => point.measuredDepthM >= 375 - 1e-6),
+    ).toBe(true);
+
+    const offset = crossSectionOffsetM({
+      eastingM: 10,
+      northingM: 0,
+      originEastingM: 0,
+      originNorthingM: 0,
+      bearingDegrees: 0,
+    });
+    expect(offset).toBeCloseTo(10, 6);
   });
 });

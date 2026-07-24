@@ -328,6 +328,9 @@ export interface HoleTrajectoryComparison {
   readonly sourceVersions: readonly TrajectorySourceVersion[];
   readonly blocked: boolean;
   readonly blockReason?: string;
+  /** True when a hole tracking tolerance record was supplied to the comparison. */
+  readonly toleranceConfigured: boolean;
+  readonly toleranceSource?: TrajectoryToleranceSource;
 }
 
 export type SyncStatusAlias = SyncStatus;
