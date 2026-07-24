@@ -15,12 +15,13 @@ export function TrajectoryFieldDetails({
   result: MiniTargetLockResult;
   holeId: string;
 }) {
-  const [technicalOpen, setTechnicalOpen] = useState(false);
+  const [detailsOpen, setDetailsOpen] = useState(false);
   const latest = result.latestSurvey;
   const next = result.nextSurveyGuidance;
   const target = result.target;
   const projection = result.projection;
   const curved = result.curvedSolution;
+  const reviewCurvature = curved?.status === "REVIEW_REQUIRED";
 
   return (
     <div className="space-y-3" data-testid="trajectory-field-details">
@@ -91,202 +92,73 @@ export function TrajectoryFieldDetails({
         </section>
       ) : null}
 
-      <section className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
-          Latest Survey details
-        </h2>
-        {latest ? (
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Measured depth</dt>
-              <dd className="font-semibold tabular-nums">
-                {formatMetresValue(latest.measuredDepthM)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Dip / azimuth</dt>
-              <dd className="font-semibold tabular-nums">
-                {formatDegrees(latest.dipDegrees)} /{" "}
-                {formatDegrees(latest.azimuthDegrees)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Easting / Northing</dt>
-              <dd className="font-semibold tabular-nums">
-                {latest.eastingM.toFixed(1)} / {latest.northingM.toFixed(1)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">RL</dt>
-              <dd className="font-semibold tabular-nums">
-                {latest.rlM.toFixed(1)} m
-              </dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-            No Survey position available.
+      {reviewCurvature ? (
+        <section
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-surface)] p-4"
+          data-testid="review-curvature-banner"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-warning)]">
+            Review curvature
+          </h2>
+          <p className="mt-2 text-sm text-[var(--tl-ink)]">
+            {curved.warnings.some((warning) =>
+              /curvature is concentrated/i.test(warning.message),
+            )
+              ? "A geometric path reaches the target, but the required curvature is concentrated and may not be practically achievable"
+              : "A geometric path reaches the target, but required curvature may exceed practical steering capability"}
+            {curved.maximumDoglegPer30mDegrees !== undefined
+              ? ` (${curved.maximumDoglegPer30mDegrees.toFixed(1)}°/30 m)`
+              : ""}
+            .
           </p>
-        )}
-      </section>
+        </section>
+      ) : null}
 
-      <section className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
-          Next-Survey guidance
-        </h2>
-        <p className="mt-1 text-xs text-[var(--tl-ink-muted)]">
-          Calculated next-Survey dip and azimuth describe a geometric
-          minimum-curvature path to the target. They do not confirm that the
-          path is achievable by the active steering tool, ground conditions or
-          available build/turn rate.
-        </p>
-        {next ? (
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Next Survey MD</dt>
-              <dd className="font-semibold tabular-nums">
-                {formatMetresValue(next.measuredDepthM)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Next-Survey dip</dt>
-              <dd className="font-semibold tabular-nums">
-                {formatDegrees(next.dipDegrees)} (
-                {next.requiredDipChangeDegrees >= 0 ? "+" : ""}
-                {next.requiredDipChangeDegrees.toFixed(1)}°)
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Next-Survey azimuth</dt>
-              <dd className="font-semibold tabular-nums">
-                {formatDegrees(next.azimuthDegrees)} (
-                {next.requiredAzimuthChangeDegrees >= 0 ? "+" : ""}
-                {next.requiredAzimuthChangeDegrees.toFixed(1)}°)
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Solution status</dt>
-              <dd className="font-semibold">
-                {curved?.status === "SOLVED" ||
-                curved?.status === "REVIEW_REQUIRED"
-                  ? "Geometric solution available"
-                  : curved?.status ?? "—"}
-              </dd>
-            </div>
-          </dl>
-        ) : (
-          <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-            Next-Survey KPIs unavailable until Survey interval and target MD are
-            set.
-          </p>
-        )}
-      </section>
-
-      <section className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
-        <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
-          Target details
-        </h2>
-        {target ? (
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Target MD</dt>
-              <dd className="font-semibold tabular-nums">
-                {target.measuredDepthM !== undefined
-                  ? formatMetresValue(target.measuredDepthM)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Centre E / N / RL</dt>
-              <dd className="font-semibold tabular-nums">
-                {target.eastingM.toFixed(1)} / {target.northingM.toFixed(1)} /{" "}
-                {target.rlM.toFixed(1)}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Diameter / radius</dt>
-              <dd className="font-semibold tabular-nums">
-                {target.diameterM.toFixed(1)} m /{" "}
-                {(target.diameterM / 2).toFixed(1)} m
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Attitude mode</dt>
-              <dd className="font-semibold">{target.attitudeMode}</dd>
-            </div>
-            {projection ? (
-              <>
-                <div>
-                  <dt className="text-[var(--tl-ink-muted)]">
-                    Projected closest approach
-                  </dt>
-                  <dd className="font-semibold tabular-nums">
-                    {formatMetresValue(projection.closestApproachM)}
-                  </dd>
-                </div>
-                <div>
-                  <dt className="text-[var(--tl-ink-muted)]">
-                    Outside target by
-                  </dt>
-                  <dd className="font-semibold tabular-nums">
-                    {formatMetresValue(projection.missOutsideTargetM)}
-                  </dd>
-                </div>
-              </>
-            ) : null}
-          </dl>
-        ) : (
-          <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-            No target configured.
-          </p>
-        )}
-      </section>
-
-      {curved &&
-      (curved.status === "SOLVED" || curved.status === "REVIEW_REQUIRED") ? (
+      {next || latest ? (
         <section className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
           <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
-            Geometric path information
+            Next-Survey guidance
           </h2>
-          <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-2">
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Endpoint residual</dt>
-              <dd className="font-semibold tabular-nums">
-                {curved.targetResidualM !== null
-                  ? formatMetresValue(curved.targetResidualM)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Remaining MD</dt>
-              <dd className="font-semibold tabular-nums">
-                {curved.remainingMeasuredDepthM !== null &&
-                curved.remainingMeasuredDepthM >= 0
-                  ? formatMetresValue(curved.remainingMeasuredDepthM)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Max dogleg</dt>
-              <dd className="font-semibold tabular-nums">
-                {curved.maximumDoglegDegrees !== undefined
-                  ? formatDegrees(curved.maximumDoglegDegrees)
-                  : "—"}
-              </dd>
-            </div>
-            <div>
-              <dt className="text-[var(--tl-ink-muted)]">Max dogleg / 30 m</dt>
-              <dd className="font-semibold tabular-nums">
-                {curved.maximumDoglegPer30mDegrees !== undefined
-                  ? `${curved.maximumDoglegPer30mDegrees.toFixed(1)}°/30 m`
-                  : "—"}
-              </dd>
-            </div>
-          </dl>
-          {curved.status === "REVIEW_REQUIRED" ? (
-            <p className="mt-3 text-sm text-[var(--tl-warning)]">
-              REVIEW CURVATURE — A geometric path was found, but the required
-              curvature may exceed practical steering capability.
+          <p className="mt-1 text-xs text-[var(--tl-ink-muted)]">
+            Geometric minimum-curvature guidance — not steering-tool
+            certification.
+          </p>
+          {next ? (
+            <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">
+              <div>
+                <dt className="text-[var(--tl-ink-muted)]">Next Survey MD</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatMetresValue(next.measuredDepthM)}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[var(--tl-ink-muted)]">Dip</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatDegrees(next.dipDegrees)} (
+                  {next.requiredDipChangeDegrees >= 0 ? "+" : ""}
+                  {next.requiredDipChangeDegrees.toFixed(1)}°)
+                </dd>
+              </div>
+              <div>
+                <dt className="text-[var(--tl-ink-muted)]">Azimuth</dt>
+                <dd className="font-semibold tabular-nums">
+                  {formatDegrees(next.azimuthDegrees)} (
+                  {next.requiredAzimuthChangeDegrees >= 0 ? "+" : ""}
+                  {next.requiredAzimuthChangeDegrees.toFixed(1)}°)
+                </dd>
+              </div>
+            </dl>
+          ) : (
+            <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
+              Next-Survey KPIs unavailable until Survey interval and target MD
+              are set.
+            </p>
+          )}
+          {latest ? (
+            <p className="mt-3 text-xs text-[var(--tl-ink-muted)]">
+              Latest Survey {formatMetresValue(latest.measuredDepthM)} ·{" "}
+              {formatDegrees(latest.dipDegrees)} /{" "}
+              {formatDegrees(latest.azimuthDegrees)}
             </p>
           ) : null}
         </section>
@@ -296,54 +168,107 @@ export function TrajectoryFieldDetails({
         <button
           type="button"
           className="flex w-full items-center justify-between text-left text-sm font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]"
-          onClick={() => setTechnicalOpen((value) => !value)}
+          onClick={() => setDetailsOpen((value) => !value)}
+          data-testid="trajectory-more-details-toggle"
         >
-          Technical details
-          <span>{technicalOpen ? "−" : "+"}</span>
+          More details
+          <span>{detailsOpen ? "−" : "+"}</span>
         </button>
-        {technicalOpen ? (
-          <div className="mt-3 space-y-2 text-sm">
-            <p>
-              Engine:{" "}
-              <span className="font-semibold tabular-nums">
-                {result.actualTrajectory?.engineVersion ??
-                  "minimum-curvature-v1"}
-              </span>
-            </p>
-            <p>
-              Solver:{" "}
-              <span className="font-semibold tabular-nums">
-                {curved?.solverVersion ?? "—"}
-              </span>
-            </p>
-            <p>
-              Calculation north:{" "}
-              <span className="font-semibold">
-                {result.calculationNorthReference ?? "—"}
-              </span>
-            </p>
-            <ul className="space-y-1 text-xs text-[var(--tl-ink-muted)]">
-              {result.sourceVersions.map((version) => (
-                <li key={`${version.entityType}-${version.entityId}`}>
-                  {version.entityType} {version.entityId} v{version.version}
-                </li>
-              ))}
-            </ul>
-            {curved?.warnings.map((warning) => (
-              <p
-                key={warning.code}
-                className="whitespace-pre-line text-xs text-[var(--tl-warning)]"
-              >
-                {warning.message}
-              </p>
-            ))}
-            {result.warnings.length > 0 ? (
-              <ul className="space-y-1 text-xs text-[var(--tl-warning)]">
-                {result.warnings.map((warning) => (
-                  <li key={warning.code}>{warning.message}</li>
-                ))}
-              </ul>
+        {detailsOpen ? (
+          <div className="mt-3 space-y-4 text-sm">
+            {target ? (
+              <dl className="grid gap-2 sm:grid-cols-2">
+                <div>
+                  <dt className="text-[var(--tl-ink-muted)]">Target MD</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {target.measuredDepthM !== undefined
+                      ? formatMetresValue(target.measuredDepthM)
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--tl-ink-muted)]">Centre E / N / RL</dt>
+                  <dd className="font-semibold tabular-nums">
+                    {target.eastingM.toFixed(1)} / {target.northingM.toFixed(1)}{" "}
+                    / {target.rlM.toFixed(1)}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--tl-ink-muted)]">
+                    Hold-attitude miss
+                  </dt>
+                  <dd className="font-semibold tabular-nums">
+                    {projection
+                      ? projection.intersectsTarget
+                        ? "Intersects target"
+                        : `${formatMetresValue(projection.missOutsideTargetM)} outside`
+                      : "—"}
+                  </dd>
+                </div>
+                <div>
+                  <dt className="text-[var(--tl-ink-muted)]">
+                    Steered path residual
+                  </dt>
+                  <dd className="font-semibold tabular-nums">
+                    {curved?.targetResidualM !== null &&
+                    curved?.targetResidualM !== undefined
+                      ? formatMetresValue(curved.targetResidualM)
+                      : "—"}
+                  </dd>
+                </div>
+                {curved?.maximumDoglegPer30mDegrees !== undefined ? (
+                  <div>
+                    <dt className="text-[var(--tl-ink-muted)]">
+                      Max dogleg / 30 m
+                    </dt>
+                    <dd className="font-semibold tabular-nums">
+                      {curved.maximumDoglegPer30mDegrees.toFixed(1)}°/30 m
+                    </dd>
+                  </div>
+                ) : null}
+                {curved?.remainingMeasuredDepthM !== null &&
+                curved?.remainingMeasuredDepthM !== undefined &&
+                curved.remainingMeasuredDepthM >= 0 ? (
+                  <div>
+                    <dt className="text-[var(--tl-ink-muted)]">Remaining MD</dt>
+                    <dd className="font-semibold tabular-nums">
+                      {formatMetresValue(curved.remainingMeasuredDepthM)}
+                    </dd>
+                  </div>
+                ) : null}
+              </dl>
             ) : null}
+
+            <div className="space-y-1 border-t border-[var(--tl-border)] pt-3 text-xs text-[var(--tl-ink-muted)]">
+              <p>
+                Engine:{" "}
+                <span className="font-semibold tabular-nums text-[var(--tl-ink)]">
+                  {result.actualTrajectory?.engineVersion ??
+                    "minimum-curvature-v1"}
+                </span>
+              </p>
+              <p>
+                Solver:{" "}
+                <span className="font-semibold tabular-nums text-[var(--tl-ink)]">
+                  {curved?.solverVersion ?? "—"}
+                </span>
+              </p>
+              <p>
+                Calculation north:{" "}
+                <span className="font-semibold text-[var(--tl-ink)]">
+                  {result.calculationNorthReference ?? "—"}
+                </span>
+              </p>
+              {result.sourceVersions.length > 0 ? (
+                <ul className="space-y-1 pt-1">
+                  {result.sourceVersions.map((version) => (
+                    <li key={`${version.entityType}-${version.entityId}`}>
+                      {version.entityType} {version.entityId} v{version.version}
+                    </li>
+                  ))}
+                </ul>
+              ) : null}
+            </div>
           </div>
         ) : null}
       </section>

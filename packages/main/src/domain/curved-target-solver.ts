@@ -1,8 +1,9 @@
 /**
  * Constrained geometric curved recovery-path solver for Mini TargetLock V2.
  *
- * Builds current → control(~1/3) → control(~2/3) → target stations and
- * optimises internal dip/azimuth with the verified minimum-curvature engine.
+ * Builds current → control stations → target and optimises internal dip/azimuth
+ * with the verified minimum-curvature engine. Path-quality terms prefer the
+ * smoothest feasible geometric solution among otherwise acceptable residuals.
  *
  * IQ well-path-design `curve-to-target` is position-only with free final MD and
  * no target-attitude modes, so it is not reused as the primary solver. Runbook
@@ -26,6 +27,7 @@ import {
   minCurveDisplacement,
   normalizeAzimuthDegrees,
   shortestAzimuthDifferenceDegrees,
+  slerpDirection,
   vectorFromDipAz,
 } from "./trajectory-geometry";
 import type {
@@ -72,6 +74,36 @@ export interface CurvedTargetSolutionStation {
   readonly rlM: number;
   readonly dipDegrees: number;
   readonly azimuthDegrees: number;
+}
+
+export interface RecoveryIntervalDiagnostic {
+  readonly fromMdM: number;
+  readonly toMdM: number;
+  readonly lengthM: number;
+  readonly startDipDegrees: number;
+  readonly endDipDegrees: number;
+  readonly startAzimuthDegrees: number;
+  readonly endAzimuthDegrees: number;
+  readonly doglegDegrees: number;
+  readonly doglegPer30mDegrees: number;
+  readonly buildRatePer30mDegrees: number;
+  readonly turnRatePer30mDegrees: number;
+}
+
+export interface RecoveryPathDiagnostics {
+  readonly intervals: readonly RecoveryIntervalDiagnostic[];
+  readonly maximumDoglegPer30mDegrees: number;
+  readonly meanDoglegPer30mDegrees: number;
+  readonly maximumDoglegChangePer30mDegrees: number;
+  readonly maximumDoglegInterval: {
+    readonly fromMdM: number;
+    readonly toMdM: number;
+  } | null;
+  readonly endpointResidualM: number | null;
+  readonly targetAttitudeResidual?: {
+    readonly dipDegrees: number;
+    readonly azimuthDegrees: number;
+  };
 }
 
 export interface CurvedTargetSolutionInput {
@@ -125,6 +157,13 @@ export interface CurvedTargetSolution {
   readonly straightDistanceM: number | null;
   readonly maximumDoglegDegrees?: number;
   readonly maximumDoglegPer30mDegrees?: number;
+  readonly meanDoglegPer30mDegrees?: number;
+  readonly maximumDoglegChangePer30mDegrees?: number;
+  readonly maximumDoglegInterval?: {
+    readonly fromMdM: number;
+    readonly toMdM: number;
+  } | null;
+  readonly intervalDiagnostics?: readonly RecoveryIntervalDiagnostic[];
   readonly solverConverged: boolean;
   readonly engineVersion: typeof TRAJECTORY_ENGINE_VERSION;
   readonly solverVersion: typeof CURVED_TARGET_SOLVER_VERSION;
@@ -169,13 +208,119 @@ function spatialDistance(
   );
 }
 
-function lerp(a: number, b: number, t: number): number {
-  return a + (b - a) * t;
-}
-
 function lerpAzimuth(from: number, to: number, t: number): number {
   const delta = shortestAzimuthDifferenceDegrees(from, to);
   return normalizeAzimuthDegrees(from + delta * t);
+}
+
+/** Direction-vector slerp — wrap-safe across north and near-vertical. */
+function slerpAttitude(
+  from: AttitudePair,
+  to: AttitudePair,
+  t: number,
+): AttitudePair {
+  const direction = slerpDirection(
+    vectorFromDipAz(from.dipDegrees, from.azimuthDegrees),
+    vectorFromDipAz(to.dipDegrees, to.azimuthDegrees),
+    clampTrajectory(t, 0, 1),
+  );
+  const aim = dipAzFromVector(direction);
+  return {
+    dipDegrees: clampTrajectory(aim.dip, -89.5, 89.5),
+    azimuthDegrees: normalizeAzimuthDegrees(aim.azimuth),
+  };
+}
+
+export function buildRecoveryIntervalDiagnostics(
+  stations: readonly {
+    readonly measuredDepthM: number;
+    readonly dipDegrees: number;
+    readonly azimuthDegrees: number;
+  }[],
+): RecoveryIntervalDiagnostic[] {
+  const intervals: RecoveryIntervalDiagnostic[] = [];
+  for (let i = 1; i < stations.length; i += 1) {
+    const prev = stations[i - 1]!;
+    const curr = stations[i]!;
+    const lengthM = Math.max(0, curr.measuredDepthM - prev.measuredDepthM);
+    const dogleg = doglegDegrees(
+      vectorFromDipAz(prev.dipDegrees, prev.azimuthDegrees),
+      vectorFromDipAz(curr.dipDegrees, curr.azimuthDegrees),
+    );
+    const scale = 30 / Math.max(1e-6, lengthM);
+    intervals.push({
+      fromMdM: prev.measuredDepthM,
+      toMdM: curr.measuredDepthM,
+      lengthM,
+      startDipDegrees: prev.dipDegrees,
+      endDipDegrees: curr.dipDegrees,
+      startAzimuthDegrees: normalizeAzimuthDegrees(prev.azimuthDegrees),
+      endAzimuthDegrees: normalizeAzimuthDegrees(curr.azimuthDegrees),
+      doglegDegrees: dogleg,
+      doglegPer30mDegrees: dogleg * scale,
+      buildRatePer30mDegrees: (curr.dipDegrees - prev.dipDegrees) * scale,
+      turnRatePer30mDegrees:
+        shortestAzimuthDifferenceDegrees(
+          prev.azimuthDegrees,
+          curr.azimuthDegrees,
+        ) * scale,
+    });
+  }
+  return intervals;
+}
+
+export function summariseRecoveryPathDiagnostics(
+  intervals: readonly RecoveryIntervalDiagnostic[],
+  endpointResidualM: number | null,
+  targetAttitudeResidual?: {
+    readonly dipDegrees: number;
+    readonly azimuthDegrees: number;
+  },
+): RecoveryPathDiagnostics {
+  if (intervals.length === 0) {
+    return {
+      intervals,
+      maximumDoglegPer30mDegrees: 0,
+      meanDoglegPer30mDegrees: 0,
+      maximumDoglegChangePer30mDegrees: 0,
+      maximumDoglegInterval: null,
+      endpointResidualM,
+      targetAttitudeResidual,
+    };
+  }
+  let maximumDoglegPer30mDegrees = 0;
+  let maximumDoglegInterval: RecoveryPathDiagnostics["maximumDoglegInterval"] =
+    null;
+  let sum = 0;
+  let maximumDoglegChangePer30mDegrees = 0;
+  for (let i = 0; i < intervals.length; i += 1) {
+    const interval = intervals[i]!;
+    sum += interval.doglegPer30mDegrees;
+    if (interval.doglegPer30mDegrees >= maximumDoglegPer30mDegrees) {
+      maximumDoglegPer30mDegrees = interval.doglegPer30mDegrees;
+      maximumDoglegInterval = {
+        fromMdM: interval.fromMdM,
+        toMdM: interval.toMdM,
+      };
+    }
+    if (i > 0) {
+      maximumDoglegChangePer30mDegrees = Math.max(
+        maximumDoglegChangePer30mDegrees,
+        Math.abs(
+          interval.doglegPer30mDegrees - intervals[i - 1]!.doglegPer30mDegrees,
+        ),
+      );
+    }
+  }
+  return {
+    intervals,
+    maximumDoglegPer30mDegrees,
+    meanDoglegPer30mDegrees: sum / intervals.length,
+    maximumDoglegChangePer30mDegrees,
+    maximumDoglegInterval,
+    endpointResidualM,
+    targetAttitudeResidual,
+  };
 }
 
 function convertAttitude(
@@ -292,18 +437,27 @@ interface SolverStationPose {
   readonly doglegDegreesFromPrevious?: number;
 }
 
-/** High-precision MC evaluation used during optimisation (avoids tenths quantisation). */
-function evaluatePathDegrees(
-  input: CurvedTargetSolutionInput,
-  poses: readonly { measuredDepthM: number; dipDegrees: number; azimuthDegrees: number }[],
-): {
+interface PathEvalMetrics {
   residualM: number;
   attitudeResidual?: { dipDegrees: number; azimuthDegrees: number };
   maxDogleg: number;
   maxDoglegPer30m: number;
+  meanDoglegPer30m: number;
+  maxDoglegChangePer30m: number;
+  integratedCurvatureCost: number;
+  curvatureVariationCost: number;
+  buildVariationCost: number;
+  turnVariationCost: number;
+  intervals: RecoveryIntervalDiagnostic[];
   endpoint: SolverStationPose;
   stations: readonly SolverStationPose[];
-} | null {
+}
+
+/** High-precision MC evaluation used during optimisation (avoids tenths quantisation). */
+function evaluatePathDegrees(
+  input: CurvedTargetSolutionInput,
+  poses: readonly { measuredDepthM: number; dipDegrees: number; azimuthDegrees: number }[],
+): PathEvalMetrics | null {
   if (poses.length < 2) return null;
   try {
     const stations: SolverStationPose[] = [];
@@ -341,16 +495,41 @@ function evaluatePathDegrees(
     }
     const endpoint = stations[stations.length - 1]!;
     const residualM = spatialDistance(endpoint, input.target);
+    const intervals = buildRecoveryIntervalDiagnostics(stations);
+
     let maxDogleg = 0;
     let maxDoglegPer30m = 0;
-    for (let i = 1; i < stations.length; i += 1) {
-      const prev = stations[i - 1]!;
-      const curr = stations[i]!;
-      const dogleg = curr.doglegDegreesFromPrevious ?? 0;
-      maxDogleg = Math.max(maxDogleg, dogleg);
-      const deltaMd = Math.max(1e-6, curr.measuredDepthM - prev.measuredDepthM);
-      maxDoglegPer30m = Math.max(maxDoglegPer30m, (dogleg / deltaMd) * 30);
+    let meanDoglegPer30m = 0;
+    let maxDoglegChangePer30m = 0;
+    let integratedCurvatureCost = 0;
+    let curvatureVariationCost = 0;
+    let buildVariationCost = 0;
+    let turnVariationCost = 0;
+
+    for (let i = 0; i < intervals.length; i += 1) {
+      const interval = intervals[i]!;
+      maxDogleg = Math.max(maxDogleg, interval.doglegDegrees);
+      maxDoglegPer30m = Math.max(maxDoglegPer30m, interval.doglegPer30mDegrees);
+      meanDoglegPer30m += interval.doglegPer30mDegrees;
+      integratedCurvatureCost +=
+        interval.doglegPer30mDegrees ** 2 * interval.lengthM;
+      if (i > 0) {
+        const prev = intervals[i - 1]!;
+        const dlsDelta =
+          interval.doglegPer30mDegrees - prev.doglegPer30mDegrees;
+        curvatureVariationCost += dlsDelta ** 2;
+        maxDoglegChangePer30m = Math.max(
+          maxDoglegChangePer30m,
+          Math.abs(dlsDelta),
+        );
+        buildVariationCost +=
+          (interval.buildRatePer30mDegrees - prev.buildRatePer30mDegrees) ** 2;
+        turnVariationCost +=
+          (interval.turnRatePer30mDegrees - prev.turnRatePer30mDegrees) ** 2;
+      }
     }
+    if (intervals.length > 0) meanDoglegPer30m /= intervals.length;
+
     const fixed = resolveEndpointAttitude(input);
     let attitudeResidual:
       | { dipDegrees: number; azimuthDegrees: number }
@@ -369,6 +548,13 @@ function evaluatePathDegrees(
       attitudeResidual,
       maxDogleg,
       maxDoglegPer30m,
+      meanDoglegPer30m,
+      maxDoglegChangePer30m,
+      integratedCurvatureCost,
+      curvatureVariationCost,
+      buildVariationCost,
+      turnVariationCost,
+      intervals,
       endpoint,
       stations,
     };
@@ -421,6 +607,9 @@ function evaluatePath(
   attitudeResidual?: { dipDegrees: number; azimuthDegrees: number };
   maxDogleg: number;
   maxDoglegPer30m: number;
+  meanDoglegPer30m: number;
+  maxDoglegChangePer30m: number;
+  intervals: RecoveryIntervalDiagnostic[];
   endpoint: CalculatedTrajectoryStation;
   stations: readonly CalculatedTrajectoryStation[];
   stationInputs: TrajectoryStationInput[];
@@ -479,6 +668,9 @@ function evaluatePath(
       attitudeResidual,
       maxDogleg: degreeEval.maxDogleg,
       maxDoglegPer30m: degreeEval.maxDoglegPer30m,
+      meanDoglegPer30m: degreeEval.meanDoglegPer30m,
+      maxDoglegChangePer30m: degreeEval.maxDoglegChangePer30m,
+      intervals: degreeEval.intervals,
       endpoint: stations[stations.length - 1]!,
       stations,
       stationInputs,
@@ -493,24 +685,29 @@ function evaluateForOptimisation(
   attitudes: readonly [AttitudePair, AttitudePair, AttitudePair],
   md1: number,
   md2: number,
-): {
-  residualM: number;
-  attitudeResidual?: { dipDegrees: number; azimuthDegrees: number };
-  maxDogleg: number;
-  maxDoglegPer30m: number;
-} | null {
+): PathEvalMetrics | null {
   return evaluatePathDegrees(
     input,
     posesFromAttitudes(input, attitudes, md1, md2),
   );
 }
 
-function costOf(evalResult: {
-  residualM: number;
-  attitudeResidual?: { dipDegrees: number; azimuthDegrees: number };
-  maxDogleg: number;
-  maxDoglegPer30m: number;
-}): number {
+function isFeasible(evalResult: PathEvalMetrics): boolean {
+  if (evalResult.residualM > CURVED_SOLVER_POSITION_TOLERANCE_M) return false;
+  if (!evalResult.attitudeResidual) return true;
+  return (
+    Math.abs(evalResult.attitudeResidual.dipDegrees) <=
+      CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG &&
+    Math.abs(evalResult.attitudeResidual.azimuthDegrees) <=
+      CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG
+  );
+}
+
+/**
+ * Residual-seeking objective used during coordinate descent. Keep this close to
+ * the proven converging formulation — path quality must not block endpoint fit.
+ */
+function residualSeekingCost(evalResult: PathEvalMetrics): number {
   const attitudePenalty = evalResult.attitudeResidual
     ? evalResult.attitudeResidual.dipDegrees ** 2 +
       evalResult.attitudeResidual.azimuthDegrees ** 2
@@ -523,6 +720,21 @@ function costOf(evalResult: {
     attitudePenalty * 4 +
     curvaturePenalty * 0.05 +
     evalResult.maxDogleg * 0.01
+  );
+}
+
+/**
+ * Path-quality ranking among feasible solutions (smoothness, not tool limits).
+ */
+function smoothnessRank(evalResult: PathEvalMetrics): number {
+  return (
+    evalResult.maxDoglegPer30m ** 2 * 2 +
+    evalResult.curvatureVariationCost * 1.5 +
+    evalResult.buildVariationCost * 0.3 +
+    evalResult.turnVariationCost * 0.3 +
+    evalResult.maxDoglegChangePer30m ** 2 * 0.8 +
+    evalResult.integratedCurvatureCost * 0.02 +
+    evalResult.residualM ** 2 * 20
   );
 }
 
@@ -548,15 +760,11 @@ function seedAttitudes(
   } else {
     end = endpointFixed;
   }
-  const c1: AttitudePair = {
-    dipDegrees: lerp(start.dipDegrees, end.dipDegrees, 1 / 3),
-    azimuthDegrees: lerpAzimuth(start.azimuthDegrees, end.azimuthDegrees, 1 / 3),
-  };
-  const c2: AttitudePair = {
-    dipDegrees: lerp(start.dipDegrees, end.dipDegrees, 2 / 3),
-    azimuthDegrees: lerpAzimuth(start.azimuthDegrees, end.azimuthDegrees, 2 / 3),
-  };
-  return [c1, c2, end];
+  return [
+    slerpAttitude(start, end, 1 / 3),
+    slerpAttitude(start, end, 2 / 3),
+    { ...end },
+  ];
 }
 
 function cloneAttitudes(
@@ -611,70 +819,66 @@ function buildSeedVariants(
     n: input.target.northingM - input.currentStation.northingM,
     d: -(input.target.rlM - input.currentStation.rlM),
   });
-  const aimAttitude: AttitudePair = {
+  const chordAttitude: AttitudePair = {
     dipDegrees: clampTrajectory(aim.dip, -89.5, 89.5),
     azimuthDegrees: normalizeAzimuthDegrees(aim.azimuth),
   };
   const end =
-    endpointFixed === "UNCONSTRAINED" ? aimAttitude : endpointFixed;
+    endpointFixed === "UNCONSTRAINED" ? chordAttitude : endpointFixed;
 
+  // Chord hold: progressive entry to position-aim attitude, then settle to end.
+  // Avoids duplicating the terminal attitude across control stations.
+  const chordHold: [AttitudePair, AttitudePair, AttitudePair] = [
+    slerpAttitude(start, chordAttitude, 0.85),
+    { ...chordAttitude },
+    { ...end },
+  ];
+  const mildShallow: [AttitudePair, AttitudePair, AttitudePair] = [
+    {
+      dipDegrees: clampTrajectory(chordAttitude.dipDegrees + 8, -89.5, 89.5),
+      azimuthDegrees: chordAttitude.azimuthDegrees,
+    },
+    {
+      dipDegrees: clampTrajectory(chordAttitude.dipDegrees + 5, -89.5, 89.5),
+      azimuthDegrees: lerpAzimuth(
+        chordAttitude.azimuthDegrees,
+        end.azimuthDegrees,
+        0.25,
+      ),
+    },
+    { ...end },
+  ];
   const holdThenCurve: [AttitudePair, AttitudePair, AttitudePair] = [
-    { ...start },
-    {
-      dipDegrees: lerp(start.dipDegrees, end.dipDegrees, 0.5),
-      azimuthDegrees: lerpAzimuth(start.azimuthDegrees, end.azimuthDegrees, 0.5),
-    },
+    slerpAttitude(start, end, 0.15),
+    slerpAttitude(start, end, 0.55),
     { ...end },
   ];
-  const earlyCurve: [AttitudePair, AttitudePair, AttitudePair] = [
-    {
-      dipDegrees: lerp(start.dipDegrees, end.dipDegrees, 0.7),
-      azimuthDegrees: lerpAzimuth(start.azimuthDegrees, end.azimuthDegrees, 0.7),
-    },
-    { ...end },
-    { ...end },
-  ];
-  const sCurve: [AttitudePair, AttitudePair, AttitudePair] = [
-    {
-      dipDegrees: clampTrajectory(start.dipDegrees + (end.dipDegrees - start.dipDegrees) * 1.2, -89.5, 89.5),
-      azimuthDegrees: lerpAzimuth(start.azimuthDegrees, end.azimuthDegrees, 0.4),
-    },
-    {
-      dipDegrees: lerp(start.dipDegrees, end.dipDegrees, 0.85),
-      azimuthDegrees: lerpAzimuth(start.azimuthDegrees, end.azimuthDegrees, 0.85),
-    },
+  const progressive: [AttitudePair, AttitudePair, AttitudePair] = [
+    slerpAttitude(start, end, 1 / 3),
+    slerpAttitude(start, end, 2 / 3),
     { ...end },
   ];
 
-  return [primary, holdThenCurve, earlyCurve, sCurve];
+  return [primary, progressive, chordHold, mildShallow, holdThenCurve];
 }
 
-function optimiseAttitudes(
+function refineFromSeed(
   input: CurvedTargetSolutionInput,
+  seed: readonly [AttitudePair, AttitudePair, AttitudePair],
   md1: number,
   md2: number,
   endpointFixed: AttitudePair | "UNCONSTRAINED",
-): NonNullable<ReturnType<typeof evaluatePath>> | null {
-  const freeEnd = endpointFixed === "UNCONSTRAINED";
-  const paramCount = freeEnd ? 6 : 4;
-
-  let bestAttitudes = seedAttitudes(input, endpointFixed);
+  freeEnd: boolean,
+  paramCount: number,
+): {
+  attitudes: [AttitudePair, AttitudePair, AttitudePair];
+  opt: PathEvalMetrics;
+} | null {
+  let bestAttitudes = cloneAttitudes(seed);
   let bestOpt = evaluateForOptimisation(input, bestAttitudes, md1, md2);
   if (!bestOpt) return null;
-  let bestCost = costOf(bestOpt);
+  let bestCost = residualSeekingCost(bestOpt);
 
-  for (const seed of buildSeedVariants(input, endpointFixed)) {
-    const evaluated = evaluateForOptimisation(input, seed, md1, md2);
-    if (!evaluated) continue;
-    const cost = costOf(evaluated);
-    if (cost < bestCost) {
-      bestCost = cost;
-      bestAttitudes = cloneAttitudes(seed);
-      bestOpt = evaluated;
-    }
-  }
-
-  // Coordinate descent with shrinking steps.
   const steps = [20, 10, 5, 2.5, 1.25, 0.6, 0.3, 0.15, 0.08, 0.04];
   for (const step of steps) {
     let improved = true;
@@ -693,7 +897,7 @@ function optimiseAttitudes(
           );
           const evaluated = evaluateForOptimisation(input, candidate, md1, md2);
           if (!evaluated) continue;
-          const cost = costOf(evaluated);
+          const cost = residualSeekingCost(evaluated);
           if (cost + 1e-12 < bestCost) {
             bestCost = cost;
             bestAttitudes = candidate;
@@ -705,7 +909,6 @@ function optimiseAttitudes(
     }
   }
 
-  // Finite-difference gradient refinement on position (+ attitude) cost.
   let learningRate = 0.35;
   for (let iter = 0; iter < 120; iter += 1) {
     const gradients: number[] = [];
@@ -731,7 +934,10 @@ function optimiseAttitudes(
         gradients.push(0);
         continue;
       }
-      gradients.push((costOf(plusEval) - costOf(minusEval)) / (2 * eps));
+      gradients.push(
+        (residualSeekingCost(plusEval) - residualSeekingCost(minusEval)) /
+          (2 * eps),
+      );
     }
 
     let candidate = cloneAttitudes(bestAttitudes);
@@ -749,7 +955,7 @@ function optimiseAttitudes(
       learningRate *= 0.5;
       continue;
     }
-    const cost = costOf(evaluated);
+    const cost = residualSeekingCost(evaluated);
     if (cost + 1e-12 < bestCost) {
       bestCost = cost;
       bestAttitudes = candidate;
@@ -757,16 +963,110 @@ function optimiseAttitudes(
     } else {
       learningRate *= 0.6;
     }
-    if (bestOpt.residualM <= CURVED_SOLVER_POSITION_TOLERANCE_M) {
-      const attitudeOk =
-        bestOpt.attitudeResidual === undefined ||
-        (Math.abs(bestOpt.attitudeResidual.dipDegrees) <=
-          CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG &&
-          Math.abs(bestOpt.attitudeResidual.azimuthDegrees) <=
-            CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG);
-      if (attitudeOk) break;
-    }
+    if (isFeasible(bestOpt) && learningRate < 1e-3) break;
     if (learningRate < 1e-4) break;
+  }
+
+  return { attitudes: bestAttitudes, opt: bestOpt };
+}
+
+function polishSmoothness(
+  input: CurvedTargetSolutionInput,
+  attitudes: [AttitudePair, AttitudePair, AttitudePair],
+  md1: number,
+  md2: number,
+  endpointFixed: AttitudePair | "UNCONSTRAINED",
+  freeEnd: boolean,
+  paramCount: number,
+): {
+  attitudes: [AttitudePair, AttitudePair, AttitudePair];
+  opt: PathEvalMetrics;
+} {
+  let bestAttitudes = cloneAttitudes(attitudes);
+  let bestOpt = evaluateForOptimisation(input, bestAttitudes, md1, md2)!;
+  let bestRank = smoothnessRank(bestOpt);
+
+  const steps = [2, 1, 0.5, 0.25, 0.12, 0.06];
+  for (const step of steps) {
+    let improved = true;
+    let pass = 0;
+    while (improved && pass < 10) {
+      improved = false;
+      pass += 1;
+      for (let param = 0; param < paramCount; param += 1) {
+        for (const sign of [-1, 1] as const) {
+          const candidate = applyParamDelta(
+            bestAttitudes,
+            param,
+            sign * step,
+            freeEnd,
+            endpointFixed,
+          );
+          const evaluated = evaluateForOptimisation(input, candidate, md1, md2);
+          if (!evaluated || !isFeasible(evaluated)) continue;
+          const rank = smoothnessRank(evaluated);
+          if (rank + 1e-12 < bestRank) {
+            bestRank = rank;
+            bestAttitudes = candidate;
+            bestOpt = evaluated;
+            improved = true;
+          }
+        }
+      }
+    }
+  }
+
+  return { attitudes: bestAttitudes, opt: bestOpt };
+}
+
+function optimiseAttitudes(
+  input: CurvedTargetSolutionInput,
+  md1: number,
+  md2: number,
+  endpointFixed: AttitudePair | "UNCONSTRAINED",
+): NonNullable<ReturnType<typeof evaluatePath>> | null {
+  const freeEnd = endpointFixed === "UNCONSTRAINED";
+  const paramCount = freeEnd ? 6 : 4;
+
+  let bestAttitudes: [AttitudePair, AttitudePair, AttitudePair] | null = null;
+  let bestOpt: PathEvalMetrics | null = null;
+  let bestRank = Number.POSITIVE_INFINITY;
+
+  // Full refinement from each seed so a smooth local minimum can win.
+  for (const seed of buildSeedVariants(input, endpointFixed)) {
+    const refined = refineFromSeed(
+      input,
+      seed,
+      md1,
+      md2,
+      endpointFixed,
+      freeEnd,
+      paramCount,
+    );
+    if (!refined) continue;
+    const rank = isFeasible(refined.opt)
+      ? smoothnessRank(refined.opt)
+      : 1e9 + residualSeekingCost(refined.opt);
+    if (rank + 1e-12 < bestRank) {
+      bestRank = rank;
+      bestAttitudes = refined.attitudes;
+      bestOpt = refined.opt;
+    }
+  }
+
+  if (!bestAttitudes || !bestOpt) return null;
+
+  if (isFeasible(bestOpt)) {
+    const polished = polishSmoothness(
+      input,
+      bestAttitudes,
+      md1,
+      md2,
+      endpointFixed,
+      freeEnd,
+      paramCount,
+    );
+    bestAttitudes = polished.attitudes;
   }
 
   return evaluatePath(input, bestAttitudes, md1, md2);
@@ -927,8 +1227,10 @@ export function solveCurvedTarget(
     ], { remainingMeasuredDepthM, straightDistanceM });
   }
 
-  const md1 = current.measuredDepthM + remainingMeasuredDepthM / 3;
-  const md2 = current.measuredDepthM + (2 * remainingMeasuredDepthM) / 3;
+  // Control stations at ~30% / ~70% of remaining MD — longer mid hold than
+  // equal thirds, without starving the entry/exit transition intervals.
+  const md1 = current.measuredDepthM + remainingMeasuredDepthM * 0.3;
+  const md2 = current.measuredDepthM + remainingMeasuredDepthM * 0.7;
   const evaluated = optimiseAttitudes(input, md1, md2, endpointFixed);
   if (!evaluated) {
     return emptySolution(
@@ -952,11 +1254,19 @@ export function solveCurvedTarget(
           CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG));
 
   if (!converged) {
-    warnings.push({
-      code: "POSITION_RESIDUAL",
-      message: `Numerical endpoint residual ${evaluated.residualM.toFixed(2)} m (tolerance ${CURVED_SOLVER_POSITION_TOLERANCE_M.toFixed(2)} m). Target radius ${target.radiusM.toFixed(2)} m.`,
-    });
-    if (evaluated.attitudeResidual) {
+    if (evaluated.residualM > CURVED_SOLVER_POSITION_TOLERANCE_M) {
+      warnings.push({
+        code: "POSITION_RESIDUAL",
+        message: `Numerical endpoint residual ${evaluated.residualM.toFixed(2)} m (tolerance ${CURVED_SOLVER_POSITION_TOLERANCE_M.toFixed(2)} m). Target radius ${target.radiusM.toFixed(2)} m.`,
+      });
+    }
+    if (
+      evaluated.attitudeResidual &&
+      (Math.abs(evaluated.attitudeResidual.dipDegrees) >
+        CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG ||
+        Math.abs(evaluated.attitudeResidual.azimuthDegrees) >
+          CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG)
+    ) {
       warnings.push({
         code: "ATTITUDE_RESIDUAL",
         message: `Endpoint attitude residual dip ${evaluated.attitudeResidual.dipDegrees.toFixed(1)}°, azimuth ${evaluated.attitudeResidual.azimuthDegrees.toFixed(1)}°.`,
@@ -964,11 +1274,26 @@ export function solveCurvedTarget(
     }
   }
 
+  const concentrated =
+    evaluated.maxDoglegChangePer30m >
+      Math.max(6, evaluated.meanDoglegPer30m * 1.5) &&
+    evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M;
+
   if (evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M) {
     warnings.push({
       code: "SHARP_CURVATURE",
-      message:
-        "REVIEW CURVATURE\n\nA geometric path was found, but the required curvature may exceed practical steering capability.",
+      message: concentrated
+        ? [
+            "REVIEW CURVATURE",
+            "",
+            "A geometric path reaches the target, but the required",
+            "curvature is concentrated and may not be practically achievable.",
+          ].join("\n")
+        : [
+            "REVIEW CURVATURE",
+            "",
+            "A geometric path was found, but the required curvature may exceed practical steering capability.",
+          ].join("\n"),
     });
   }
 
@@ -1014,11 +1339,14 @@ export function solveCurvedTarget(
       ? "REVIEW_REQUIRED"
       : "SOLVED";
 
-  // Sanity: dogleg between start and first control should be finite
-  void doglegDegrees(
-    vectorFromDipAz(current.dipDegrees, current.azimuthDegrees),
-    vectorFromDipAz(path[1]?.dipDegrees ?? current.dipDegrees, path[1]?.azimuthDegrees ?? current.azimuthDegrees),
-  );
+  const maxInterval = evaluated.intervals.reduce<
+    RecoveryIntervalDiagnostic | null
+  >((best, interval) => {
+    if (!best || interval.doglegPer30mDegrees > best.doglegPer30mDegrees) {
+      return interval;
+    }
+    return best;
+  }, null);
 
   return {
     status,
@@ -1032,6 +1360,12 @@ export function solveCurvedTarget(
     straightDistanceM,
     maximumDoglegDegrees: evaluated.maxDogleg,
     maximumDoglegPer30mDegrees: evaluated.maxDoglegPer30m,
+    meanDoglegPer30mDegrees: evaluated.meanDoglegPer30m,
+    maximumDoglegChangePer30mDegrees: evaluated.maxDoglegChangePer30m,
+    maximumDoglegInterval: maxInterval
+      ? { fromMdM: maxInterval.fromMdM, toMdM: maxInterval.toMdM }
+      : null,
+    intervalDiagnostics: evaluated.intervals,
     solverConverged: converged,
     engineVersion: TRAJECTORY_ENGINE_VERSION,
     solverVersion: CURVED_TARGET_SOLVER_VERSION,

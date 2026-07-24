@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  buildRecoveryIntervalDiagnostics,
   CURVED_SOLVER_POSITION_TOLERANCE_M,
   nextSurveyMeasuredDepth,
   solveCurvedTarget,
+  summariseRecoveryPathDiagnostics,
   type CurvedTargetSolutionInput,
 } from "./curved-target-solver";
 import { calculateMinimumCurvatureTrajectory } from "./trajectory-desurvey";
@@ -282,5 +284,210 @@ describe("solveCurvedTarget", () => {
     );
     expect(result.status).toBe("NO_SOLUTION");
     expect(result.warnings[0]?.code).toBe("TARGET_MD_SHALLOWER_THAN_SURVEY");
+  });
+
+  it("begins tangent to the latest survey", () => {
+    const input = baseInput({
+      currentStation: {
+        measuredDepthM: 425,
+        eastingM: 165.17,
+        northingM: -127.84,
+        rlM: -370.12,
+        dipDegrees: -62.1,
+        azimuthDegrees: 129.8,
+        northReference: "GRID",
+      },
+      target: {
+        measuredDepthM: 650,
+        eastingM: 280,
+        northingM: -220,
+        rlM: -520,
+        radiusM: 5,
+        attitudeMode: "CUSTOM",
+        desiredDipDegrees: -74,
+        desiredAzimuthDegrees: 145,
+        desiredNorthReference: "GRID",
+      },
+    });
+    const result = solveCurvedTarget(input);
+    expect(result.path[0]).toMatchObject({
+      measuredDepthM: 425,
+      dipDegrees: -62.1,
+      azimuthDegrees: 129.8,
+    });
+    expect(result.path[0]!.eastingM).toBeCloseTo(165.17, 2);
+    expect(result.path[0]!.northingM).toBeCloseTo(-127.84, 2);
+    expect(result.path[0]!.rlM).toBeCloseTo(-370.12, 2);
+  });
+
+  it("prefers distributed curvature over a concentrated dogleg for DDH041-like geometry", () => {
+    const result = solveCurvedTarget(
+      baseInput({
+        currentStation: {
+          measuredDepthM: 425,
+          eastingM: 165.16963300923754,
+          northingM: -127.84231168994178,
+          rlM: -370.117410748341,
+          dipDegrees: -62.1,
+          azimuthDegrees: 129.8,
+          northReference: "GRID",
+        },
+        target: {
+          measuredDepthM: 650,
+          eastingM: 280,
+          northingM: -220,
+          rlM: -520,
+          radiusM: 5,
+          attitudeMode: "CUSTOM",
+          desiredDipDegrees: -74,
+          desiredAzimuthDegrees: 145,
+          desiredNorthReference: "GRID",
+        },
+        nextSurveyMeasuredDepthM: 455,
+      }),
+    );
+
+    expect(["SOLVED", "REVIEW_REQUIRED"]).toContain(result.status);
+    expect(result.solverConverged).toBe(true);
+    expect(result.targetResidualM!).toBeLessThanOrEqual(
+      CURVED_SOLVER_POSITION_TOLERANCE_M,
+    );
+    expect(result.endpoint!.dipDegrees).toBeCloseTo(-74, 0);
+    expect(result.endpoint!.azimuthDegrees).toBeCloseTo(145, 0);
+
+    const diagnostics = result.intervalDiagnostics!;
+    expect(diagnostics.length).toBeGreaterThanOrEqual(2);
+
+    // No artificial straight terminal from duplicated end attitudes.
+    const last = diagnostics[diagnostics.length - 1]!;
+    expect(last.doglegDegrees).toBeGreaterThan(0.2);
+
+    // Curvature should not collapse into one dominant interval when a smoother
+    // feasible geometry exists (baseline concentrated solution was ~22.5°/30 m
+    // with ~17° DLS change between intervals).
+    expect(result.maximumDoglegPer30mDegrees!).toBeLessThan(22);
+    expect(result.maximumDoglegChangePer30mDegrees!).toBeLessThan(10);
+
+    const dlsValues = diagnostics.map((interval) => interval.doglegPer30mDegrees);
+    const maxDls = Math.max(...dlsValues);
+    const meanDls = dlsValues.reduce((sum, value) => sum + value, 0) / dlsValues.length;
+    expect(maxDls / meanDls).toBeLessThan(1.35);
+  });
+
+  it("is deterministic for the DDH041-like recovery", () => {
+    const input = baseInput({
+      currentStation: {
+        measuredDepthM: 425,
+        eastingM: 165.16963300923754,
+        northingM: -127.84231168994178,
+        rlM: -370.117410748341,
+        dipDegrees: -62.1,
+        azimuthDegrees: 129.8,
+        northReference: "GRID",
+      },
+      target: {
+        measuredDepthM: 650,
+        eastingM: 280,
+        northingM: -220,
+        rlM: -520,
+        radiusM: 5,
+        attitudeMode: "CUSTOM",
+        desiredDipDegrees: -74,
+        desiredAzimuthDegrees: 145,
+        desiredNorthReference: "GRID",
+      },
+    });
+    const a = solveCurvedTarget(input);
+    const b = solveCurvedTarget(input);
+    expect(a.status).toBe(b.status);
+    expect(a.targetResidualM).toBe(b.targetResidualM);
+    expect(a.maximumDoglegPer30mDegrees).toBe(b.maximumDoglegPer30mDegrees);
+    expect(a.path).toEqual(b.path);
+  });
+
+  it("handles azimuth wrap across north", () => {
+    const result = solveCurvedTarget(
+      baseInput({
+        currentStation: {
+          measuredDepthM: 0,
+          eastingM: 0,
+          northingM: 0,
+          rlM: 0,
+          dipDegrees: -55,
+          azimuthDegrees: 350,
+          northReference: "GRID",
+        },
+        target: {
+          measuredDepthM: 220,
+          eastingM: 40,
+          northingM: 160,
+          rlM: -170,
+          radiusM: 3,
+          attitudeMode: "CUSTOM",
+          desiredDipDegrees: -60,
+          desiredAzimuthDegrees: 20,
+          desiredNorthReference: "GRID",
+        },
+      }),
+    );
+    expect(["SOLVED", "REVIEW_REQUIRED", "NO_SOLUTION"]).toContain(result.status);
+    if (result.solverConverged) {
+      expect(result.endpoint!.azimuthDegrees).toBeGreaterThanOrEqual(0);
+      expect(result.endpoint!.azimuthDegrees).toBeLessThan(360);
+    }
+  });
+
+  it("does not invent an attitude requirement in unconstrained mode", () => {
+    const result = solveCurvedTarget(
+      baseInput({
+        target: {
+          measuredDepthM: 250,
+          eastingM: 90,
+          northingM: 60,
+          rlM: -200,
+          radiusM: 3,
+          attitudeMode: "UNCONSTRAINED",
+        },
+      }),
+    );
+    expect(result.targetAttitudeResidual).toBeUndefined();
+    expect(["SOLVED", "REVIEW_REQUIRED"]).toContain(result.status);
+  });
+});
+
+describe("recovery path diagnostics", () => {
+  it("reports interval DLS, build and turn rates", () => {
+    const intervals = buildRecoveryIntervalDiagnostics([
+      {
+        measuredDepthM: 0,
+        dipDegrees: -60,
+        azimuthDegrees: 100,
+      },
+      {
+        measuredDepthM: 30,
+        dipDegrees: -63,
+        azimuthDegrees: 110,
+      },
+      {
+        measuredDepthM: 60,
+        dipDegrees: -66,
+        azimuthDegrees: 120,
+      },
+    ]);
+    expect(intervals).toHaveLength(2);
+    expect(intervals[0]!.lengthM).toBe(30);
+    expect(intervals[0]!.buildRatePer30mDegrees).toBeCloseTo(-3, 5);
+    expect(intervals[0]!.turnRatePer30mDegrees).toBeCloseTo(10, 5);
+
+    const summary = summariseRecoveryPathDiagnostics(intervals, 0.1, {
+      dipDegrees: 0,
+      azimuthDegrees: 0,
+    });
+    expect(summary.meanDoglegPer30mDegrees).toBeGreaterThan(0);
+    expect(summary.maximumDoglegInterval).toEqual({
+      fromMdM: expect.any(Number),
+      toMdM: expect.any(Number),
+    });
+    expect(summary.endpointResidualM).toBe(0.1);
   });
 });

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 
-import { buildFieldTrajectoryViewModel } from "./trajectory-view-model";
+import {
+  buildFieldTrajectoryViewModel,
+  densifyCurvedRecoveryPath,
+} from "./trajectory-view-model";
 import type { MiniTargetLockResult } from "./mini-target-lock";
 import type { CalculatedTrajectory } from "./trajectory-types";
 
@@ -158,5 +161,155 @@ describe("buildFieldTrajectoryViewModel", () => {
     expect(model.projectedContinuationPath?.length).toBe(2);
     expect(model.closestApproachPoint).toBeDefined();
     expect(model.missVector).toBeDefined();
+    expect(
+      model.markers.find((marker) => marker.kind === "COLLAR")?.dipDegrees,
+    ).toBe(-60);
+    expect(
+      model.markers.find((marker) => marker.kind === "SURVEY_STATION")
+        ?.azimuthDegrees,
+    ).toBe(90);
+  });
+
+  it("densifies curved recovery path with MC mid-samples", () => {
+    const sparse = [
+      {
+        measuredDepthM: 425,
+        eastingM: 165.2,
+        northingM: -127.8,
+        rlM: -370.1,
+        dipDegrees: -62.1,
+        azimuthDegrees: 129.8,
+      },
+      {
+        measuredDepthM: 500,
+        eastingM: 200,
+        northingM: -160,
+        rlM: -420,
+        dipDegrees: -45,
+        azimuthDegrees: 128,
+      },
+      {
+        measuredDepthM: 575,
+        eastingM: 240,
+        northingM: -190,
+        rlM: -470,
+        dipDegrees: -40,
+        azimuthDegrees: 127,
+      },
+      {
+        measuredDepthM: 650,
+        eastingM: 280,
+        northingM: -220,
+        rlM: -520,
+        dipDegrees: -39,
+        azimuthDegrees: 126,
+      },
+    ];
+    const densified = densifyCurvedRecoveryPath(sparse, 5);
+    expect(densified.length).toBeGreaterThan(sparse.length);
+    expect(densified[0]).toMatchObject({
+      measuredDepthM: 425,
+      eastingM: 165.2,
+      northingM: -127.8,
+      rlM: -370.1,
+    });
+    expect(densified.at(-1)).toMatchObject({
+      measuredDepthM: 650,
+      eastingM: 280,
+      northingM: -220,
+      rlM: -520,
+    });
+
+    const result: MiniTargetLockResult = {
+      holeId: "DDH041",
+      blocked: false,
+      calculationNorthReference: "GRID",
+      actualTrajectory: stubTrajectory(),
+      latestSurvey: {
+        measuredDepthM: 425,
+        dipDegrees: -62.1,
+        azimuthDegrees: 129.8,
+        eastingM: 165.2,
+        northingM: -127.8,
+        rlM: -370.1,
+        sourceType: "SURVEY",
+        sourceId: "s425",
+      },
+      guidanceFromCollarOnly: false,
+      target: {
+        eastingM: 280,
+        northingM: -220,
+        rlM: -520,
+        diameterM: 10,
+        measuredDepthM: 650,
+        attitudeMode: "CUSTOM",
+      },
+      surveyIntervalM: 30,
+      nextSurveyMeasuredDepthM: 455,
+      nextSurveyGuidance: null,
+      curvedSolution: {
+        status: "REVIEW_REQUIRED",
+        path: sparse,
+        pathStations: [],
+        nextSurveyTarget: null,
+        endpoint: sparse[3]!,
+        targetResidualM: 0.1,
+        remainingMeasuredDepthM: 225,
+        straightDistanceM: 200,
+        maximumDoglegDegrees: 56.3,
+        maximumDoglegPer30mDegrees: 22.5,
+        solverConverged: true,
+        engineVersion: "minimum-curvature-v1",
+        solverVersion: "curved-target-mc-v1",
+        warnings: [],
+      },
+      remainingMeasuredDepthM: 225,
+      directToTarget: null,
+      requiredChange: null,
+      projection: null,
+      warnings: [],
+      sourceVersions: [],
+    };
+
+    const model = buildFieldTrajectoryViewModel(result);
+    expect(model.curvedRecoveryPath?.length).toBeGreaterThan(sparse.length);
+    expect(model.directToTargetLine).toBeUndefined();
+
+    // Rendering parity: field view-model path is exactly densified solver output
+    // (no spline / reordering / omitted endpoints).
+    const expected = densifyCurvedRecoveryPath(sparse, 5);
+    expect(model.curvedRecoveryPath).toEqual(expected);
+    expect(model.curvedRecoveryPath![0]).toEqual(expected[0]);
+    expect(model.curvedRecoveryPath!.at(-1)).toEqual(expected.at(-1));
+  });
+
+  it("densify uses MC mid-samples rather than straight chords between controls", () => {
+    const sparse = [
+      {
+        measuredDepthM: 0,
+        eastingM: 0,
+        northingM: 0,
+        rlM: 0,
+        dipDegrees: -60,
+        azimuthDegrees: 90,
+      },
+      {
+        measuredDepthM: 100,
+        eastingM: 50,
+        northingM: 0,
+        rlM: -86.6,
+        dipDegrees: -30,
+        azimuthDegrees: 90,
+      },
+    ];
+    const densified = densifyCurvedRecoveryPath(sparse, 10);
+    const mid = densified[Math.floor(densified.length / 2)]!;
+    // Straight chord midpoint would sit on the E/RL line between endpoints.
+    // MC arc with a 30° dip change bows away from that chord.
+    const chordE = 25;
+    const chordRl = -43.3;
+    expect(Math.hypot(mid.eastingM - chordE, mid.rlM - chordRl)).toBeGreaterThan(
+      0.5,
+    );
   });
 });
