@@ -171,6 +171,21 @@ export function TrajectoryCockpit({
           open={targetOpen}
           onClose={() => setTargetOpen(false)}
           onSaved={onReload}
+          initial={
+            result.target
+              ? {
+                  measuredDepthM: result.target.measuredDepthM,
+                  eastingM: result.target.eastingM,
+                  northingM: result.target.northingM,
+                  rlM: result.target.rlM,
+                  diameterM: result.target.diameterM,
+                  attitudeMode: result.target.attitudeMode,
+                  desiredDipDegrees: result.target.desiredDipDegrees,
+                  desiredAzimuthDegrees: result.target.desiredAzimuthDegrees,
+                  desiredNorthReference: result.target.desiredNorthReference,
+                }
+              : undefined
+          }
         />
       </div>
     );

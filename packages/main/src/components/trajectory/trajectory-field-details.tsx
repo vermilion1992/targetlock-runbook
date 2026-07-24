@@ -71,7 +71,9 @@ export function TrajectoryFieldDetails({
       ) : null}
 
       {curved?.status === "NO_SOLUTION" &&
-      curved.warnings.some((w) => w.code === "TARGET_UNREACHABLE_AT_MD") ? (
+      curved.warnings.some((w) =>
+        /TARGET CANNOT BE REACHED/i.test(w.message),
+      ) ? (
         <section
           className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-surface)] p-4"
           data-testid="target-unreachable-banner"
@@ -80,8 +82,11 @@ export function TrajectoryFieldDetails({
             Target cannot be reached at the entered MD
           </h2>
           <p className="mt-2 whitespace-pre-line text-sm">
-            {curved.warnings.find((w) => w.code === "TARGET_UNREACHABLE_AT_MD")
-              ?.message}
+            {
+              curved.warnings.find((w) =>
+                /TARGET CANNOT BE REACHED/i.test(w.message),
+              )?.message
+            }
           </p>
         </section>
       ) : null}
@@ -255,7 +260,8 @@ export function TrajectoryFieldDetails({
             <div>
               <dt className="text-[var(--tl-ink-muted)]">Remaining MD</dt>
               <dd className="font-semibold tabular-nums">
-                {curved.remainingMeasuredDepthM !== null
+                {curved.remainingMeasuredDepthM !== null &&
+                curved.remainingMeasuredDepthM >= 0
                   ? formatMetresValue(curved.remainingMeasuredDepthM)
                   : "—"}
               </dd>

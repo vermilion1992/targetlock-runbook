@@ -261,6 +261,10 @@ export function buildActualTrajectoryStations(
   selections: readonly TrajectorySurveySelection[],
   coordinateConfiguration: HoleCoordinateConfiguration,
   referenceConfiguration?: ReferenceConfiguration | null,
+  options?: {
+    /** When true, collar-only (no Survey) is accepted for TargetLock guidance. */
+    readonly allowCollarOnly?: boolean;
+  },
 ): {
   stations: TrajectoryStationInput[];
   warnings: TrajectoryWarning[];
@@ -340,7 +344,7 @@ export function buildActualTrajectoryStations(
     previousDepth = depth;
   }
 
-  if (stations.length < 2) {
+  if (stations.length < 2 && !options?.allowCollarOnly) {
     throw new TrajectoryStationError(
       "Actual trajectory requires a collar direction and at least one Survey station.",
     );

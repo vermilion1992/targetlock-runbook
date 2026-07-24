@@ -132,11 +132,9 @@ export function TrajectoryMetricStrip({
               : "Set a target"
         }
         tertiary={
-          projection
-            ? `Closest approach ${formatMetresValue(projection.closestApproachM)} · Radius ${formatMetresValue((result.target?.diameterM ?? 6) / 2)}`
-            : latest
-              ? undefined
-              : undefined
+          projection && result.target
+            ? `Closest approach ${formatMetresValue(projection.closestApproachM)} · Radius ${formatMetresValue(result.target.diameterM / 2)}`
+            : undefined
         }
         testId="trajectory-metric-projected-miss"
       />
@@ -149,7 +147,9 @@ export function TrajectoryMetricStrip({
         }
         secondary="Straight spatial distance"
         tertiary={
-          remaining !== null && remaining !== undefined
+          remaining !== null &&
+          remaining !== undefined &&
+          remaining >= 0
             ? `Remaining MD ${formatMetresValue(remaining)}`
             : undefined
         }

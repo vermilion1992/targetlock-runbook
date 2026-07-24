@@ -139,6 +139,23 @@ describe("mini-target-lock geometry", () => {
 
 describe("calculateMiniTargetLock", () => {
   it("blocks with MISSING_COLLAR_COORDINATES when mine-grid coords absent", () => {
+    const target: HoleTarget = {
+      id: "t1",
+      holeId: "DDH050",
+      name: "Target",
+      coordinateMode: "MINE_GRID",
+      eastingDm: 1_001_750,
+      northingDm: 2_001_460,
+      rlDm: -1_050,
+      radiusDm: 30,
+      targetMeasuredDepthDm: 6_500,
+      attitudeMode: "CUSTOM",
+      desiredDipTenths: -740,
+      desiredAzimuthTenths: 1_450,
+      desiredNorthReference: "GRID",
+      version: 1,
+      updatedAt: EPOCH,
+    };
     const result = calculateMiniTargetLock({
       holeId: "DDH050",
       surveys: [],
@@ -150,9 +167,58 @@ describe("calculateMiniTargetLock", () => {
       actualConfiguration: actualConfig(),
       selections: [],
       referenceConfiguration: referenceConfig(),
+      target,
     });
     expect(result.blocked).toBe(true);
     expect(result.blockCode).toBe("MISSING_COLLAR_COORDINATES");
+    expect(result.target?.attitudeMode).toBe("CUSTOM");
+    expect(result.target?.diameterM).toBe(6);
+  });
+
+  it("provides collar-only guidance when no Surveys exist", () => {
+    // Collar at E/N/RL 100000/200000/500, dip -60°, azimuth 90°.
+    // Target placed on the straight collar ray at MD 300 m.
+    const mdM = 300;
+    const dipRad = (-60 * Math.PI) / 180;
+    const azRad = (90 * Math.PI) / 180;
+    const de = mdM * Math.cos(dipRad) * Math.sin(azRad);
+    const dn = mdM * Math.cos(dipRad) * Math.cos(azRad);
+    const drl = mdM * Math.sin(dipRad);
+    const target: HoleTarget = {
+      id: "t1",
+      holeId: "DDH050",
+      name: "Target",
+      coordinateMode: "MINE_GRID",
+      eastingDm: Math.round((100_000 + de) * 10),
+      northingDm: Math.round((200_000 + dn) * 10),
+      rlDm: Math.round((500 + drl) * 10),
+      radiusDm: 30,
+      targetMeasuredDepthDm: 3_000,
+      attitudeMode: "CUSTOM",
+      desiredDipTenths: -600,
+      desiredAzimuthTenths: 900,
+      desiredNorthReference: "GRID",
+      version: 1,
+      updatedAt: EPOCH,
+    };
+    const result = calculateMiniTargetLock({
+      holeId: "DDH050",
+      surveys: [],
+      coordinateConfiguration: coordinateConfig(),
+      actualConfiguration: {
+        ...actualConfig(),
+        preferredSurveyIntervalDm: 300,
+      },
+      selections: [],
+      referenceConfiguration: referenceConfig(),
+      target,
+    });
+    expect(result.blocked).toBe(false);
+    expect(result.guidanceFromCollarOnly).toBe(true);
+    expect(result.target?.attitudeMode).toBe("CUSTOM");
+    expect(result.latestSurvey?.sourceType).toBe("COLLAR");
+    expect(result.nextSurveyGuidance).not.toBeNull();
+    expect(result.curvedSolution?.status).toMatch(/SOLVED|REVIEW_REQUIRED/);
   });
 
   it("returns actual trajectory and latest survey without target", () => {

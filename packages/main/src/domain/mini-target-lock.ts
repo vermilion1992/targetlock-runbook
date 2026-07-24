@@ -171,6 +171,10 @@ function blockedResult(
   blockReason: string,
   warnings: readonly TrajectoryWarning[] = [],
   sourceVersions: readonly TrajectorySourceVersion[] = [],
+  extras: {
+    readonly target?: MiniTargetLockTarget | null;
+    readonly surveyIntervalM?: number | null;
+  } = {},
 ): MiniTargetLockResult {
   return {
     holeId,
@@ -180,8 +184,8 @@ function blockedResult(
     actualTrajectory: null,
     latestSurvey: null,
     guidanceFromCollarOnly: false,
-    target: null,
-    surveyIntervalM: null,
+    target: extras.target ?? null,
+    surveyIntervalM: extras.surveyIntervalM ?? null,
     nextSurveyMeasuredDepthM: null,
     nextSurveyGuidance: null,
     curvedSolution: null,
@@ -191,6 +195,35 @@ function blockedResult(
     projection: null,
     warnings,
     sourceVersions,
+  };
+}
+
+function resolveMiniTarget(
+  target: HoleTarget | null | undefined,
+): MiniTargetLockTarget | null {
+  if (!target) return null;
+  const diameterM = targetDiameterM(target);
+  const attitudeMode = migrateTargetAttitudeMode(target);
+  const measuredDepthM =
+    target.targetMeasuredDepthDm === undefined
+      ? undefined
+      : decimetresToMetres(target.targetMeasuredDepthDm);
+  return {
+    eastingM: target.eastingDm / 10,
+    northingM: target.northingDm / 10,
+    rlM: target.rlDm / 10,
+    diameterM,
+    measuredDepthM,
+    attitudeMode,
+    desiredDipDegrees:
+      target.desiredDipTenths === undefined
+        ? undefined
+        : target.desiredDipTenths / 10,
+    desiredAzimuthDegrees:
+      target.desiredAzimuthTenths === undefined
+        ? undefined
+        : target.desiredAzimuthTenths / 10,
+    desiredNorthReference: target.desiredNorthReference,
   };
 }
 
@@ -314,12 +347,27 @@ export function calculateMiniTargetLock(
 ): MiniTargetLockResult {
   const warnings: TrajectoryWarning[] = [];
   const sourceVersions: TrajectorySourceVersion[] = [];
+  const resolvedTarget = resolveMiniTarget(input.target);
+  if (input.target) {
+    sourceVersions.push({
+      entityType: "target",
+      entityId: input.target.id,
+      version: input.target.version,
+    });
+  }
+  const surveyIntervalM =
+    input.actualConfiguration?.preferredSurveyIntervalDm === undefined
+      ? null
+      : decimetresToMetres(input.actualConfiguration.preferredSurveyIntervalDm);
 
   if (!input.coordinateConfiguration) {
     return blockedResult(
       input.holeId,
       "MISSING_COORDINATE_CONFIGURATION",
       "Hole coordinate configuration is required before trajectory calculation.",
+      warnings,
+      sourceVersions,
+      { target: resolvedTarget, surveyIntervalM },
     );
   }
 
@@ -341,6 +389,8 @@ export function calculateMiniTargetLock(
         ? "Trajectory requires collar Easting, Northing and RL."
         : coordinateBlock.message,
       [coordinateBlock],
+      sourceVersions,
+      { target: resolvedTarget, surveyIntervalM },
     );
   }
 
@@ -357,6 +407,7 @@ export function calculateMiniTargetLock(
       "Collar direction is required before trajectory calculation.",
       warnings,
       sourceVersions,
+      { target: resolvedTarget, surveyIntervalM },
     );
   }
 
@@ -384,6 +435,7 @@ export function calculateMiniTargetLock(
       mineGridBlock.message,
       [mineGridBlock],
       sourceVersions,
+      { target: resolvedTarget, surveyIntervalM },
     );
   }
 
@@ -401,6 +453,7 @@ export function calculateMiniTargetLock(
       input.selections,
       input.coordinateConfiguration,
       input.referenceConfiguration,
+      { allowCollarOnly: true },
     );
     warnings.push(...built.warnings);
     for (const survey of built.selectedSurveys) {
@@ -440,14 +493,7 @@ export function calculateMiniTargetLock(
       station.sourceType === "COLLAR" ||
       !built.selectedSurveys.some((survey) => Number(survey.depthDm) > 0);
 
-    const surveyIntervalM =
-      input.actualConfiguration.preferredSurveyIntervalDm === undefined
-        ? null
-        : decimetresToMetres(
-            input.actualConfiguration.preferredSurveyIntervalDm,
-          );
-
-    let target: MiniTargetLockTarget | null = null;
+    let target: MiniTargetLockTarget | null = resolvedTarget;
     let directToTarget: MiniTargetLockDirectToTarget | null = null;
     let requiredChange: MiniTargetLockRequiredChange | null = null;
     let projection: MiniTargetLockProjection | null = null;
@@ -456,35 +502,9 @@ export function calculateMiniTargetLock(
     let nextSurveyGuidance: MiniTargetLockNextSurveyGuidance | null = null;
     let remainingMeasuredDepthM: number | null = null;
 
-    if (input.target) {
-      sourceVersions.push({
-        entityType: "target",
-        entityId: input.target.id,
-        version: input.target.version,
-      });
-      const diameterM = targetDiameterM(input.target);
-      const attitudeMode = migrateTargetAttitudeMode(input.target);
-      const measuredDepthM =
-        input.target.targetMeasuredDepthDm === undefined
-          ? undefined
-          : decimetresToMetres(input.target.targetMeasuredDepthDm);
-      target = {
-        eastingM: input.target.eastingDm / 10,
-        northingM: input.target.northingDm / 10,
-        rlM: input.target.rlDm / 10,
-        diameterM,
-        measuredDepthM,
-        attitudeMode,
-        desiredDipDegrees:
-          input.target.desiredDipTenths === undefined
-            ? undefined
-            : input.target.desiredDipTenths / 10,
-        desiredAzimuthDegrees:
-          input.target.desiredAzimuthTenths === undefined
-            ? undefined
-            : input.target.desiredAzimuthTenths / 10,
-        desiredNorthReference: input.target.desiredNorthReference,
-      };
+    if (target) {
+      const diameterM = target.diameterM;
+      const measuredDepthM = target.measuredDepthM;
 
       directToTarget = directToTargetFromPositions(latestSurvey, target);
       requiredChange = {
@@ -526,7 +546,7 @@ export function calculateMiniTargetLock(
             northingM: target.northingM,
             rlM: target.rlM,
             radiusM: diameterM / 2,
-            attitudeMode,
+            attitudeMode: target.attitudeMode,
             desiredDipDegrees: target.desiredDipDegrees,
             desiredAzimuthDegrees: target.desiredAzimuthDegrees,
             desiredNorthReference: target.desiredNorthReference,
@@ -597,6 +617,7 @@ export function calculateMiniTargetLock(
       message,
       warnings,
       sourceVersions,
+      { target: resolvedTarget, surveyIntervalM },
     );
   }
 }
