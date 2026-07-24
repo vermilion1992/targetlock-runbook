@@ -379,9 +379,48 @@ export async function generateExcelWorkbook(
           trajectory.plannedEndpointDistanceToTargetM ?? "",
         ],
         ["closest_approach_m", trajectory.closestApproachM ?? ""],
+        [
+          "projected_miss_outside_target_m",
+          trajectory.projectedMissOutsideTargetM ?? "",
+        ],
+        ["target_md_m", trajectory.targetMeasuredDepthM ?? ""],
+        ["target_e_m", trajectory.targetEastingM ?? ""],
+        ["target_n_m", trajectory.targetNorthingM ?? ""],
+        ["target_rl_m", trajectory.targetRlM ?? ""],
+        ["target_diameter_m", trajectory.targetDiameterM ?? ""],
+        ["target_attitude_mode", trajectory.targetAttitudeMode ?? ""],
+        [
+          "next_survey_md_m",
+          trajectory.nextSurveyMeasuredDepthM ?? "",
+        ],
+        [
+          "next_survey_dip_deg",
+          trajectory.nextSurveyDipDegrees ?? "",
+        ],
+        [
+          "next_survey_azimuth_deg",
+          trajectory.nextSurveyAzimuthDegrees ?? "",
+        ],
+        [
+          "geometric_guidance_disclaimer",
+          trajectory.geometricGuidanceDisclaimer ?? "",
+        ],
         ["warning_count", trajectory.warningCount],
       ],
     );
+    if (trajectory.curvedRecoveryPath?.length) {
+      addSheet(
+        workbook,
+        "Curved Recovery Path",
+        ["md_m", "e_m", "n_m", "rl_m"],
+        trajectory.curvedRecoveryPath.map((point) => [
+          point.measuredDepthM,
+          point.eastingM,
+          point.northingM,
+          point.rlM,
+        ]),
+      );
+    }
     addSheet(
       workbook,
       "Planned Trajectory Stations",

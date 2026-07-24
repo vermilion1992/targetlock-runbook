@@ -131,6 +131,7 @@ describe("trajectory view-model (Implementation 6 presentation)", () => {
         northingDm: -1800,
         rlDm: -4500,
         radiusDm: 50,
+        attitudeMode: "UNCONSTRAINED",
         version: 1,
         updatedAt: "2026-07-24T00:00:00.000Z",
       },

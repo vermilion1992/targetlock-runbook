@@ -95,7 +95,9 @@ export function TrajectoryWorkspace({
 }) {
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
   const [isMobileFallback] = useState(detectMobileFallback);
-  const [tab, setTab] = useState<TrajectoryWorkspaceTab>(defaultTabForDevice);
+  const [tab, setTab] = useState<TrajectoryWorkspaceTab>(() =>
+    model.fieldMode ? "PLAN" : defaultTabForDevice(),
+  );
   const [verticalScaleMode, setVerticalScaleMode] =
     useState<TrajectoryVerticalScaleMode>("EQUAL");
   const [depthInterval, setDepthInterval] =
@@ -205,22 +207,32 @@ export function TrajectoryWorkspace({
   }
 
   const tabs: { id: TrajectoryWorkspaceTab; label: string; testId: string }[] =
-    [
-      { id: "VIEW_3D", label: "3D", testId: "trajectory-view-view_3d" },
-      { id: "PLAN", label: "Plan", testId: "trajectory-view-plan" },
-      {
-        id: "VERTICAL_SECTION",
-        label: "Section",
-        testId: "trajectory-view-vertical_section",
-      },
-      {
-        id: "DEVIATION",
-        label: "Deviation",
-        testId: "trajectory-view-deviation",
-      },
-      { id: "DIP", label: "Dip", testId: "trajectory-view-dip" },
-      { id: "AZIMUTH", label: "Azimuth", testId: "trajectory-view-azimuth" },
-    ];
+    model.fieldMode
+      ? [
+          { id: "VIEW_3D", label: "3D", testId: "trajectory-view-view_3d" },
+          { id: "PLAN", label: "Plan", testId: "trajectory-view-plan" },
+          {
+            id: "VERTICAL_SECTION",
+            label: "Section",
+            testId: "trajectory-view-vertical_section",
+          },
+        ]
+      : [
+          { id: "VIEW_3D", label: "3D", testId: "trajectory-view-view_3d" },
+          { id: "PLAN", label: "Plan", testId: "trajectory-view-plan" },
+          {
+            id: "VERTICAL_SECTION",
+            label: "Section",
+            testId: "trajectory-view-vertical_section",
+          },
+          {
+            id: "DEVIATION",
+            label: "Deviation",
+            testId: "trajectory-view-deviation",
+          },
+          { id: "DIP", label: "Dip", testId: "trajectory-view-dip" },
+          { id: "AZIMUTH", label: "Azimuth", testId: "trajectory-view-azimuth" },
+        ];
 
   return (
     <section

@@ -64,9 +64,12 @@ export const runbookRoutes = {
   timeline: (holeId: string) => `${holeBase(holeId)}/timeline`,
   more: (holeId: string) => `${holeBase(holeId)}/more`,
   statistics: (holeId: string) => `${holeBase(holeId)}/statistics`,
+  newHole: () => "/holes/new",
   trajectory: (holeId: string) => `${holeBase(holeId)}/trajectory`,
   trajectoryPlan: (holeId: string) => `${holeBase(holeId)}/trajectory/plan`,
   trajectorySetup: (holeId: string) => `${holeBase(holeId)}/trajectory/setup`,
+  surveySettings: (holeId: string) =>
+    `${holeBase(holeId)}/survey-settings`,
   trajectorySurveys: (holeId: string) =>
     `${holeBase(holeId)}/trajectory/surveys`,
   completeHole: (holeId: string) => `${holeBase(holeId)}/complete`,

@@ -9,6 +9,7 @@ import {
   projectOntoSection,
   sectionBearingDegrees,
 } from "./trajectory-tracking";
+import type { MiniTargetLockResult } from "./mini-target-lock";
 import type {
   CalculatedTrajectoryStation,
   HoleTrajectoryComparison,
@@ -61,6 +62,11 @@ export interface TrajectoryViewBounds {
   readonly spanM: number;
 }
 
+export interface TrajectoryOverlayLine {
+  readonly from: TrajectoryPathPoint;
+  readonly to: TrajectoryPathPoint;
+}
+
 export interface TrajectoryViewModel {
   readonly holeId: string;
   readonly engineVersion: string;
@@ -74,6 +80,7 @@ export interface TrajectoryViewModel {
     readonly northingM: number;
     readonly rlM: number;
     readonly radiusM?: number;
+    readonly diameterM?: number;
   };
   readonly collar?: TrajectoryPathPoint;
   readonly bounds: TrajectoryViewBounds;
@@ -82,6 +89,14 @@ export interface TrajectoryViewModel {
   readonly trackingPoints: readonly TrajectoryTrackingPoint[];
   readonly currentTrackingPoint?: TrajectoryTrackingPoint;
   readonly activePlanName?: string;
+  /** When true, graphics hide planned path (field Mini TargetLock mode). */
+  readonly fieldMode?: boolean;
+  readonly directToTargetLine?: TrajectoryOverlayLine;
+  /** Solved curved recovery path (geometric guidance). */
+  readonly curvedRecoveryPath?: readonly TrajectoryPathPoint[];
+  readonly projectedContinuationPath?: readonly TrajectoryPathPoint[];
+  readonly closestApproachPoint?: TrajectoryPathPoint;
+  readonly missVector?: TrajectoryOverlayLine;
 }
 
 function toPathPoint(
@@ -478,4 +493,221 @@ export function findTrackingPointForSurvey(
   surveyId: string,
 ): TrajectoryTrackingPoint | undefined {
   return model.trackingPoints.find((point) => point.actualSurveyId === surveyId);
+}
+
+/**
+ * Field Mini TargetLock view-model: actual path + target overlays only.
+ * Planned path is omitted from the normal field workflow.
+ */
+export function buildFieldTrajectoryViewModel(
+  result: MiniTargetLockResult,
+): TrajectoryViewModel {
+  const actual = result.actualTrajectory;
+  const actualPath = (actual?.renderPath ?? []).map(toPathPoint);
+  const surveyStations = (actual?.stations ?? [])
+    .filter(
+      (station) =>
+        station.sourceType === "SURVEY" || station.sourceType === "COLLAR",
+    )
+    .map(toPathPoint);
+
+  const markers: TrajectoryMarkerPoint[] = [];
+  if (actual?.collar) {
+    markers.push({
+      ...toPathPoint({ ...actual.collar, measuredDepthM: 0 }),
+      kind: "COLLAR",
+      label: "Collar",
+    });
+  }
+  for (const station of actual?.stations ?? []) {
+    if (station.sourceType !== "SURVEY") continue;
+    markers.push({
+      ...toPathPoint(station),
+      kind: "SURVEY_STATION",
+      label: `Survey ${station.measuredDepthM.toFixed(1)} m`,
+      sourceId: station.sourceId,
+    });
+  }
+  if (result.latestSurvey) {
+    markers.push({
+      eastingM: result.latestSurvey.eastingM,
+      northingM: result.latestSurvey.northingM,
+      rlM: result.latestSurvey.rlM,
+      measuredDepthM: result.latestSurvey.measuredDepthM,
+      kind: "SELECTED_SURVEY",
+      label: `Latest ${result.latestSurvey.measuredDepthM.toFixed(1)} m`,
+      sourceId: result.latestSurvey.sourceId,
+    });
+  }
+
+  const target = result.target
+    ? {
+        eastingM: result.target.eastingM,
+        northingM: result.target.northingM,
+        rlM: result.target.rlM,
+        radiusM: result.target.diameterM / 2,
+        diameterM: result.target.diameterM,
+      }
+    : undefined;
+  if (target) {
+    markers.push({
+      eastingM: target.eastingM,
+      northingM: target.northingM,
+      rlM: target.rlM,
+      measuredDepthM: 0,
+      kind: "TARGET",
+      label: "Target",
+    });
+  }
+
+  let directToTargetLine: TrajectoryOverlayLine | undefined;
+  let curvedRecoveryPath: TrajectoryPathPoint[] | undefined;
+  let projectedContinuationPath: TrajectoryPathPoint[] | undefined;
+  let closestApproachPoint: TrajectoryPathPoint | undefined;
+  let missVector: TrajectoryOverlayLine | undefined;
+
+  if (
+    result.curvedSolution &&
+    (result.curvedSolution.status === "SOLVED" ||
+      result.curvedSolution.status === "REVIEW_REQUIRED") &&
+    result.curvedSolution.path.length > 0
+  ) {
+    curvedRecoveryPath = result.curvedSolution.path.map((station) => ({
+      eastingM: station.eastingM,
+      northingM: station.northingM,
+      rlM: station.rlM,
+      measuredDepthM: station.measuredDepthM,
+    }));
+  } else if (result.latestSurvey && result.target && result.directToTarget) {
+    // Fallback technical overlay only when curved solution unavailable.
+    directToTargetLine = {
+      from: {
+        eastingM: result.latestSurvey.eastingM,
+        northingM: result.latestSurvey.northingM,
+        rlM: result.latestSurvey.rlM,
+        measuredDepthM: result.latestSurvey.measuredDepthM,
+      },
+      to: {
+        eastingM: result.target.eastingM,
+        northingM: result.target.northingM,
+        rlM: result.target.rlM,
+        measuredDepthM: result.target.measuredDepthM ?? 0,
+      },
+    };
+  }
+  if (result.projection) {
+    projectedContinuationPath = result.projection.projectedPath.map(
+      (point, index) => ({
+        ...point,
+        measuredDepthM:
+          (result.latestSurvey?.measuredDepthM ?? 0) + index,
+      }),
+    );
+    closestApproachPoint = {
+      ...result.projection.closestApproachPosition,
+      measuredDepthM: result.latestSurvey?.measuredDepthM ?? 0,
+    };
+    if (result.target) {
+      missVector = {
+        from: closestApproachPoint,
+        to: {
+          eastingM: result.target.eastingM,
+          northingM: result.target.northingM,
+          rlM: result.target.rlM,
+          measuredDepthM: result.target.measuredDepthM ?? 0,
+        },
+      };
+    }
+  }
+
+  const allPoints: TrajectoryPathPoint[] = [
+    ...actualPath,
+    ...markers,
+    ...(projectedContinuationPath ?? []),
+    ...(curvedRecoveryPath ?? []),
+  ];
+  if (directToTargetLine) {
+    allPoints.push(directToTargetLine.from, directToTargetLine.to);
+  }
+  if (target?.radiusM !== undefined) {
+    allPoints.push(
+      {
+        eastingM: target.eastingM + target.radiusM,
+        northingM: target.northingM,
+        rlM: target.rlM,
+        measuredDepthM: 0,
+      },
+      {
+        eastingM: target.eastingM - target.radiusM,
+        northingM: target.northingM,
+        rlM: target.rlM,
+        measuredDepthM: 0,
+      },
+      {
+        eastingM: target.eastingM,
+        northingM: target.northingM + target.radiusM,
+        rlM: target.rlM,
+        measuredDepthM: 0,
+      },
+      {
+        eastingM: target.eastingM,
+        northingM: target.northingM - target.radiusM,
+        rlM: target.rlM,
+        measuredDepthM: 0,
+      },
+    );
+  }
+
+  const collarPoint = actual?.collar
+    ? toPathPoint({ ...actual.collar, measuredDepthM: 0 })
+    : undefined;
+  let bearing: number | null = null;
+  let bearingSource = "none";
+  if (result.latestSurvey && target) {
+    bearing = sectionBearingDegrees({
+      fromEastingM: result.latestSurvey.eastingM,
+      fromNorthingM: result.latestSurvey.northingM,
+      toEastingM: target.eastingM,
+      toNorthingM: target.northingM,
+    });
+    bearingSource = "latest-survey-to-target";
+  } else if (collarPoint && target) {
+    bearing = sectionBearingDegrees({
+      fromEastingM: collarPoint.eastingM,
+      fromNorthingM: collarPoint.northingM,
+      toEastingM: target.eastingM,
+      toNorthingM: target.northingM,
+    });
+    bearingSource = "collar-to-target";
+  } else if (collarPoint && result.latestSurvey) {
+    bearing = sectionBearingDegrees({
+      fromEastingM: collarPoint.eastingM,
+      fromNorthingM: collarPoint.northingM,
+      toEastingM: result.latestSurvey.eastingM,
+      toNorthingM: result.latestSurvey.northingM,
+    });
+    bearingSource = "collar-to-latest-survey";
+  }
+
+  return {
+    holeId: result.holeId,
+    engineVersion: actual?.engineVersion ?? "minimum-curvature-v1",
+    plannedPath: [],
+    actualPath,
+    plannedStations: [],
+    surveyStations,
+    markers,
+    target,
+    collar: collarPoint,
+    bounds: boundsFromPoints(allPoints),
+    sectionBearingDegrees: bearing,
+    sectionBearingSource: bearingSource,
+    trackingPoints: [],
+    fieldMode: true,
+    directToTargetLine,
+    curvedRecoveryPath,
+    projectedContinuationPath,
+    closestApproachPoint,
+    missVector,
+  };
 }

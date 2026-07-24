@@ -107,7 +107,12 @@ const columns = [
         <Badge
           variant={info.row.original.statuscolor as BadgeProps['variant']}
           className='capitalize inline-flex items-center gap-1'>
-          {StatusIcon && <StatusIcon size={15} />}
+          {StatusIcon ? (
+            (() => {
+              const Icon = StatusIcon as React.ComponentType<{ size?: number }>
+              return <Icon size={15} />
+            })()
+          ) : null}
           <div className='leading-0'>{info.getValue()}</div>
         </Badge>
       )

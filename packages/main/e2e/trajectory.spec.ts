@@ -12,103 +12,95 @@ test.beforeEach(async ({ page }) => {
   await resetPilotBrowserState(page);
 });
 
-test("Workflow 1 — Straight plan versus actual", async ({ page }) => {
-  await page.goto("/holes/DDH041/trajectory/plan");
-  await expect(page.getByTestId("trajectory-plan-form")).toBeVisible();
-  await page.getByLabel("Straight directional plan").check();
-  await page.getByRole("textbox", { name: "Plan name" }).fill("E2E straight plan");
-  await page.getByRole("textbox", { name: "Collar dip (°)" }).fill("-60.0");
-  await page.getByRole("textbox", { name: "Collar azimuth (°)" }).fill("128.0");
-  await page.getByRole("textbox", { name: "Endpoint MD (m)" }).fill("650.0");
-  await page.getByRole("button", { name: "Save and activate" }).click();
-  await expect(page.getByTestId("trajectory-plan-message")).toContainText(
-    "Activated",
-  );
-
-  await page.goto("/holes/DDH041/trajectory/setup");
-  await page.getByRole("button", { name: "Save setup" }).click();
-  await expect(page.getByTestId("trajectory-setup-message")).toContainText(
-    "saved",
-  );
-
-  await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
-  await page.getByTestId("trajectory-view-plan").click();
-  await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
-  await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
-  await page.reload();
-  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
-});
-
-test("Workflow 2 — Curved plan", async ({ page }) => {
+test("Workflow 1 — Trajectory cockpit and next-survey KPIs", async ({
+  page,
+}) => {
   await page.goto("/holes/DDH041/trajectory");
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByTestId("active-plan-name")).toContainText(
-    "Demo curved plan (relative)",
-  );
+  await expect(page.getByTestId("trajectory-cockpit")).toBeVisible();
+  await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
+  await expect(page.getByTestId("trajectory-metric-required-dip")).toBeVisible();
+  await expect(
+    page.getByTestId("trajectory-metric-required-azimuth"),
+  ).toBeVisible();
+  await expect(
+    page.getByTestId("trajectory-metric-projected-miss"),
+  ).toBeVisible();
+  await expect(page.getByTestId("trajectory-metric-target")).toBeVisible();
+  await page.reload();
+  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
+});
+
+test("Workflow 2 — Plan and setup routes redirect", async ({ page }) => {
+  await page.goto("/holes/DDH041/trajectory/plan");
+  await expect(page).toHaveURL(/\/holes\/DDH041\/trajectory$/);
+  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
+    timeout: 30_000,
+  });
+
+  await page.goto("/holes/DDH041/trajectory/setup");
+  await expect(page).toHaveURL(/\/holes\/DDH041\/survey-settings$/);
+  await expect(page.getByTestId("survey-settings-form")).toBeVisible({
+    timeout: 30_000,
+  });
+});
+
+test("Workflow 3 — Three views and field details", async ({ page }) => {
+  await page.goto("/holes/DDH041/trajectory");
+  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
+    timeout: 30_000,
+  });
   await page.getByTestId("trajectory-view-plan").click();
   await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
-  await expect(
-    page.getByText("equal-scale Easting / Northing"),
-  ).toBeVisible();
   await page.getByTestId("trajectory-view-vertical_section").click();
   await expect(page.getByTestId("trajectory-vertical-section")).toBeVisible();
-  await page.getByRole("button", { name: "Coordinates" }).click();
-  await expect(page.getByText("Planned stations").first()).toBeVisible();
-  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
-  await expect(page.getByTestId("trajectory-graphics-disclaimer")).toContainText(
-    /not certified anti-collision/i,
-  );
-});
-
-test("Workflow 2b — Interactive 3D graphics controls", async ({ page }) => {
-  await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible({
-    timeout: 30_000,
-  });
   await page.getByTestId("trajectory-view-view_3d").click();
-  await expect(page.getByTestId("trajectory-canvas")).toBeVisible();
-  await page
-    .getByTestId("trajectory-vertical-scale-toggle")
-    .selectOption("EXAGGERATED");
-  await expect(page.getByText(/VERTICAL SCALE 3×/i)).toBeVisible();
-  await page.getByTestId("trajectory-camera-reset").click();
-  await page.getByTestId("trajectory-view-plan").click();
-  await page.getByTestId("trajectory-view-vertical_section").click();
-  await expect(page.getByTestId("trajectory-inspection-callout")).toBeVisible();
+  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
+  await expect(page.getByTestId("trajectory-field-details")).toBeVisible();
   await expect(
-    page.getByTestId("trajectory-current-tracking-callout"),
+    page.getByText(/geometric minimum-curvature path/i).first(),
   ).toBeVisible();
 });
 
-test("Workflow 3 — Actual tracking", async ({ page }) => {
+test("Workflow 4 — Edit target with custom attitude", async ({ page }) => {
   await page.goto("/holes/DDH041/trajectory");
-  const tracking = page.getByTestId("current-trajectory-tracking");
-  await expect(tracking).toBeVisible({
+  await expect(page.getByTestId("trajectory-edit-target")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(tracking.getByText("Horizontal")).toBeVisible();
-  await expect(tracking.getByText("3D Deviation")).toBeVisible();
-  await expect(page.getByTestId("trajectory-tracking-table")).toBeVisible();
-  await expect(
-    page.getByTestId("trajectory-current-tracking-callout"),
-  ).toBeVisible();
+  await page.getByTestId("trajectory-edit-target").click();
+  await expect(page.getByTestId("set-target-dialog")).toBeVisible();
+  await page.getByTestId("target-md-input").fill("650.0");
+  await page.getByLabel("Custom target dip and azimuth").check();
+  await page.getByLabel("Target dip (°)").fill("-74.0");
+  await page.getByLabel("Target azimuth (°)").fill("145.0");
+  await page.getByRole("button", { name: "Save target" }).click();
+  await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
+  await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
 });
 
-test("Workflow 4 and 5 — Target and plan reach check", async ({ page }) => {
-  await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-target-status")).toBeVisible({
+test("Workflow 5 — Survey settings interval persistence", async ({ page }) => {
+  await page.goto("/holes/DDH041/survey-settings");
+  await expect(page.getByTestId("survey-settings-form")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByTestId("trajectory-target-status")).toContainText(
-    /PLAN REVIEW REQUIRED|PLAN REACHES TARGET|NO TARGET/i,
+  await page.getByTestId("survey-interval-input").fill("30.0");
+  await page.getByRole("button", { name: /save settings/i }).click();
+  await expect(page.getByTestId("survey-settings-message")).toContainText(
+    /30\.0 m/i,
   );
+
+  await page.reload();
+  await expect(page.getByTestId("survey-interval-input")).toHaveValue("30.0");
+
+  await page.goto("/holes/DDH041/trajectory");
+  await expect(page.getByTestId("trajectory-metric-required-dip")).toBeVisible({
+    timeout: 30_000,
+  });
   await expect(
-    page.getByText(/from target|No target coordinates/i).first(),
-  ).toBeVisible();
-  await expect(page.getByTestId("trajectory-warnings")).toBeVisible();
+    page.getByTestId("trajectory-metric-required-dip"),
+  ).not.toContainText("Survey interval required");
 });
 
 test("Workflow 6 — Duplicate Survey selection", async ({ page }) => {
@@ -129,64 +121,35 @@ test("Workflow 6 — Duplicate Survey selection", async ({ page }) => {
     .getByRole("button", { name: "Use selected reading" })
     .click();
   await expect(page.getByText(/Survey History is unchanged/i)).toBeVisible();
-  await page.goto("/holes/DDH041/surveys");
-  await expect(page.getByText("425.0 m").first()).toBeVisible();
 });
 
-test("Workflow 7 — Mixed north references block mine-grid", async ({ page }) => {
-  await page.goto("/holes/DDH041/trajectory/setup");
-  await page.getByLabel("Mine grid").check();
-  await page.getByRole("textbox", { name: "Collar Easting (m)" }).fill("482315.4");
-  await page.getByRole("textbox", { name: "Collar Northing (m)" }).fill("7514882.2");
-  await page.getByRole("textbox", { name: "Collar RL (m)" }).fill("487.3");
-  await page
-    .getByRole("combobox", { name: "Reference", exact: true })
-    .selectOption("NOT_SPECIFIED");
-  await page
-    .getByRole("combobox", { name: "Calculation north reference" })
-    .selectOption("GRID");
-  await page.getByRole("button", { name: "Save setup" }).click();
-  await expect(page.getByTestId("trajectory-setup-message")).toContainText(
-    "saved",
-  );
-  await page.goto("/holes/DDH041/trajectory");
+test("Workflow 7 — New Hole with custom target attitude", async ({ page }) => {
+  const holeId = `E2E${Date.now().toString().slice(-6)}`;
+  await page.goto("/holes/new");
+  await expect(page.getByTestId("new-hole-form")).toBeVisible({
+    timeout: 30_000,
+  });
+  await page.getByTestId("new-hole-id").fill(holeId);
+  await page.getByLabel("Collar dip (°)").fill("-60.0");
+  await page.getByLabel("Collar azimuth (°)").fill("128.0");
+  await page.getByLabel("Easting (m)").first().fill("382400.0");
+  await page.getByLabel("Northing (m)").first().fill("6543100.0");
+  await page.getByLabel("RL (m)").first().fill("120.0");
+  await page.getByTestId("new-hole-target-md").fill("650.0");
+  await page.getByLabel("Target Easting (m)").fill("382575.0");
+  await page.getByLabel("Target Northing (m)").fill("6543246.0");
+  await page.getByLabel("Target RL (m)").fill("-105.0");
+  await page.getByLabel("Custom target dip and azimuth").check();
+  await page.getByLabel("Target dip (°)").fill("-74.0");
+  await page.getByLabel("Target azimuth (°)").fill("145.0");
+  await page.getByTestId("new-hole-submit").click();
+  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/trajectory`), {
+    timeout: 30_000,
+  });
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
-  await expect(
-    page.getByText(/blocked|unspecified north references|Grid North/i).first(),
-  ).toBeVisible({ timeout: 30_000 });
 });
 
-test("Workflow 8 — Near vertical warning path", async ({ page }) => {
-  await page.goto("/holes/DDH041/trajectory/plan");
-  await page.getByLabel("Curved station plan").check();
-  await page
-    .getByRole("textbox", { name: "Plan name" })
-    .fill("E2E near-vertical demo");
-  const mdInputs = page.locator('input[aria-label^="Station"][aria-label$="MD"]');
-  const dipInputs = page.locator(
-    'input[aria-label^="Station"][aria-label$="dip"]',
-  );
-  const azInputs = page.locator(
-    'input[aria-label^="Station"][aria-label$="azimuth"]',
-  );
-  await mdInputs.nth(0).fill("0.0");
-  await dipInputs.nth(0).fill("-89.0");
-  await azInputs.nth(0).fill("10.0");
-  await mdInputs.nth(1).fill("50.0");
-  await dipInputs.nth(1).fill("-89.5");
-  await azInputs.nth(1).fill("200.0");
-  await mdInputs.nth(2).fill("100.0");
-  await dipInputs.nth(2).fill("-89.2");
-  await azInputs.nth(2).fill("20.0");
-  await page.getByRole("button", { name: "Save and activate" }).click();
-  await page.goto("/holes/DDH041/trajectory");
-  const warnings = page.getByTestId("trajectory-warnings");
-  await expect(warnings).toBeVisible({ timeout: 30_000 });
-  await warnings.getByRole("button").click();
-  await expect(warnings).toContainText(/Near-vertical/i);
-});
-
-test("Workflow 9 — Reports include trajectory summary", async ({ page }) => {
+test("Workflow 8 — Reports include trajectory summary", async ({ page }) => {
   await page.goto("/holes/DDH041/reports");
   await page.getByRole("radio", { name: "Hole Summary" }).check();
   await selectOnlyFormat(page, "PDF");
@@ -195,7 +158,6 @@ test("Workflow 9 — Reports include trajectory summary", async ({ page }) => {
     timeout: 60_000,
   });
 
-  // Age trajectory-related fingerprint entries so currency detects a change.
   const aged = await page.evaluate(() => {
     const key = Object.keys(window.localStorage).find((item) =>
       item.includes(":reports"),
@@ -217,7 +179,8 @@ test("Workflow 9 — Reports include trajectory summary", async ({ page }) => {
     snapshot.sourceVersions = snapshot.sourceVersions.map((item) =>
       item.entityType === "plannedTrajectory" ||
       item.entityType === "survey" ||
-      item.entityType === "run"
+      item.entityType === "run" ||
+      item.entityType === "target"
         ? { ...item, version: Math.max(0, item.version - 1) }
         : item,
     );
@@ -230,24 +193,15 @@ test("Workflow 9 — Reports include trajectory summary", async ({ page }) => {
   await expect(page.getByText(/Report out of date/i).first()).toBeVisible({
     timeout: 20_000,
   });
-  await expect(
-    page
-      .getByText(/Historical report \/ Generated before the latest Hole changes/i)
-      .first(),
-  ).toBeVisible();
 });
 
-test("Workflow 10 — Responsive and theme", async ({ page }) => {
+test("Workflow 9 — Responsive and theme", async ({ page }) => {
   for (const width of [360, 390, 430, 768, 1024]) {
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/holes/DDH041/trajectory");
     await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
       timeout: 30_000,
     });
-    await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
-    if (width < 768) {
-      await expect(page.getByTestId("trajectory-mobile-fallback")).toBeVisible();
-    }
     await expectNoHorizontalOverflow(page, `trajectory ${width}px`);
   }
 
@@ -259,15 +213,9 @@ test("Workflow 10 — Responsive and theme", async ({ page }) => {
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
 });
 
-test("Current Hole and analytics show trajectory sections", async ({
-  page,
-}) => {
+test("Current Hole shows trajectory section", async ({ page }) => {
   await page.goto("/holes/DDH041/current");
   await expect(page.getByTestId("trajectory-tracking-card")).toBeVisible({
-    timeout: 30_000,
-  });
-  await page.goto("/holes/DDH041/statistics");
-  await expect(page.getByTestId("hole-analytics-trajectory")).toBeVisible({
     timeout: 30_000,
   });
 });

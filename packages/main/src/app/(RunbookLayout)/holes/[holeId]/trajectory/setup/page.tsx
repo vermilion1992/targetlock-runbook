@@ -1,7 +1,7 @@
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
-import { TrajectorySetupForm } from "@/components/trajectory/trajectory-setup-form";
-import { isStage5HoleId } from "@/infrastructure/seed";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function HoleTrajectorySetupPage({
   params,
@@ -9,6 +9,6 @@ export default async function HoleTrajectorySetupPage({
   params: Promise<{ holeId: string }>;
 }) {
   const { holeId } = await params;
-  if (!isStage5HoleId(holeId)) notFound();
-  return <TrajectorySetupForm holeId={holeId} />;
+  if (!isRoutableHoleId(holeId)) notFound();
+  redirect(runbookRoutes.surveySettings(holeId));
 }

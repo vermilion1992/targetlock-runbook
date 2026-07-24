@@ -24,6 +24,7 @@ import {
 } from "@/domain";
 import type { HoleCompletionContext } from "@/application/runbook/hole-completion-use-cases";
 import { getHoleTrajectoryComparison } from "@/application/runbook/trajectory-comparison-query";
+import { getMiniTargetLock } from "@/application/runbook/mini-target-lock-query";
 import type { CasingRepository } from "@/infrastructure/casing";
 import type { CompletionRepository } from "@/infrastructure/completion";
 import type { SurveyRepository } from "@/infrastructure/surveys";
@@ -616,6 +617,12 @@ export async function buildReportDocumentData(
         targetNorthingM: comparison.targetTracking?.targetNorthingM,
         targetRlM: comparison.targetTracking?.targetRlM,
         targetRadiusM: comparison.targetTracking?.targetRadiusM,
+        targetDiameterM:
+          comparison.targetTracking?.targetRadiusM === undefined
+            ? undefined
+            : comparison.targetTracking.targetRadiusM * 2,
+        geometricGuidanceDisclaimer:
+          "Calculated next-Survey dip and azimuth describe a geometric minimum-curvature path to the target. They do not confirm that the path is achievable by the active steering tool, ground conditions or available build/turn rate.",
         plannedRenderPath: viewModel.plannedPath.map((point) => ({
           measuredDepthM: point.measuredDepthM,
           eastingM: point.eastingM,
@@ -659,6 +666,51 @@ export async function buildReportDocumentData(
           status: point.status,
         })),
       };
+
+      try {
+        const mini = await getMiniTargetLock(input.holeId, {
+          trajectory: dependencies.trajectory,
+          surveys: dependencies.surveys,
+        });
+        if (mini.target && !mini.blocked) {
+          trajectorySummary = {
+            ...trajectorySummary,
+            distanceToTargetM:
+              mini.directToTarget?.distanceM ??
+              trajectorySummary.distanceToTargetM,
+            closestApproachM:
+              mini.projection?.closestApproachM ??
+              trajectorySummary.closestApproachM,
+            projectedMissOutsideTargetM:
+              mini.projection?.missOutsideTargetM,
+            targetEastingM: mini.target.eastingM,
+            targetNorthingM: mini.target.northingM,
+            targetRlM: mini.target.rlM,
+            targetRadiusM: mini.target.diameterM / 2,
+            targetDiameterM: mini.target.diameterM,
+            targetMeasuredDepthM: mini.target.measuredDepthM,
+            targetAttitudeMode: mini.target.attitudeMode,
+            targetDesiredDipDegrees: mini.target.desiredDipDegrees,
+            targetDesiredAzimuthDegrees: mini.target.desiredAzimuthDegrees,
+            nextSurveyMeasuredDepthM:
+              mini.nextSurveyGuidance?.measuredDepthM,
+            nextSurveyDipDegrees: mini.nextSurveyGuidance?.dipDegrees,
+            nextSurveyAzimuthDegrees: mini.nextSurveyGuidance?.azimuthDegrees,
+            latestSurveyDepthM:
+              mini.latestSurvey?.measuredDepthM ??
+              trajectorySummary.latestSurveyDepthM,
+            curvedRecoveryPath:
+              mini.curvedSolution?.path.map((station) => ({
+                measuredDepthM: station.measuredDepthM,
+                eastingM: station.eastingM,
+                northingM: station.northingM,
+                rlM: station.rlM,
+              })) ?? undefined,
+          };
+        }
+      } catch {
+        // Mini TargetLock enrichment is best-effort for reports.
+      }
       trajectorySourceVersions = comparison.sourceVersions.map((version) => ({
         entityType: version.entityType,
         entityId: version.entityId,

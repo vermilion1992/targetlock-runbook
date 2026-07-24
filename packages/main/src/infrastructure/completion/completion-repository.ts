@@ -291,6 +291,7 @@ const storedOperationSchema = z
   .object({
     operationId: z.string().trim().min(1),
     kind: z.enum([
+      "CREATE_HOLE",
       "BEGIN_REVIEW",
       "SAVE_REVIEW",
       "COMMIT_COMPLETION",
@@ -491,10 +492,27 @@ export class CompletionRepositoryError extends Error {
   }
 }
 
+export interface CreateHoleInput {
+  readonly operationId: string;
+  readonly holeId: string;
+  readonly name: string;
+  readonly projectId: string;
+  readonly rigId: string;
+  readonly holeSize?: Hole["holeSize"];
+  readonly plannedDepthDm?: number;
+  readonly collarEasting?: number;
+  readonly collarNorthing?: number;
+  readonly collarElevation?: number;
+  readonly createdAt: string;
+}
+
 export interface CompletionRepository {
   getLifecycleState(holeId: string): Promise<HoleLifecycleState | null>;
   getStatus(holeId: string): Promise<HoleStatus | null>;
   getLifecycleStatus(holeId: string): Promise<HoleStatus | null>;
+  getHole(holeId: string): Promise<CanonicalHole | null>;
+  listHoles(): Promise<readonly CanonicalHole[]>;
+  createHole(input: CreateHoleInput): Promise<CanonicalHole>;
   getCurrentReview(holeId: string): Promise<HoleCompletionReview | null>;
   getLatestCompletion(holeId: string): Promise<HoleCompletionRecord | null>;
   getCompletionHistory(
@@ -1014,6 +1032,120 @@ export class LocalCompletionRepository implements CompletionRepository {
 
   async getLifecycleStatus(holeId: string): Promise<HoleStatus | null> {
     return this.getStatus(holeId);
+  }
+
+  async getHole(holeId: string): Promise<CanonicalHole | null> {
+    const hole = this.read().holes.find(
+      (candidate) => candidate.localId === holeId,
+    );
+    return hole === undefined ? null : asHole(hole);
+  }
+
+  async listHoles(): Promise<readonly CanonicalHole[]> {
+    return this.read().holes.map(asHole);
+  }
+
+  async createHole(input: CreateHoleInput): Promise<CanonicalHole> {
+    const holeId = input.holeId.trim();
+    const name = input.name.trim();
+    if (!holeId || !name) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        "Hole ID and name are required.",
+      );
+    }
+    if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(holeId)) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        "Hole ID must be 1–64 characters: letters, numbers, '.', '_' or '-'.",
+      );
+    }
+
+    let envelope = this.read();
+    const fingerprint = canonicalJson({
+      holeId,
+      name,
+      projectId: input.projectId,
+      rigId: input.rigId,
+    });
+    const prior = this.operation(
+      envelope,
+      input.operationId,
+      "CREATE_HOLE",
+      fingerprint,
+    );
+    if (prior !== null) {
+      const existing = envelope.holes.find(
+        (candidate) => candidate.localId === prior.resultId,
+      );
+      if (existing === undefined) {
+        throw new CompletionRepositoryError(
+          "IDEMPOTENCY_CONFLICT",
+          `Operation ${input.operationId} was already applied.`,
+        );
+      }
+      return asHole(existing);
+    }
+
+    if (
+      envelope.holes.some(
+        (candidate) =>
+          candidate.localId === holeId ||
+          candidate.name.toLocaleLowerCase("en-AU") ===
+            name.toLocaleLowerCase("en-AU"),
+      )
+    ) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        `Hole ${holeId} already exists.`,
+      );
+    }
+
+    const parsed = holeSchema.safeParse({
+      localId: holeId,
+      serverId: null,
+      syncStatus: "local-only",
+      createdAt: input.createdAt,
+      updatedAt: input.createdAt,
+      deviceId: DEVICE_ID,
+      version: 1,
+      projectId: input.projectId,
+      rigId: input.rigId,
+      name,
+      holeSize: input.holeSize ?? "HQ",
+      plannedDepth: input.plannedDepthDm ?? 7_500,
+      currentDepth: 0,
+      status: "ACTIVE",
+      collarEasting: input.collarEasting ?? 0,
+      collarNorthing: input.collarNorthing ?? 0,
+      collarElevation: input.collarElevation ?? 0,
+    });
+    if (!parsed.success) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        "Hole values did not pass validation.",
+      );
+    }
+
+    envelope = {
+      ...envelope,
+      revision: envelope.revision + 1,
+      updatedAt: input.createdAt,
+      holes: [...envelope.holes, parsed.data],
+      operations: [
+        ...envelope.operations,
+        storedOperationSchema.parse({
+          operationId: input.operationId,
+          kind: "CREATE_HOLE",
+          fingerprint,
+          holeId,
+          resultId: holeId,
+          completedAt: input.createdAt,
+        }),
+      ],
+    };
+    this.write(envelope);
+    return asHole(parsed.data);
   }
 
   async getCurrentReview(

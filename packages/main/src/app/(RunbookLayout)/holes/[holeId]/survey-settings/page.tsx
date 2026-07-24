@@ -1,14 +1,14 @@
 import { notFound } from "next/navigation";
 
-import { TrajectoryDashboard } from "@/components/trajectory/trajectory-dashboard";
+import { SurveySettingsForm } from "@/components/trajectory/survey-settings-form";
 import { isRoutableHoleId } from "@/infrastructure/seed";
 
-export default async function HoleTrajectoryPage({
+export default async function HoleSurveySettingsPage({
   params,
 }: {
   params: Promise<{ holeId: string }>;
 }) {
   const { holeId } = await params;
   if (!isRoutableHoleId(holeId)) notFound();
-  return <TrajectoryDashboard holeId={holeId} />;
+  return <SurveySettingsForm holeId={holeId} />;
 }

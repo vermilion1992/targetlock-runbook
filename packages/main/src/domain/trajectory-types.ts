@@ -64,6 +64,11 @@ export interface PlannedTrajectoryStation {
 
 export type PlannedTrajectoryStatus = "DRAFT" | "ACTIVE" | "SUPERSEDED";
 
+export type TargetAttitudeMode =
+  | "UNCONSTRAINED"
+  | "SAME_AS_COLLAR"
+  | "CUSTOM";
+
 export interface HoleTarget {
   readonly id: LocalId;
   readonly holeId: LocalId;
@@ -72,8 +77,10 @@ export interface HoleTarget {
   readonly eastingDm: number;
   readonly northingDm: number;
   readonly rlDm: number;
+  /** Target sphere radius in decimetres. Diameter = 2 × radius. */
   readonly radiusDm?: number;
   readonly targetMeasuredDepthDm?: Decimetres;
+  readonly attitudeMode: TargetAttitudeMode;
   readonly desiredDipTenths?: number;
   readonly desiredAzimuthTenths?: number;
   readonly desiredNorthReference?: NorthReference;
@@ -101,6 +108,8 @@ export interface ActualTrajectoryConfiguration extends SyncMetadata {
   readonly collarAzimuthTenths: number;
   readonly collarNorthReference: NorthReference;
   readonly desurveyMethod: DesurveyMethod;
+  /** Default Survey interval in decimetres (0.1 m). Used for next-Survey guidance. */
+  readonly preferredSurveyIntervalDm?: Decimetres;
 }
 
 export type TrajectorySurveySelectionReason =

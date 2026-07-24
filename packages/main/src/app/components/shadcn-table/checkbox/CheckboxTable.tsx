@@ -74,7 +74,14 @@ const CheckboxTable = () => {
                       variant={item?.statuscolor}
                       className="capitalize flex items-center gap-1 w-fit"
                     >
-                      {item.statusicon && <item.statusicon size={15} />}
+                      {item.statusicon
+                        ? (() => {
+                            const StatusIcon = item.statusicon as unknown as (
+                              props: { size?: number },
+                            ) => ReturnType<typeof IconDotsVertical>;
+                            return <StatusIcon size={15} />;
+                          })()
+                        : null}
 
                       {item.status}
                     </Badge>

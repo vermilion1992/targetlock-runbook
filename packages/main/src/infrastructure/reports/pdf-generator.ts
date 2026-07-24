@@ -492,6 +492,42 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
         `3D deviation from plan ${trajectory.spatialDeviationM.toFixed(1)} m`,
       );
     }
+    if (trajectory.targetMeasuredDepthM !== undefined) {
+      writer.line(
+        `Target MD ${trajectory.targetMeasuredDepthM.toFixed(1)} m`,
+      );
+    }
+    if (
+      trajectory.targetEastingM !== undefined &&
+      trajectory.targetNorthingM !== undefined &&
+      trajectory.targetRlM !== undefined
+    ) {
+      writer.line(
+        `Target position E ${trajectory.targetEastingM.toFixed(1)} N ${trajectory.targetNorthingM.toFixed(1)} RL ${trajectory.targetRlM.toFixed(1)}`,
+      );
+    }
+    if (trajectory.targetDiameterM !== undefined) {
+      writer.line(
+        `Target diameter ${trajectory.targetDiameterM.toFixed(1)} m`,
+      );
+    }
+    if (trajectory.targetAttitudeMode) {
+      writer.line(`Target attitude ${trajectory.targetAttitudeMode}`);
+    }
+    if (
+      trajectory.nextSurveyDipDegrees !== undefined &&
+      trajectory.nextSurveyAzimuthDegrees !== undefined &&
+      trajectory.nextSurveyMeasuredDepthM !== undefined
+    ) {
+      writer.line(
+        `Next-Survey target at ${trajectory.nextSurveyMeasuredDepthM.toFixed(1)} m: dip ${trajectory.nextSurveyDipDegrees.toFixed(1)}° azimuth ${trajectory.nextSurveyAzimuthDegrees.toFixed(1)}°`,
+      );
+    }
+    if (trajectory.projectedMissOutsideTargetM !== undefined) {
+      writer.line(
+        `Projected miss outside target ${trajectory.projectedMissOutsideTargetM.toFixed(1)} m`,
+      );
+    }
     if (trajectory.distanceToTargetM !== undefined) {
       writer.line(
         `Distance from surveyed endpoint to target ${trajectory.distanceToTargetM.toFixed(1)} m`,
@@ -501,6 +537,9 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
       writer.line(
         `Planned endpoint distance to target ${trajectory.plannedEndpointDistanceToTargetM.toFixed(1)} m`,
       );
+    }
+    if (trajectory.geometricGuidanceDisclaimer) {
+      writer.line(trajectory.geometricGuidanceDisclaimer);
     }
     writer.line(`Trajectory warnings ${trajectory.warningCount}`);
 

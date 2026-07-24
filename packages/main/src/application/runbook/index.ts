@@ -14,4 +14,6 @@ export * from "./survey-use-cases";
 export * from "./tray-use-cases";
 export * from "./trajectory-use-cases";
 export * from "./trajectory-comparison-query";
+export * from "./mini-target-lock-query";
+export * from "./create-hole-use-cases";
 export * from "../reports";

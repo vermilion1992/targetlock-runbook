@@ -375,12 +375,23 @@ export interface ReportTrajectorySummary {
   readonly distanceToTargetM?: number;
   readonly plannedEndpointDistanceToTargetM?: number;
   readonly closestApproachM?: number;
+  readonly projectedMissOutsideTargetM?: number;
   readonly warningCount: number;
   readonly sectionBearingDegrees?: number | null;
   readonly targetEastingM?: number;
   readonly targetNorthingM?: number;
   readonly targetRlM?: number;
   readonly targetRadiusM?: number;
+  readonly targetDiameterM?: number;
+  readonly targetMeasuredDepthM?: number;
+  readonly targetAttitudeMode?: string;
+  readonly targetDesiredDipDegrees?: number;
+  readonly targetDesiredAzimuthDegrees?: number;
+  readonly nextSurveyMeasuredDepthM?: number;
+  readonly nextSurveyDipDegrees?: number;
+  readonly nextSurveyAzimuthDegrees?: number;
+  readonly geometricGuidanceDisclaimer?: string;
+  readonly curvedRecoveryPath?: readonly ReportTrajectoryPathPoint[];
   /** Dense render-path samples copied from verified comparison (not recalculated). */
   readonly plannedRenderPath?: readonly ReportTrajectoryPathPoint[];
   readonly actualRenderPath?: readonly ReportTrajectoryPathPoint[];

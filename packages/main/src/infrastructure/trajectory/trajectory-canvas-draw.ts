@@ -444,6 +444,58 @@ function drawTargetRadius3d(
   drawDashedPolyline(ctx, ring, colors.target, 1.5, [4, 3]);
 }
 
+function drawFieldOverlays(
+  ctx: CanvasRenderingContext2D,
+  model: TrajectoryViewModel,
+  map: (point: TrajectoryPathPoint) => { x: number; y: number },
+  colors: DrawColors,
+): void {
+  if (model.projectedContinuationPath?.length) {
+    drawDashedPolyline(
+      ctx,
+      model.projectedContinuationPath.map(map),
+      colors.selected,
+      2,
+      [4, 4],
+    );
+  }
+  if (model.curvedRecoveryPath?.length) {
+    drawDashedPolyline(
+      ctx,
+      model.curvedRecoveryPath.map(map),
+      colors.target,
+      2.5,
+      [8, 5],
+    );
+  }
+  if (model.directToTargetLine) {
+    drawSolidPolyline(
+      ctx,
+      [map(model.directToTargetLine.from), map(model.directToTargetLine.to)],
+      colors.target,
+      1.5,
+    );
+  }
+  if (model.missVector) {
+    drawDashedPolyline(
+      ctx,
+      [map(model.missVector.from), map(model.missVector.to)],
+      colors.selected,
+      1.5,
+      [3, 3],
+    );
+  }
+  if (model.closestApproachPoint) {
+    const p = map(model.closestApproachPoint);
+    ctx.save();
+    ctx.fillStyle = colors.selected;
+    ctx.beginPath();
+    ctx.arc(p.x, p.y, 4, 0, Math.PI * 2);
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
 export function drawTrajectoryGraphics(
   ctx: CanvasRenderingContext2D,
   options: DrawTrajectoryOptions,
@@ -493,21 +545,26 @@ export function drawTrajectoryGraphics(
       ctx.stroke();
     }
     drawTargetRadiusPlan(ctx, model, map, colors);
-    drawDashedPolyline(
-      ctx,
-      model.plannedPath.map(map),
-      colors.planned,
-      2.5,
-      [8, 5],
-    );
+    if (!model.fieldMode) {
+      drawDashedPolyline(
+        ctx,
+        model.plannedPath.map(map),
+        colors.planned,
+        2.5,
+        [8, 5],
+      );
+    }
     drawSolidPolyline(ctx, model.actualPath.map(map), colors.actual, 2.5);
-    drawPlanDeviationVector(
-      ctx,
-      model,
-      map,
-      colors,
-      options.selectedSurveyId,
-    );
+    drawFieldOverlays(ctx, model, map, colors);
+    if (!model.fieldMode) {
+      drawPlanDeviationVector(
+        ctx,
+        model,
+        map,
+        colors,
+        options.selectedSurveyId,
+      );
+    }
     for (const marker of markers) {
       const p = map(marker);
       drawMarker(ctx, p.x, p.y, marker.kind, colors);
@@ -525,14 +582,17 @@ export function drawTrajectoryGraphics(
         padding,
         verticalScale,
       );
-      drawDashedPolyline(
-        ctx,
-        model.plannedPath.map(map),
-        colors.planned,
-        2.5,
-        [8, 5],
-      );
+      if (!model.fieldMode) {
+        drawDashedPolyline(
+          ctx,
+          model.plannedPath.map(map),
+          colors.planned,
+          2.5,
+          [8, 5],
+        );
+      }
       drawSolidPolyline(ctx, model.actualPath.map(map), colors.actual, 2.5);
+      drawFieldOverlays(ctx, model, map, colors);
       for (const marker of markers) {
         const p = map(marker);
         drawMarker(ctx, p.x, p.y, marker.kind, colors);
@@ -623,8 +683,17 @@ export function drawTrajectoryGraphics(
     const actual = model.actualPath.map((point) =>
       project3d(point, model, camera, verticalScale, width, height),
     );
-    drawDashedPolyline(ctx, planned, colors.planned, 2.5, [8, 5]);
+    if (!model.fieldMode) {
+      drawDashedPolyline(ctx, planned, colors.planned, 2.5, [8, 5]);
+    }
     drawSolidPolyline(ctx, actual, colors.actual, 2.5);
+    drawFieldOverlays(
+      ctx,
+      model,
+      (point) =>
+        project3d(point, model, camera, verticalScale, width, height),
+      colors,
+    );
 
     const sortedMarkers = markers
       .map((marker) => ({

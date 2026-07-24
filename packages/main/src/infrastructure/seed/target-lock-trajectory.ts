@@ -36,6 +36,7 @@ export const ddh041TrajectorySeed: TrajectorySeed = {
     collarAzimuthTenths: 1280,
     collarNorthReference: "GRID",
     desurveyMethod: "MINIMUM_CURVATURE",
+    preferredSurveyIntervalDm: decimetres(300),
   },
   plans: [
     {
@@ -103,6 +104,8 @@ export const ddh041TrajectorySeed: TrajectorySeed = {
     northingDm: -2_200,
     rlDm: -5_200,
     radiusDm: 50,
+    targetMeasuredDepthDm: decimetres(6_500),
+    attitudeMode: "CUSTOM",
     desiredDipTenths: -740,
     desiredAzimuthTenths: 1450,
     desiredNorthReference: "GRID",

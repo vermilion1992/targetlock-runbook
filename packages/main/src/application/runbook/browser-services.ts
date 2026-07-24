@@ -28,6 +28,7 @@ import { createBrowserTrajectoryRepository } from "@/infrastructure/trajectory";
 import { createHoleAnalyticsQueryServices } from "./hole-analytics-query";
 import { createShiftAnalyticsQueryServices } from "./shift-analytics-query";
 import { createTrajectoryComparisonQueryServices } from "./trajectory-comparison-query";
+import { createMiniTargetLockQueryServices } from "./mini-target-lock-query";
 import { createBrowserShiftRepository } from "@/infrastructure/shifts";
 import {
   createBrowserSurveyRepository,
@@ -66,6 +67,9 @@ export type BrowserRunbookServices = ShiftServices &
     >;
     readonly trajectoryComparison: ReturnType<
       typeof createTrajectoryComparisonQueryServices
+    >;
+    readonly miniTargetLock: ReturnType<
+      typeof createMiniTargetLockQueryServices
     >;
   };
 
@@ -244,6 +248,10 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     surveys,
     currentState,
   });
+  const miniTargetLock = createMiniTargetLockQueryServices({
+    trajectory,
+    surveys,
+  });
 
   return {
     runs,
@@ -258,6 +266,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     surveyTools,
     trajectory,
     trajectoryComparison,
+    miniTargetLock,
     trays,
     photos,
     media,

@@ -9,9 +9,11 @@ import {
   type PlannedHoleTrajectory,
   type PlannedTrajectoryStation,
   type ReferenceConfiguration,
+  type TargetAttitudeMode,
   type TrajectorySurveySelection,
   type TrajectoryTrackingTolerance,
 } from "@/domain";
+import { migrateTargetAttitudeMode } from "@/domain/target-migration";
 import {
   getBrowserLocalStorageAdapter,
   type LocalStorageAdapter,
@@ -99,6 +101,12 @@ const referenceSchema = z.object({
   createdByNameSnapshot: z.string().min(1),
 });
 
+const targetAttitudeModeSchema = z.enum([
+  "UNCONSTRAINED",
+  "SAME_AS_COLLAR",
+  "CUSTOM",
+]);
+
 const targetSchema = z.object({
   id: z.string().min(1),
   holeId: z.string().min(1),
@@ -109,6 +117,7 @@ const targetSchema = z.object({
   rlDm: z.number().int(),
   radiusDm: z.number().int().nonnegative().optional(),
   targetMeasuredDepthDm: z.number().int().nonnegative().optional(),
+  attitudeMode: targetAttitudeModeSchema.optional(),
   desiredDipTenths: z.number().int().min(-900).max(900).optional(),
   desiredAzimuthTenths: z.number().int().min(0).max(3599).optional(),
   desiredNorthReference: northReferenceSchema.optional(),
@@ -124,6 +133,7 @@ const actualSchema = z.object({
   collarAzimuthTenths: z.number().int().min(0).max(3599),
   collarNorthReference: northReferenceSchema,
   desurveyMethod: z.literal("MINIMUM_CURVATURE"),
+  preferredSurveyIntervalDm: z.number().int().positive().optional(),
 });
 
 const selectionSchema = z.object({
@@ -250,7 +260,8 @@ export interface SaveHoleTargetInput {
   readonly northingDm: number;
   readonly rlDm: number;
   readonly radiusDm?: number;
-  readonly targetMeasuredDepthDm?: number;
+  readonly targetMeasuredDepthDm: number;
+  readonly attitudeMode?: TargetAttitudeMode;
   readonly desiredDipTenths?: number;
   readonly desiredAzimuthTenths?: number;
   readonly desiredNorthReference?: NorthReference;
@@ -266,6 +277,8 @@ export interface SaveActualConfigurationInput {
   readonly collarDipTenths: number;
   readonly collarAzimuthTenths: number;
   readonly collarNorthReference: NorthReference;
+  /** Pass null to clear a previously saved Survey interval. */
+  readonly preferredSurveyIntervalDm?: number | null;
   readonly occurredAt: string;
 }
 
@@ -373,12 +386,26 @@ function asSelection(
 }
 
 function asTarget(value: z.infer<typeof targetSchema>): HoleTarget {
+  const attitudeMode = migrateTargetAttitudeMode(value);
   return {
     ...value,
+    attitudeMode,
     targetMeasuredDepthDm:
       value.targetMeasuredDepthDm === undefined
         ? undefined
         : decimetres(value.targetMeasuredDepthDm),
+  };
+}
+
+function asActualConfiguration(
+  value: z.infer<typeof actualSchema>,
+): ActualTrajectoryConfiguration {
+  return {
+    ...value,
+    preferredSurveyIntervalDm:
+      value.preferredSurveyIntervalDm === undefined
+        ? undefined
+        : decimetres(value.preferredSurveyIntervalDm),
   };
 }
 
@@ -816,6 +843,27 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
           "Target version is stale.",
         );
       }
+      if (
+        input.targetMeasuredDepthDm === undefined ||
+        input.targetMeasuredDepthDm <= 0
+      ) {
+        throw new TrajectoryRepositoryError(
+          "VALIDATION_FAILED",
+          "Target measured depth must be positive.",
+        );
+      }
+      if (input.radiusDm !== undefined && input.radiusDm <= 0) {
+        throw new TrajectoryRepositoryError(
+          "VALIDATION_FAILED",
+          "Target diameter must be positive.",
+        );
+      }
+      const attitudeMode = migrateTargetAttitudeMode({
+        attitudeMode: input.attitudeMode,
+        desiredDipTenths: input.desiredDipTenths,
+        desiredAzimuthTenths: input.desiredAzimuthTenths,
+        desiredNorthReference: input.desiredNorthReference,
+      });
       const next: z.infer<typeof targetSchema> = {
         id: existing?.id ?? input.targetId ?? `target-${input.holeId}`,
         holeId: input.holeId,
@@ -826,6 +874,7 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
         rlDm: input.rlDm,
         radiusDm: input.radiusDm,
         targetMeasuredDepthDm: input.targetMeasuredDepthDm,
+        attitudeMode,
         desiredDipTenths: input.desiredDipTenths,
         desiredAzimuthTenths: input.desiredAzimuthTenths,
         desiredNorthReference: input.desiredNorthReference,
@@ -857,7 +906,8 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
   async getActualConfiguration(
     holeId: string,
   ): Promise<ActualTrajectoryConfiguration | null> {
-    return this.read(holeId).actualConfiguration;
+    const value = this.read(holeId).actualConfiguration;
+    return value ? asActualConfiguration(value) : null;
   }
 
   async saveActualConfiguration(
@@ -875,7 +925,15 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
           "Actual configuration version is stale.",
         );
       }
-      const next: ActualTrajectoryConfiguration = {
+      const preferredSurveyIntervalDm =
+        input.preferredSurveyIntervalDm === null
+          ? undefined
+          : input.preferredSurveyIntervalDm !== undefined
+            ? input.preferredSurveyIntervalDm
+            : existing?.preferredSurveyIntervalDm === undefined
+              ? undefined
+              : Number(existing.preferredSurveyIntervalDm);
+      const next: z.infer<typeof actualSchema> = {
         localId:
           existing?.localId ??
           input.configurationId ??
@@ -891,6 +949,9 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
         collarAzimuthTenths: input.collarAzimuthTenths,
         collarNorthReference: input.collarNorthReference,
         desurveyMethod: "MINIMUM_CURVATURE",
+        ...(preferredSurveyIntervalDm === undefined
+          ? {}
+          : { preferredSurveyIntervalDm }),
       };
       return {
         envelope: {
@@ -908,7 +969,7 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
             },
           ],
         },
-        result: next,
+        result: asActualConfiguration(next),
       };
     });
   }

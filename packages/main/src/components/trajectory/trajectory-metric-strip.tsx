@@ -1,23 +1,20 @@
 "use client";
 
-import type { HoleTrajectoryComparison } from "@/domain";
+import type { MiniTargetLockResult } from "@/domain";
 
-import {
-  formatEastShort,
-  formatMetresValue,
-  formatNorthShort,
-  formatVerticalOfPlan,
-} from "./trajectory-format";
+import { formatDegrees, formatMetresValue } from "./trajectory-format";
 
 function MetricCell({
   label,
   primary,
   secondary,
+  tertiary,
   testId,
 }: {
   label: string;
   primary: string;
   secondary?: string;
+  tertiary?: string;
   testId?: string;
 }) {
   return (
@@ -36,77 +33,126 @@ function MetricCell({
           {secondary}
         </p>
       ) : null}
+      {tertiary ? (
+        <p className="mt-0.5 text-xs tabular-nums text-[var(--tl-ink-muted)]">
+          {tertiary}
+        </p>
+      ) : null}
     </div>
   );
 }
 
+function northLabel(result: MiniTargetLockResult): string {
+  const ref = result.calculationNorthReference;
+  if (ref === "GRID") return "Grid";
+  if (ref === "TRUE") return "True";
+  if (ref === "MAGNETIC") return "Magnetic";
+  return "Azimuth";
+}
+
+function formatSignedDegrees(value: number): string {
+  if (!Number.isFinite(value)) return "—";
+  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
+  return `${sign}${Math.abs(value).toFixed(1)}°`;
+}
+
 export function TrajectoryMetricStrip({
-  comparison,
+  result,
 }: {
-  comparison: HoleTrajectoryComparison;
+  result: MiniTargetLockResult;
 }) {
-  const current = comparison.currentTrackingPoint;
-  const target = comparison.targetTracking;
+  const latest = result.latestSurvey;
+  const next = result.nextSurveyGuidance;
+  const projection = result.projection;
+  const distanceM = result.directToTarget?.distanceM;
+  const remaining = result.remainingMeasuredDepthM;
+  const intervalMissing =
+    result.target?.measuredDepthM !== undefined &&
+    result.surveyIntervalM === null;
 
   return (
     <section
-      className="grid grid-cols-2 gap-0 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 py-1 sm:grid-cols-3 lg:grid-cols-5"
+      className="grid grid-cols-2 gap-0 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 py-1 sm:grid-cols-3 lg:grid-cols-4"
       data-testid="current-trajectory-tracking"
     >
       <MetricCell
-        label="Latest Survey"
-        primary={
-          current ? formatMetresValue(current.measuredDepthM) : "—"
-        }
+        label="Next-Survey Dip"
+        primary={next ? formatDegrees(next.dipDegrees) : "—"}
         secondary={
-          comparison.activePlanName
-            ? comparison.activePlanName
+          next
+            ? `At ${formatMetresValue(next.measuredDepthM)} MD`
+            : intervalMissing
+              ? "Survey interval required"
+              : undefined
+        }
+        tertiary={
+          next
+            ? `Current ${formatDegrees(next.currentDipDegrees)} · Required change ${formatSignedDegrees(next.requiredDipChangeDegrees)}`
             : undefined
         }
+        testId="trajectory-metric-required-dip"
       />
       <MetricCell
-        label="Horizontal"
+        label="Next-Survey Azimuth"
         primary={
-          current
-            ? formatMetresValue(current.horizontalDeviationM)
+          next
+            ? `${formatDegrees(next.azimuthDegrees)} ${northLabel(result)}`
             : "—"
         }
         secondary={
-          current
-            ? `${formatEastShort(current.deltaEastingM)} / ${formatNorthShort(current.deltaNorthingM)}`
+          next
+            ? `At ${formatMetresValue(next.measuredDepthM)} MD`
+            : intervalMissing
+              ? "Survey interval required"
+              : undefined
+        }
+        tertiary={
+          next
+            ? `Current ${formatDegrees(next.currentAzimuthDegrees)} · Required change ${formatSignedDegrees(next.requiredAzimuthChangeDegrees)}`
             : undefined
         }
+        testId="trajectory-metric-required-azimuth"
       />
       <MetricCell
-        label="Vertical"
+        label="Projected Miss"
         primary={
-          current
-            ? formatMetresValue(Math.abs(current.verticalDeviationM))
+          projection
+            ? projection.intersectsTarget
+              ? "0.0 m"
+              : formatMetresValue(projection.missOutsideTargetM)
             : "—"
         }
         secondary={
-          current ? formatVerticalOfPlan(current.deltaRlM) : undefined
+          projection
+            ? projection.intersectsTarget
+              ? "Inside / intersects target"
+              : `${formatMetresValue(projection.missOutsideTargetM)} outside target`
+            : result.target
+              ? undefined
+              : "Set a target"
         }
+        tertiary={
+          projection
+            ? `Closest approach ${formatMetresValue(projection.closestApproachM)} · Radius ${formatMetresValue((result.target?.diameterM ?? 6) / 2)}`
+            : latest
+              ? undefined
+              : undefined
+        }
+        testId="trajectory-metric-projected-miss"
       />
       <MetricCell
-        label="3D Deviation"
+        label="Distance to Target"
         primary={
-          current ? formatMetresValue(current.spatialDeviationM) : "—"
-        }
-        secondary={
-          comparison.toleranceConfigured
-            ? undefined
-            : "No project tolerance configured"
-        }
-      />
-      <MetricCell
-        label="Target"
-        primary={
-          target
-            ? formatMetresValue(target.actualEndpointDistanceM)
+          distanceM !== undefined && distanceM !== null
+            ? formatMetresValue(distanceM)
             : "—"
         }
-        secondary={target ? "away" : "No target"}
+        secondary="Straight spatial distance"
+        tertiary={
+          remaining !== null && remaining !== undefined
+            ? `Remaining MD ${formatMetresValue(remaining)}`
+            : undefined
+        }
         testId="trajectory-metric-target"
       />
     </section>

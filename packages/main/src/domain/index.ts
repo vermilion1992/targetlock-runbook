@@ -22,3 +22,6 @@ export * from "./trajectory-tracking";
 export * from "./trajectory-validation";
 export * from "./trajectory-comparison";
 export * from "./trajectory-view-model";
+export * from "./mini-target-lock";
+export * from "./target-migration";
+export * from "./curved-target-solver";
