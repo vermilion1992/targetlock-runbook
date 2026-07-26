@@ -511,7 +511,10 @@ describe("generateReport", () => {
       services,
     );
     expect(result.status).toBe("cancelled");
-    const report = await services.reports.getReport(generated.report.localId);
+    const report = await services.reports.getReport(
+      generated.report.localId,
+      "DDH041",
+    );
     expect(report?.activityStatus).not.toBe("SHARED");
     expect(
       services.audits.entries.some((entry) => entry.action === "report_share_cancelled"),

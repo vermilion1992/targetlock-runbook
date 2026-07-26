@@ -8,6 +8,7 @@ import type {
   TrajectorySurveySelection,
 } from "@/domain";
 import { buildStraightPlanStations, decimetres } from "@/domain";
+import { TrajectoryRepositoryError } from "@/infrastructure/trajectory";
 import type {
   SaveActualConfigurationInput,
   SaveCoordinateConfigurationInput,
@@ -17,9 +18,14 @@ import type {
   SaveSurveySelectionInput,
   TrajectoryRepository,
 } from "@/infrastructure/trajectory";
+import type { SurveyRepository } from "@/infrastructure/surveys";
 
 export interface TrajectoryServices {
   readonly trajectory: TrajectoryRepository;
+}
+
+export interface TrajectorySurveySelectionServices extends TrajectoryServices {
+  readonly surveys: Pick<SurveyRepository, "getById">;
 }
 
 export async function getTrajectorySetup(holeId: string, services: TrajectoryServices) {
@@ -165,7 +171,17 @@ export async function saveActualTrajectoryConfiguration(
 
 export async function saveTrajectorySurveySelection(
   input: SaveSurveySelectionInput,
-  services: TrajectoryServices,
+  services: TrajectorySurveySelectionServices,
 ): Promise<TrajectorySurveySelection> {
+  const survey = await services.surveys.getById(
+    input.selectedSurveyId,
+    input.holeId,
+  );
+  if (survey === null) {
+    throw new TrajectoryRepositoryError(
+      "VALIDATION_FAILED",
+      "The selected survey does not belong to this hole.",
+    );
+  }
   return services.trajectory.saveSurveySelection(input);
 }

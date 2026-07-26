@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
 
 import {
   createBrowserRunbookServices,
@@ -50,6 +50,10 @@ export function RunVoidForm({
   const [isDirty, setIsDirty] = useState(false);
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
   const parentHref = runbookRoutes.runDetail(holeId, runId);
+  const seedRuns = useMemo(
+    () => targetLockStage5Seed.runs.filter((item) => item.holeId === holeId),
+    [holeId],
+  );
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -67,9 +71,7 @@ export function RunVoidForm({
         if (local.status === "invalid") throw new Error(local.reason);
         let snapshot = local.snapshots.find((item) => item.localId === runId);
         if (snapshot === undefined) {
-          const seed = targetLockStage5Seed.runs.find(
-            (item) => item.localId === runId,
-          );
+          const seed = seedRuns.find((item) => item.localId === runId);
           if (seed === undefined) throw new Error("The run was not found.");
           snapshot = await services.runCorrections.materializeSeedRun(holeId, {
             localId: seed.localId,
@@ -125,12 +127,13 @@ export function RunVoidForm({
             lifecycle?.status === "ARCHIVED",
         );
       })
-      .catch((caught: unknown) =>
+      .catch((caught: unknown) => {
+        setRun(null);
         setError(
           caught instanceof Error ? caught.message : "Run could not be loaded.",
-        ),
-      );
-  }, [holeId, runId]);
+        );
+      });
+  }, [holeId, runId, seedRuns]);
 
   useEffect(() => {
     if (run === null) return;
@@ -143,14 +146,14 @@ export function RunVoidForm({
         reason,
         comment,
         rodEventResolution: rodResolution,
-        seedRuns: targetLockStage5Seed.runs,
+        seedRuns,
         reportIds: [],
       },
       services,
     )
       .then(setImpact)
       .catch(() => setImpact(null));
-  }, [holeId, runId, run, reason, comment, rodResolution]);
+  }, [holeId, runId, run, reason, comment, rodResolution, seedRuns]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -194,7 +197,7 @@ export function RunVoidForm({
           reportIds: reports.map((report) => report.localId),
           acknowledgeWarnings:
             acknowledgeWarnings || (impact?.warnings.length ?? 0) === 0,
-          seedRuns: targetLockStage5Seed.runs,
+          seedRuns,
         },
         services,
       );

@@ -584,14 +584,15 @@ export function findTrackingPointForSurvey(
   return model.trackingPoints.find((point) => point.actualSurveyId === surveyId);
 }
 
-/**
- * Field Mini TargetLock view-model: actual path + target overlays only.
- * Planned path is omitted from the normal field workflow.
- */
+/** Field Mini TargetLock view-model with optional planned-path context. */
 export function buildFieldTrajectoryViewModel(
   result: MiniTargetLockResult,
+  comparison?: HoleTrajectoryComparison | null,
 ): TrajectoryViewModel {
   const actual = result.actualTrajectory;
+  const planned = comparison?.planned ?? null;
+  const plannedPath = (planned?.renderPath ?? []).map(toPathPoint);
+  const plannedStations = (planned?.stations ?? []).map(toPathPoint);
   const actualPath = (actual?.renderPath ?? []).map(toPathPoint);
   const surveyStations = (actual?.stations ?? [])
     .filter(
@@ -601,6 +602,17 @@ export function buildFieldTrajectoryViewModel(
     .map(toPathPoint);
 
   const markers: TrajectoryMarkerPoint[] = [];
+  for (const station of planned?.stations ?? []) {
+    if (station.sourceType === "COLLAR") continue;
+    markers.push({
+      ...toPathPoint(station),
+      kind: "PLANNED_STATION",
+      label: `Plan ${station.measuredDepthM.toFixed(1)} m`,
+      sourceId: station.sourceId,
+      dipDegrees: station.dipDegrees,
+      azimuthDegrees: station.azimuthDegrees,
+    });
+  }
   if (actual?.collar) {
     markers.push({
       ...toPathPoint({ ...actual.collar, measuredDepthM: 0 }),
@@ -690,12 +702,16 @@ export function buildFieldTrajectoryViewModel(
       (point, index) => ({
         ...point,
         measuredDepthM:
-          (result.latestSurvey?.measuredDepthM ?? 0) + index,
+          (result.latestSurvey?.measuredDepthM ?? 0) +
+          (result.projection!.projectionLengthM * index) /
+            Math.max(1, result.projection!.projectedPath.length - 1),
       }),
     );
     closestApproachPoint = {
-      ...result.projection.closestApproachPosition,
-      measuredDepthM: result.latestSurvey?.measuredDepthM ?? 0,
+      ...result.projection.projectedEndpoint,
+      measuredDepthM:
+        (result.latestSurvey?.measuredDepthM ?? 0) +
+        result.projection.projectionLengthM,
     };
     if (result.target) {
       missVector = {
@@ -711,6 +727,7 @@ export function buildFieldTrajectoryViewModel(
   }
 
   const allPoints: TrajectoryPathPoint[] = [
+    ...plannedPath,
     ...actualPath,
     ...markers,
     ...(projectedContinuationPath ?? []),
@@ -782,9 +799,9 @@ export function buildFieldTrajectoryViewModel(
   return {
     holeId: result.holeId,
     engineVersion: actual?.engineVersion ?? "minimum-curvature-v1",
-    plannedPath: [],
+    plannedPath,
     actualPath,
-    plannedStations: [],
+    plannedStations,
     surveyStations,
     markers,
     target,

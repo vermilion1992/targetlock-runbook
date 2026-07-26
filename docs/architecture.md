@@ -196,7 +196,8 @@ Browser APIs must remain behind client boundaries. Seed data and pure calculatio
 
 ## State ownership
 
-- **Seed state:** immutable, realistic `DDH041` fixture.
+- **Seed state:** immutable multi-hole fixtures; `DDH041` carries the full
+  operational history and lifecycle examples use additional canonical hole IDs.
 - **Casing state:** hole-scoped current strings plus immutable lifecycle and
   correction events.
 - **Component state:** organisation-scoped registry and assignments so
@@ -209,13 +210,38 @@ Browser APIs must remain behind client boundaries. Seed data and pure calculatio
   stations and immutable corrections. Tool name/serial are snapshots.
 - **Tray state:** hole-scoped completed trays, immutable detail/photo
   corrections, and the active `primaryPhotoId`.
-- **Media state:** original/preview blobs in IndexedDB; `Photo` metadata and
-  storage keys in the tray localStorage envelope.
+- **Media state:** original/preview blobs in IndexedDB under
+  organisation/hole-prefixed keys; `Photo` metadata and exact storage keys in
+  the tray localStorage envelope.
 - **Completion state:** organisation-scoped hole status, active review,
   immutable completion snapshots, reopen history, and recoverable transaction
   stage. Locked statuses block operational mutators.
 - **Derived state:** calculated on demand; never persisted as authoritative input.
 - **View state:** panel expansion, active field, theme choice, and transient messages.
+
+### Browser storage coordination
+
+Browser repositories created by `createBrowserRunbookServices` pass through a
+shared `RunbookOperationCoordinator`. On supported browsers, the Web Locks API
+serialises operations across tabs on the same origin. A module-level promise
+queue also serialises service instances within one tab. Run-draft mutations and
+project-default writes use the same coordinator when created directly.
+
+Writes publish a `BroadcastChannel` message. The shell also listens for native
+`storage` events and prompts a stale tab to reload. Reads remain behind
+repository boundaries; UI code must not access localStorage or IndexedDB
+directly. If Web Locks is unavailable, only same-tab ordering is guaranteed.
+
+New binary keys are scoped independently of their global IndexedDB stores:
+
+```text
+targetlock:v2:org:{organisationId}:hole:{holeId}:media:{operationId}:{kind}:…
+targetlock:v2:org:{organisationId}:hole:{holeId}:report:{operationId}
+```
+
+Existing metadata remains compatible because it stores the complete legacy
+blob key. There is no automatic blob garbage collection when metadata is
+removed.
 
 Run persistence schema V4 adds nullable active bit/reamer assignment IDs,
 immutable serial snapshots, and a casing summary to V3 ownership. Valid V1–V3
@@ -236,8 +262,8 @@ repository-compatible surveys, survey tools, trays, photos, Stage 4 audits, and
 the `250 dm` preferred survey interval. Seed survey/tray records are read-only
 fallback data until the first local write creates the corresponding version-1
 envelope. Browser services still supply the inherited Stage 3 component
-assignments as conservative V2/V3-to-V4 run-migration candidates, including the
-legacy `hole-ddh041` handling already performed by the Stage 3 bootstrap.
+assignments as conservative V2/V3-to-V4 run-migration candidates under
+canonical `DDH041` ownership.
 Stage 4 must not reseed or overwrite a valid local envelope after restart.
 
 `targetLockStage5Seed` spreads the Stage 4 seed, keeps `DDH041` `ACTIVE` for

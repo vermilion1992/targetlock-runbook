@@ -1,6 +1,6 @@
 import { notFound, redirect } from "next/navigation";
 
-import { targetLockStage1Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 interface RunsPageProps {
   params: Promise<{ holeId: string }>;
@@ -8,7 +8,7 @@ interface RunsPageProps {
 
 export default async function RunsPage({ params }: RunsPageProps) {
   const { holeId } = await params;
-  if (holeId !== targetLockStage1Seed.hole.name) {
+  if (!isRoutableHoleId(holeId)) {
     notFound();
   }
 

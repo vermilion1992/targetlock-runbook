@@ -198,12 +198,15 @@ export interface CreatePhotoInput {
 
 export interface TrayRepository {
   listByHole(holeId: string): Promise<readonly Tray[]>;
-  getById(trayId: string): Promise<Tray | null>;
+  getById(trayId: string, holeId: string): Promise<Tray | null>;
   findByNumber(holeId: string, trayNumber: number): Promise<Tray | null>;
   createWithPhoto(input: CreateTrayWithPhotoInput): Promise<Tray>;
   updateDetails(input: UpdateTrayDetailsInput): Promise<Tray>;
   replacePhoto(input: ReplaceTrayPhotoInput): Promise<Tray>;
-  listCorrections(trayId: string): Promise<readonly TrayCorrection[]>;
+  listCorrections(
+    trayId: string,
+    holeId: string,
+  ): Promise<readonly TrayCorrection[]>;
   listPendingOperations(
     holeId: string,
   ): Promise<readonly TrayPendingOperation[]>;
@@ -211,8 +214,9 @@ export interface TrayRepository {
 }
 
 export interface PhotoRepository {
-  getById(photoId: string): Promise<Photo | null>;
+  getById(photoId: string, holeId: string): Promise<Photo | null>;
   listByEntity(
+    holeId: string,
     entityType: Photo["entityType"],
     entityId: string,
   ): Promise<readonly Photo[]>;
@@ -364,17 +368,11 @@ export class LocalTrayRepository implements TrayRepository {
       .sort((left, right) => right.trayNumber - left.trayNumber);
   }
 
-  async getById(trayId: string): Promise<Tray | null> {
-    for (const holeId of [
-      ...new Set(this.seedTrays.map((tray) => tray.holeId)),
-      "DDH041",
-    ]) {
-      const tray = this.read(holeId).trays.find(
-        ({ localId }) => localId === trayId,
-      );
-      if (tray !== undefined) return asTray(tray);
-    }
-    return null;
+  async getById(trayId: string, holeId: string): Promise<Tray | null> {
+    const tray = this.read(holeId).trays.find(
+      ({ localId }) => localId === trayId,
+    );
+    return tray === undefined ? null : asTray(tray);
   }
 
   async findByNumber(
@@ -387,32 +385,21 @@ export class LocalTrayRepository implements TrayRepository {
     return tray === undefined ? null : asTray(tray);
   }
 
-  async getPhotoById(photoId: string): Promise<Photo | null> {
-    for (const holeId of [
-      ...new Set(this.seedPhotos.map((photo) => photo.holeId)),
-      "DDH041",
-    ]) {
-      const photo = this.read(holeId).photos.find(
-        ({ localId }) => localId === photoId,
-      );
-      if (photo !== undefined) return photo;
-    }
-    return null;
+  async getPhotoById(photoId: string, holeId: string): Promise<Photo | null> {
+    return (
+      this.read(holeId).photos.find(({ localId }) => localId === photoId) ??
+      null
+    );
   }
 
   async listPhotosByEntity(
+    holeId: string,
     entityType: Photo["entityType"],
     entityId: string,
   ): Promise<readonly Photo[]> {
-    const holeIds = new Set([
-      ...this.seedPhotos.map((photo) => photo.holeId),
-      "DDH041",
-    ]);
-    return [...holeIds].flatMap((holeId) =>
-      this.read(holeId).photos.filter(
-        (photo) =>
-          photo.entityType === entityType && photo.entityId === entityId,
-      ),
+    return this.read(holeId).photos.filter(
+      (photo) =>
+        photo.entityType === entityType && photo.entityId === entityId,
     );
   }
 
@@ -439,10 +426,13 @@ export class LocalTrayRepository implements TrayRepository {
     return parsed;
   }
 
-  async listCorrections(trayId: string): Promise<readonly TrayCorrection[]> {
-    const tray = await this.getById(trayId);
+  async listCorrections(
+    trayId: string,
+    holeId: string,
+  ): Promise<readonly TrayCorrection[]> {
+    const tray = await this.getById(trayId, holeId);
     if (tray === null) return [];
-    return this.read(tray.holeId)
+    return this.read(holeId)
       .corrections.filter((correction) => correction.trayId === trayId)
       .sort(
         (left, right) =>
@@ -526,6 +516,7 @@ export class LocalTrayRepository implements TrayRepository {
     try {
       const original = await this.media.saveOriginal({
         operationId: input.operationId,
+        holeId: input.holeId,
         blob: input.original,
       });
       if (!(await this.media.verify(original.storageKey))) {
@@ -562,6 +553,7 @@ export class LocalTrayRepository implements TrayRepository {
       if (previewBlob !== undefined) {
         const preview = await this.media.savePreview({
           operationId: input.operationId,
+          holeId: input.holeId,
           blob: previewBlob,
         });
         if (!(await this.media.verify(preview.storageKey))) {
@@ -1024,15 +1016,16 @@ export class LocalTrayRepository implements TrayRepository {
 export class LocalPhotoRepository implements PhotoRepository {
   constructor(private readonly trays: LocalTrayRepository) {}
 
-  async getById(photoId: string): Promise<Photo | null> {
-    return this.trays.getPhotoById(photoId);
+  async getById(photoId: string, holeId: string): Promise<Photo | null> {
+    return this.trays.getPhotoById(photoId, holeId);
   }
 
   async listByEntity(
+    holeId: string,
     entityType: Photo["entityType"],
     entityId: string,
   ): Promise<readonly Photo[]> {
-    return this.trays.listPhotosByEntity(entityType, entityId);
+    return this.trays.listPhotosByEntity(holeId, entityType, entityId);
   }
 
   async create(input: CreatePhotoInput): Promise<Photo> {

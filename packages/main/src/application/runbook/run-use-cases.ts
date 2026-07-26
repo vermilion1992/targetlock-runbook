@@ -127,7 +127,11 @@ export async function startRun(
     activeReamerSerialNumberSnapshot: reamer?.serialNumber ?? null,
     casingSummarySnapshot: casingSummary,
   };
-  const saved = services.runs.writeDraft(input.holeId, payload, input.startedAt);
+  const saved = await services.runs.writeDraft(
+    input.holeId,
+    payload,
+    input.startedAt,
+  );
   if (!saved.ok) throw new Error(saved.reason);
   await services.audits.append(
     runAudit({
@@ -223,7 +227,7 @@ export async function completeRun(
     voidedByUserId: null,
     voidedByNameSnapshot: null,
   };
-  const result = services.runs.saveCompletedRun(values.holeId, snapshot);
+  const result = await services.runs.saveCompletedRun(values.holeId, snapshot);
   if (!result.ok) return result;
 
   const actor = {
@@ -264,6 +268,6 @@ export async function completeRun(
       }),
     );
   }
-  services.runs.clearDraft(values.holeId);
+  await services.runs.clearDraft(values.holeId);
   return result;
 }

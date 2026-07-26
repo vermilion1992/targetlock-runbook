@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { SurveyCorrectionForm } from "@/components/surveys/survey-correction-form";
-import { targetLockStage4Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function CorrectSurveyPage({
   params,
@@ -9,6 +9,6 @@ export default async function CorrectSurveyPage({
   params: Promise<{ holeId: string; surveyId: string }>;
 }) {
   const { holeId, surveyId } = await params;
-  if (holeId !== targetLockStage4Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return <SurveyCorrectionForm holeId={holeId} surveyId={surveyId} />;
 }

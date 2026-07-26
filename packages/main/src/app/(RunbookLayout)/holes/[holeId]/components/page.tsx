@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { HoleComponentSummary } from "@/components/components/hole-component-summary";
-import { targetLockStage3Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 const NOTICES = [
   "bit-assigned",
@@ -18,7 +18,7 @@ export default async function HoleComponentsPage({
   searchParams: Promise<{ notice?: string | string[] }>;
 }) {
   const [{ holeId }, query] = await Promise.all([params, searchParams]);
-  if (holeId !== targetLockStage3Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   const notice =
     typeof query.notice === "string" &&
     NOTICES.includes(query.notice as (typeof NOTICES)[number])

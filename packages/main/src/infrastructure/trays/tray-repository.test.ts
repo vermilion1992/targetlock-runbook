@@ -72,7 +72,7 @@ describe("LocalTrayRepository media transactions", () => {
     const input = createInput();
     const saved = await repository.createWithPhoto(input);
     expect(saved.primaryPhotoId).toBe(input.photoId);
-    const photo = await repository.getPhotoById(input.photoId);
+    const photo = await repository.getPhotoById(input.photoId, input.holeId);
     expect(photo?.originalStorageKey).toBeTruthy();
     expect(await media.verify(photo!.originalStorageKey)).toBe(true);
     await expect(repository.createWithPhoto(input)).resolves.toEqual(saved);
@@ -116,14 +116,27 @@ describe("LocalTrayRepository media transactions", () => {
       userNameSnapshot: "M. Hoffman",
     });
     expect(replaced.primaryPhotoId).toBe("photo-replacement");
-    expect(await repository.getPhotoById(previousPhotoId)).not.toBeNull();
-    expect(await repository.listCorrections(tray.localId)).toMatchObject([
+    expect(
+      await repository.getPhotoById(previousPhotoId, tray.holeId),
+    ).not.toBeNull();
+    expect(
+      await repository.listCorrections(tray.localId, tray.holeId),
+    ).toMatchObject([
       {
         fieldName: "primaryPhotoId",
         previousValue: previousPhotoId,
         correctedValue: "photo-replacement",
       },
     ]);
+    await expect(
+      repository.getById(tray.localId, "DDH042"),
+    ).resolves.toBeNull();
+    await expect(
+      repository.getPhotoById(previousPhotoId, "DDH042"),
+    ).resolves.toBeNull();
+    await expect(
+      repository.listCorrections(tray.localId, "DDH042"),
+    ).resolves.toEqual([]);
   });
 
   it("leaves no tray record when media storage fails", async () => {

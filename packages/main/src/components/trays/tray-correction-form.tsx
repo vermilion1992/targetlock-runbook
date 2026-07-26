@@ -50,7 +50,7 @@ export function TrayCorrectionForm({
       return;
     }
     void services.trays
-      .getById(trayId)
+      .getById(trayId, holeId)
       .then((record) => {
         if (record === null || record.holeId !== holeId) {
           throw new Error("Tray was not found.");

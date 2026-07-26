@@ -4,7 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BookOpenCheck,
-  Clock3,
+  Compass,
   Ellipsis,
   Layers3,
   LocateFixed,
@@ -18,7 +18,7 @@ import {
 } from "@/components/navigation/runbook-routes";
 
 interface NavigationItem {
-  label: "Current Hole" | "Runbook" | "Trays" | "Timeline" | "More";
+  label: "Current Hole" | "Runbook" | "Trays" | "Trajectory" | "More";
   href: (holeId: string) => string;
   icon: LucideIcon;
 }
@@ -31,7 +31,7 @@ const navigationItems: readonly NavigationItem[] = [
   },
   { label: "Runbook", href: runbookRoutes.runbook, icon: BookOpenCheck },
   { label: "Trays", href: runbookRoutes.trays, icon: Layers3 },
-  { label: "Timeline", href: runbookRoutes.timeline, icon: Clock3 },
+  { label: "Trajectory", href: runbookRoutes.trajectory, icon: Compass },
   { label: "More", href: runbookRoutes.more, icon: Ellipsis },
 ];
 

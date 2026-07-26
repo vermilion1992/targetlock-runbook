@@ -391,16 +391,16 @@ export function ChangeComponentForm({
             </select>
             {context?.incomingComponents.length === 0 ? (
               <p role="status" className="mt-3 text-sm font-semibold text-[var(--tl-warning)]">
-                Add an available {typeLabel.toLocaleLowerCase("en-AU")} to the registry before continuing.
+                Record an available {typeLabel.toLocaleLowerCase("en-AU")} serial before continuing.
               </p>
             ) : null}
             <div className="mt-3 flex flex-wrap gap-3">
               <Link
-                href={`/components/new?type=${componentType}`}
+                href={`/components/new?type=${componentType}&holeId=${encodeURIComponent(holeId)}&returnTo=${encodeURIComponent(parentHref)}`}
                 target="_blank"
                 className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
               >
-                Add new {typeLabel.toLocaleLowerCase("en-AU")}
+                Add {typeLabel.toLocaleLowerCase("en-AU")} serial
               </Link>
               <button
                 type="button"

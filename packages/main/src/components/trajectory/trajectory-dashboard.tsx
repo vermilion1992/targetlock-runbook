@@ -3,12 +3,14 @@
 import { useCallback, useEffect, useState } from "react";
 
 import { createBrowserRunbookServices } from "@/application/runbook";
-import type { MiniTargetLockResult } from "@/domain";
+import type { HoleTrajectoryComparison, MiniTargetLockResult } from "@/domain";
 
 import { TrajectoryCockpit } from "./trajectory-cockpit";
 
 export function TrajectoryDashboard({ holeId }: { holeId: string }) {
   const [result, setResult] = useState<MiniTargetLockResult | null>(null);
+  const [comparison, setComparison] =
+    useState<HoleTrajectoryComparison | null>(null);
   const [message, setMessage] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [reloadToken, setReloadToken] = useState(0);
@@ -52,6 +54,14 @@ export function TrajectoryDashboard({ holeId }: { holeId: string }) {
       .finally(() => {
         if (active) setLoading(false);
       });
+    void services.trajectoryComparison
+      .getComparison(holeId)
+      .then((nextComparison) => {
+        if (active) setComparison(nextComparison);
+      })
+      .catch(() => {
+        if (active) setComparison(null);
+      });
     return () => {
       active = false;
     };
@@ -83,7 +93,12 @@ export function TrajectoryDashboard({ holeId }: { holeId: string }) {
 
   return (
     <div data-testid="trajectory-dashboard">
-      <TrajectoryCockpit holeId={holeId} result={result} onReload={reload} />
+      <TrajectoryCockpit
+        holeId={holeId}
+        result={result}
+        comparison={comparison}
+        onReload={reload}
+      />
     </div>
   );
 }

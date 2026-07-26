@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  assessSteeringConstraints,
   buildRecoveryIntervalDiagnostics,
   CURVED_SOLVER_POSITION_TOLERANCE_M,
   nextSurveyMeasuredDepth,
@@ -124,6 +125,12 @@ describe("solveCurvedTarget", () => {
           radiusM: 3,
           attitudeMode: "AUTO_SMOOTH",
         },
+        steeringLimits: {
+          maximumDoglegPer30mDegrees: 30,
+          maximumLiftPer30mDegrees: 30,
+          maximumDropPer30mDegrees: 30,
+          maximumTurnPer30mDegrees: 30,
+        },
       }),
     );
     expect(["SOLVED", "REVIEW_REQUIRED"]).toContain(result.status);
@@ -134,6 +141,27 @@ describe("solveCurvedTarget", () => {
     );
     expect(result.path.length).toBeGreaterThanOrEqual(2);
     expect(result.nextSurveyTarget?.measuredDepthM).toBe(30);
+  });
+
+  it("withholds next-survey guidance outside the configured steering envelope", () => {
+    const result = solveCurvedTarget(
+      baseInput({
+        steeringLimits: {
+          maximumDoglegPer30mDegrees: 0.1,
+          maximumLiftPer30mDegrees: 0.1,
+          maximumDropPer30mDegrees: 0.1,
+          maximumTurnPer30mDegrees: 0.1,
+        },
+      }),
+    );
+    expect(result.solverConverged).toBe(true);
+    expect(result.steeringAssessment?.feasible).toBe(false);
+    expect(result.nextSurveyTarget).toBeNull();
+    expect(
+      result.warnings.some(
+        (warning) => warning.code === "STEERING_LIMIT_EXCEEDED",
+      ),
+    ).toBe(true);
   });
 
   it("respects SAME_AS_COLLAR endpoint attitude", () => {
@@ -520,7 +548,11 @@ describe("solveCurvedTarget", () => {
       dipDegrees: -62.1,
       azimuthDegrees: 129.8,
     });
-    expect(result.nextSurveyTarget?.measuredDepthM).toBe(455);
+    expect(result.steeringAssessment?.feasible).toBe(false);
+    expect(result.nextSurveyTarget).toBeNull();
+    expect(
+      result.warnings.some((w) => w.code === "STEERING_LIMIT_EXCEEDED"),
+    ).toBe(true);
     expect(result.targetAttitudeResidual).toBeUndefined();
     expect(result.warnings.some((w) => w.code === "TARGET_MD_REVIEW_REQUIRED")).toBe(
       false,
@@ -629,6 +661,33 @@ describe("solveCurvedTarget", () => {
 });
 
 describe("recovery path diagnostics", () => {
+  it("reports lift, drop, turn and combined dogleg envelope violations", () => {
+    const intervals = buildRecoveryIntervalDiagnostics([
+      {
+        measuredDepthM: 0,
+        dipDegrees: -60,
+        azimuthDegrees: 100,
+      },
+      {
+        measuredDepthM: 30,
+        dipDegrees: -50,
+        azimuthDegrees: 106,
+      },
+    ]);
+    const assessment = assessSteeringConstraints(intervals, {
+      maximumDoglegPer30mDegrees: 8,
+      maximumLiftPer30mDegrees: 8,
+      maximumDropPer30mDegrees: 8,
+      maximumTurnPer30mDegrees: 5,
+    });
+    expect(assessment.feasible).toBe(false);
+    expect(assessment.maximumLiftPer30mDegrees).toBeCloseTo(10, 5);
+    expect(assessment.maximumTurnPer30mDegrees).toBeCloseTo(6, 5);
+    expect(assessment.violations.map(({ kind }) => kind)).toEqual(
+      expect.arrayContaining(["LIFT", "TURN"]),
+    );
+  });
+
   it("reports interval DLS, build and turn rates", () => {
     const intervals = buildRecoveryIntervalDiagnostics([
       {

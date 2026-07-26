@@ -202,12 +202,15 @@ export interface UpdateSurveyToolInput {
 
 export interface SurveyRepository {
   listByHole(holeId: string): Promise<readonly Survey[]>;
-  getById(surveyId: string): Promise<Survey | null>;
+  getById(surveyId: string, holeId: string): Promise<Survey | null>;
   assertHoleMutable(holeId: string): void;
   create(input: CreateSurveyInput): Promise<Survey>;
   correct(input: CorrectSurveyInput): Promise<Survey>;
   attachPhoto(input: AttachSurveyPhotoInput): Promise<Survey>;
-  listCorrections(surveyId: string): Promise<readonly SurveyCorrection[]>;
+  listCorrections(
+    surveyId: string,
+    holeId: string,
+  ): Promise<readonly SurveyCorrection[]>;
 }
 
 export interface SurveyToolRepository {
@@ -355,18 +358,25 @@ export class LocalSurveyRepository
       );
   }
 
-  async getById(surveyId: string): Promise<Survey | null> {
+  async getById(surveyId: string, holeId: string): Promise<Survey | null> {
     const survey = this.read().surveys.find(
-      ({ localId }) => localId === surveyId,
+      ({ localId, holeId: ownerHoleId }) =>
+        localId === surveyId && ownerHoleId === holeId,
     );
     return survey === undefined ? null : asSurvey(survey);
   }
 
   async listCorrections(
     surveyId: string,
+    holeId: string,
   ): Promise<readonly SurveyCorrection[]> {
-    return this.read()
-      .corrections.filter((correction) => correction.surveyId === surveyId)
+    const envelope = this.read();
+    const belongsToHole = envelope.surveys.some(
+      (survey) => survey.localId === surveyId && survey.holeId === holeId,
+    );
+    if (!belongsToHole) return [];
+    return envelope.corrections
+      .filter((correction) => correction.surveyId === surveyId)
       .sort(
         (left, right) =>
           Date.parse(right.correctedAt) - Date.parse(left.correctedAt),

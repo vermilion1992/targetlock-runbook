@@ -122,8 +122,20 @@ export interface ActualTrajectoryConfiguration extends SyncMetadata {
   readonly collarAzimuthTenths: number;
   readonly collarNorthReference: NorthReference;
   readonly desurveyMethod: DesurveyMethod;
+  /** Default north reference offered when recording the next Survey. */
+  readonly preferredSurveyNorthReference?: NorthReference;
   /** Default Survey interval in decimetres (0.1 m). Used for next-Survey guidance. */
   readonly preferredSurveyIntervalDm?: Decimetres;
+  /** Maximum combined dogleg severity in tenths of a degree per 30 m. */
+  readonly maximumDoglegPer30mTenths?: number;
+  /** Maximum positive dip change (lift) in tenths of a degree per 30 m. */
+  readonly maximumLiftPer30mTenths?: number;
+  /** Maximum negative dip change (drop) in tenths of a degree per 30 m. */
+  readonly maximumDropPer30mTenths?: number;
+  /** Maximum absolute azimuth change in tenths of a degree per 30 m. */
+  readonly maximumTurnPer30mTenths?: number;
+  /** Changes smaller than this are presented as HOLD, in tenths of a degree. */
+  readonly guidanceDeadbandTenths?: number;
 }
 
 export type TrajectorySurveySelectionReason =

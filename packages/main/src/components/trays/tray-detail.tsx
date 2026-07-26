@@ -55,9 +55,9 @@ export function TrayDetail({
       return;
     }
     void Promise.all([
-      services.trays.getById(trayId),
+      services.trays.getById(trayId, holeId),
       services.trays.listByHole(holeId),
-      services.trays.listCorrections(trayId),
+      services.trays.listCorrections(trayId, holeId),
       services.shifts.listByHole(holeId),
       Promise.resolve(services.runs.readCompletedRuns(holeId)),
     ])
@@ -68,7 +68,7 @@ export function TrayDetail({
         if (localRuns.status === "invalid") throw new Error(localRuns.reason);
         setTray(record);
         setCorrections(history);
-        setPhoto(await services.photos.getById(record.primaryPhotoId));
+        setPhoto(await services.photos.getById(record.primaryPhotoId, holeId));
         setShift(
           shifts.find(({ localId }) => localId === record.shiftId) ?? null,
         );
@@ -85,6 +85,7 @@ export function TrayDetail({
           ...targetLockStage4Seed.runs
             .filter(
               (run) =>
+                run.holeId === holeId &&
                 run.status !== "in_progress" &&
                 !localNumbers.has(run.runNumber),
             )

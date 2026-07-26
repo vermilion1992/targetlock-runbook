@@ -2,8 +2,8 @@
  * Field-facing Mini TargetLock geometry.
  *
  * Computes curved recovery guidance, next-Survey KPIs, and current-attitude
- * projected miss from verified desurvey coordinates.
- * Does not evaluate steering-tool feasibility.
+ * projected miss from verified desurvey coordinates. Drill guidance is only
+ * released when the recovery path fits the configured steering envelope.
  */
 
 import {
@@ -29,6 +29,7 @@ import {
 } from "./trajectory-validation";
 import { decimetresToMetres } from "./measurements";
 import type { NorthReference, Survey } from "./models";
+import { NEAR_VERTICAL_DIP_DEG } from "./trajectory-types";
 import type {
   ActualTrajectoryConfiguration,
   CalculatedTrajectory,
@@ -44,6 +45,7 @@ import type {
 } from "./trajectory-types";
 
 export const DEFAULT_TARGET_DIAMETER_M = 6;
+export const DEFAULT_GUIDANCE_DEADBAND_DEG = 0.2;
 
 export type MiniTargetLockBlockCode =
   | "MISSING_COORDINATE_CONFIGURATION"
@@ -88,6 +90,12 @@ export interface MiniTargetLockNextSurveyGuidance {
   readonly currentAzimuthDegrees: number;
   readonly requiredDipChangeDegrees: number;
   readonly requiredAzimuthChangeDegrees: number;
+  readonly verticalAction: "LIFT" | "DROP" | "HOLD";
+  readonly horizontalAction: "LEFT" | "RIGHT" | "HOLD" | "UNAVAILABLE";
+  readonly dipAdjustmentDegrees: number;
+  readonly azimuthAdjustmentDegrees: number;
+  readonly actionDeadbandDegrees: number;
+  readonly azimuthStable: boolean;
 }
 
 export interface MiniTargetLockDirectToTarget {
@@ -106,6 +114,10 @@ export interface MiniTargetLockProjection {
   readonly missOutsideTargetM: number;
   readonly intersectsTarget: boolean;
   readonly closestApproachPosition: Coordinate3D;
+  readonly projectedEndpoint: Coordinate3D;
+  readonly endpointDistanceToTargetM: number;
+  readonly endpointMissOutsideTargetM: number;
+  readonly projectionLengthM: number;
   readonly projectedPath: readonly Coordinate3D[];
 }
 
@@ -139,6 +151,54 @@ export interface CalculateMiniTargetLockInput {
   readonly selections: readonly TrajectorySurveySelection[];
   readonly referenceConfiguration?: ReferenceConfiguration | null;
   readonly target?: HoleTarget | null;
+}
+
+export function resolveNextSurveyActions(input: {
+  readonly currentDipDegrees: number;
+  readonly targetDipDegrees: number;
+  readonly dipChangeDegrees: number;
+  readonly azimuthChangeDegrees: number;
+  readonly deadbandDegrees?: number;
+}): Pick<
+  MiniTargetLockNextSurveyGuidance,
+  | "verticalAction"
+  | "horizontalAction"
+  | "dipAdjustmentDegrees"
+  | "azimuthAdjustmentDegrees"
+  | "actionDeadbandDegrees"
+  | "azimuthStable"
+> {
+  const deadband =
+    input.deadbandDegrees !== undefined &&
+    Number.isFinite(input.deadbandDegrees) &&
+    input.deadbandDegrees >= 0
+      ? input.deadbandDegrees
+      : DEFAULT_GUIDANCE_DEADBAND_DEG;
+  const dipAdjustmentDegrees = Math.abs(input.dipChangeDegrees);
+  const azimuthAdjustmentDegrees = Math.abs(input.azimuthChangeDegrees);
+  const azimuthStable =
+    Math.abs(input.currentDipDegrees) < NEAR_VERTICAL_DIP_DEG &&
+    Math.abs(input.targetDipDegrees) < NEAR_VERTICAL_DIP_DEG;
+
+  return {
+    verticalAction:
+      dipAdjustmentDegrees <= deadband
+        ? "HOLD"
+        : input.dipChangeDegrees > 0
+          ? "LIFT"
+          : "DROP",
+    horizontalAction: !azimuthStable
+      ? "UNAVAILABLE"
+      : azimuthAdjustmentDegrees <= deadband
+        ? "HOLD"
+        : input.azimuthChangeDegrees > 0
+          ? "RIGHT"
+          : "LEFT",
+    dipAdjustmentDegrees,
+    azimuthAdjustmentDegrees,
+    actionDeadbandDegrees: deadband,
+    azimuthStable,
+  };
 }
 
 function buildCollar(
@@ -273,6 +333,9 @@ export function projectAttitudeClosestApproach(input: {
   readonly azimuthDegrees: number;
   readonly target: Coordinate3D;
   readonly targetRadiusM: number;
+  /** Finite hold-attitude horizon, normally remaining MD to target MD. */
+  readonly projectionLengthM?: number;
+  /** @deprecated Use projectionLengthM for operational hold projections. */
   readonly sampleLengthM?: number;
 }): MiniTargetLockProjection {
   const direction = vectorFromDipAz(input.dipDegrees, input.azimuthDegrees);
@@ -291,6 +354,14 @@ export function projectAttitudeClosestApproach(input: {
       ? 0
       : (relativeE * dirE + relativeN * dirN + relativeRl * dirRl) / dirLenSq;
   if (t < 0) t = 0;
+  const finiteProjectionLength =
+    input.projectionLengthM !== undefined &&
+    Number.isFinite(input.projectionLengthM)
+      ? Math.max(0, input.projectionLengthM)
+      : undefined;
+  if (finiteProjectionLength !== undefined) {
+    t = Math.min(t, finiteProjectionLength);
+  }
 
   const closestApproachPosition: Coordinate3D = {
     eastingM: input.origin.eastingM + dirE * t,
@@ -309,17 +380,32 @@ export function projectAttitudeClosestApproach(input: {
   );
   const intersectsTarget = closestApproachM <= input.targetRadiusM + 1e-9;
 
-  const sampleLengthM =
+  const projectionLengthM =
+    finiteProjectionLength ??
     input.sampleLengthM ??
     Math.max(
       Math.hypot(relativeE, relativeN, relativeRl) * 1.25,
       t + input.targetRadiusM * 2,
       50,
     );
+  const projectedEndpoint: Coordinate3D = {
+    eastingM: input.origin.eastingM + dirE * projectionLengthM,
+    northingM: input.origin.northingM + dirN * projectionLengthM,
+    rlM: input.origin.rlM + dirRl * projectionLengthM,
+  };
+  const endpointDistanceToTargetM = Math.hypot(
+    input.target.eastingM - projectedEndpoint.eastingM,
+    input.target.northingM - projectedEndpoint.northingM,
+    input.target.rlM - projectedEndpoint.rlM,
+  );
+  const endpointMissOutsideTargetM = Math.max(
+    0,
+    endpointDistanceToTargetM - input.targetRadiusM,
+  );
   const stepCount = 24;
   const projectedPath: Coordinate3D[] = [];
   for (let i = 0; i <= stepCount; i += 1) {
-    const s = (sampleLengthM * i) / stepCount;
+    const s = (projectionLengthM * i) / stepCount;
     projectedPath.push({
       eastingM: input.origin.eastingM + dirE * s,
       northingM: input.origin.northingM + dirN * s,
@@ -332,6 +418,10 @@ export function projectAttitudeClosestApproach(input: {
     missOutsideTargetM,
     intersectsTarget,
     closestApproachPosition,
+    projectedEndpoint,
+    endpointDistanceToTargetM,
+    endpointMissOutsideTargetM,
+    projectionLengthM,
     projectedPath,
   };
 }
@@ -492,6 +582,10 @@ export function calculateMiniTargetLock(
     const guidanceFromCollarOnly =
       station.sourceType === "COLLAR" ||
       !built.selectedSurveys.some((survey) => Number(survey.depthDm) > 0);
+    const guidanceDeadbandDegrees =
+      input.actualConfiguration.guidanceDeadbandTenths === undefined
+        ? DEFAULT_GUIDANCE_DEADBAND_DEG
+        : input.actualConfiguration.guidanceDeadbandTenths / 10;
 
     const target: MiniTargetLockTarget | null = resolvedTarget;
     let directToTarget: MiniTargetLockDirectToTarget | null = null;
@@ -520,6 +614,10 @@ export function calculateMiniTargetLock(
         azimuthDegrees: latestSurvey.azimuthDegrees,
         target,
         targetRadiusM: diameterM / 2,
+        projectionLengthM:
+          measuredDepthM === undefined
+            ? undefined
+            : Math.max(0, measuredDepthM - latestSurvey.measuredDepthM),
       });
 
       if (measuredDepthM !== undefined && measuredDepthM > 0) {
@@ -561,13 +659,32 @@ export function calculateMiniTargetLock(
           calculationReference:
             input.coordinateConfiguration.calculationNorthReference,
           referenceConfiguration: input.referenceConfiguration,
+          steeringLimits: {
+            maximumDoglegPer30mDegrees:
+              input.actualConfiguration.maximumDoglegPer30mTenths === undefined
+                ? undefined
+                : input.actualConfiguration.maximumDoglegPer30mTenths / 10,
+            maximumLiftPer30mDegrees:
+              input.actualConfiguration.maximumLiftPer30mTenths === undefined
+                ? undefined
+                : input.actualConfiguration.maximumLiftPer30mTenths / 10,
+            maximumDropPer30mDegrees:
+              input.actualConfiguration.maximumDropPer30mTenths === undefined
+                ? undefined
+                : input.actualConfiguration.maximumDropPer30mTenths / 10,
+            maximumTurnPer30mDegrees:
+              input.actualConfiguration.maximumTurnPer30mTenths === undefined
+                ? undefined
+                : input.actualConfiguration.maximumTurnPer30mTenths / 10,
+          },
           holeId: input.holeId,
         });
 
         const guidanceBlocked = curvedSolution.warnings.some(
           (warning) =>
             warning.code === "TARGET_MD_REVIEW_REQUIRED" ||
-            warning.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+            warning.code === "ADVANCED_PATH_REVIEW_REQUIRED" ||
+            warning.code === "STEERING_LIMIT_EXCEEDED",
         );
         if (
           !guidanceBlocked &&
@@ -575,18 +692,28 @@ export function calculateMiniTargetLock(
           nextSurveyMeasuredDepthM !== null
         ) {
           const next = curvedSolution.nextSurveyTarget;
+          const requiredDipChangeDegrees =
+            next.dipDegrees - latestSurvey.dipDegrees;
+          const requiredAzimuthChangeDegrees =
+            shortestAzimuthDifferenceDegrees(
+              latestSurvey.azimuthDegrees,
+              next.azimuthDegrees,
+            );
           nextSurveyGuidance = {
             measuredDepthM: next.measuredDepthM,
             dipDegrees: next.dipDegrees,
             azimuthDegrees: next.azimuthDegrees,
             currentDipDegrees: latestSurvey.dipDegrees,
             currentAzimuthDegrees: latestSurvey.azimuthDegrees,
-            requiredDipChangeDegrees:
-              next.dipDegrees - latestSurvey.dipDegrees,
-            requiredAzimuthChangeDegrees: shortestAzimuthDifferenceDegrees(
-              latestSurvey.azimuthDegrees,
-              next.azimuthDegrees,
-            ),
+            requiredDipChangeDegrees,
+            requiredAzimuthChangeDegrees,
+            ...resolveNextSurveyActions({
+              currentDipDegrees: latestSurvey.dipDegrees,
+              targetDipDegrees: next.dipDegrees,
+              dipChangeDegrees: requiredDipChangeDegrees,
+              azimuthChangeDegrees: requiredAzimuthChangeDegrees,
+              deadbandDegrees: guidanceDeadbandDegrees,
+            }),
           };
         }
       }

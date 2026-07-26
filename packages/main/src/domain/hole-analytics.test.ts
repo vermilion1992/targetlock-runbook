@@ -476,6 +476,7 @@ describe("calculateHoleAnalytics — surveys", () => {
             depthDm: metresToDecimetres(680),
             northReference: "TRUE",
             recordedAt: "2026-07-20T19:00:00.000Z",
+            photoId: "photo-s3",
           }),
         ],
         correctedSurveyIds: new Set(["s2"]),
@@ -490,6 +491,57 @@ describe("calculateHoleAnalytics — surveys", () => {
     );
     expect(analytics.surveys.distanceFromFinalDepthToLatestDm).toBe(300);
     expect(analytics.surveys.medianSurveySpacingDm).toBe(300);
+    expect(analytics.surveys.records.map((record) => record.surveyId)).toEqual([
+      "s1",
+      "s2",
+      "s3",
+    ]);
+    expect(analytics.surveys.records[1]?.corrected).toBe(true);
+    expect(analytics.surveys.records[2]?.hasPhotograph).toBe(true);
+  });
+});
+
+describe("calculateHoleAnalytics — barrels", () => {
+  it("counts only changes between recorded barrel serial numbers", () => {
+    const analytics = calculateHoleAnalytics(
+      baseInput({
+        bhaSetups: [
+          {
+            localId: "bha-1",
+            effectiveAt: "2026-07-20T08:00:00.000Z",
+            bottomHoleAssemblyLengthDm: metresToDecimetres(6),
+            barrelSerialNumber: "BARREL-100",
+            reason: "Initial setup",
+            recordedByNameSnapshot: "J. Smith",
+          },
+          {
+            localId: "bha-2",
+            effectiveAt: "2026-07-20T12:00:00.000Z",
+            bottomHoleAssemblyLengthDm: metresToDecimetres(6.1),
+            barrelSerialNumber: "BARREL-100",
+            reason: "Updated measurement",
+            recordedByNameSnapshot: "J. Smith",
+          },
+          {
+            localId: "bha-3",
+            effectiveAt: "2026-07-21T08:00:00.000Z",
+            bottomHoleAssemblyLengthDm: metresToDecimetres(6.1),
+            barrelSerialNumber: "BARREL-200",
+            reason: "Barrel replaced",
+            recordedByNameSnapshot: "A. Jones",
+          },
+        ],
+      }),
+    );
+
+    expect(analytics.barrels.currentSerialNumber).toBe("BARREL-200");
+    expect(analytics.barrels.changeCount).toBe(1);
+    expect(analytics.barrels.changes[0]).toMatchObject({
+      setupId: "bha-3",
+      previousSerialNumber: "BARREL-100",
+      serialNumber: "BARREL-200",
+      reason: "Barrel replaced",
+    });
   });
 });
 

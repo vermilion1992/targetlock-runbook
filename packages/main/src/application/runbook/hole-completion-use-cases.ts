@@ -1421,6 +1421,7 @@ async function resolveCompletionComponents(
     const assignment =
       await services.componentAssignments.getAssignmentById(
         outcome.assignmentId,
+        record.holeId,
       );
     if (
       assignment === null ||

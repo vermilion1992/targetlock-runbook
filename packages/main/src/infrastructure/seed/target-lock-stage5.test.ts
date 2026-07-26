@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import { LocalCompletionRepository } from "@/infrastructure/completion";
 import type { LocalStorageAdapter } from "@/infrastructure/drafts";
 import {
+  isSeedRunCompatibleWithHole,
   STAGE5_HOLE_IDS,
   stage5CompletionSeed,
   targetLockStage5Seed,
@@ -22,6 +23,16 @@ class MemoryStorage implements LocalStorageAdapter {
 }
 
 describe("targetLockStage5Seed", () => {
+  it("rejects known seed run IDs under another hole", () => {
+    expect(
+      isSeedRunCompatibleWithHole("DDH041", "run-ddh041-233"),
+    ).toBe(true);
+    expect(
+      isSeedRunCompatibleWithHole("DDH042", "run-ddh041-233"),
+    ).toBe(false);
+    expect(isSeedRunCompatibleWithHole("DDH042", "local-run-1")).toBe(true);
+  });
+
   it("keeps DDH041 active and seeds completed, abandoned, and reopened holes", async () => {
     expect(STAGE5_HOLE_IDS).toEqual(
       expect.arrayContaining(["DDH041", "DDH038", "DDH039", "DDH042"]),

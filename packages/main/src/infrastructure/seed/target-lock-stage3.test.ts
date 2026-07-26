@@ -3,6 +3,30 @@ import { describe, expect, it } from "vitest";
 import { targetLockStage3Seed } from "./target-lock-stage3";
 
 describe("TargetLock Stage 3 seed", () => {
+  it("uses one canonical identifier for DDH041 and its owned records", () => {
+    expect(targetLockStage3Seed.hole.localId).toBe("DDH041");
+    expect(targetLockStage3Seed.hole.name).toBe("DDH041");
+
+    const holeOwnedRecords = [
+      ...targetLockStage3Seed.holeConfigurations,
+      ...targetLockStage3Seed.rodStringConfigurations,
+      ...targetLockStage3Seed.rodEvents,
+      ...targetLockStage3Seed.shifts,
+      ...targetLockStage3Seed.runs,
+      ...targetLockStage3Seed.casingStrings,
+      ...targetLockStage3Seed.casingEvents,
+      ...targetLockStage3Seed.surveys,
+      ...targetLockStage3Seed.holeEvents,
+      ...targetLockStage3Seed.trays,
+      ...targetLockStage3Seed.photos,
+      ...targetLockStage3Seed.sentReports,
+    ];
+
+    expect(new Set(holeOwnedRecords.map(({ holeId }) => holeId))).toEqual(
+      new Set(["DDH041"]),
+    );
+  });
+
   it("provides nested casing with an immutable advancement event", () => {
     expect(
       targetLockStage3Seed.casingStrings.map(

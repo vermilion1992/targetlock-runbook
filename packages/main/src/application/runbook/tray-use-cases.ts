@@ -114,7 +114,7 @@ export async function correctTrayDetails(
   input: UpdateTrayDetailsInput,
   services: TrayServices,
 ): Promise<Tray> {
-  const previous = await services.trays.getById(input.trayId);
+  const previous = await services.trays.getById(input.trayId, input.holeId);
   const tray = await services.trays.updateDetails(input);
   await services.audits.append(
     trayAudit({
@@ -146,7 +146,7 @@ export async function replaceOperationalTrayPhoto(
   input: ReplaceTrayPhotoInput,
   services: TrayServices,
 ): Promise<Tray> {
-  const previous = await services.trays.getById(input.trayId);
+  const previous = await services.trays.getById(input.trayId, input.holeId);
   const tray = await services.trays.replacePhoto(input);
   await services.audits.append(
     trayAudit({

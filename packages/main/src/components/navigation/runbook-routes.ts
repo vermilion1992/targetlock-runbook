@@ -56,11 +56,6 @@ export const runbookRoutes = {
     `${holeBase(holeId)}/components/reamer/change`,
   assignComponent: (holeId: string, type: "bit" | "reamer") =>
     `${holeBase(holeId)}/components/${type}/assign`,
-  componentRegistry: () => "/components",
-  addComponent: (type?: "BIT" | "REAMER") =>
-    type === undefined ? "/components/new" : `/components/new?type=${type}`,
-  componentDetail: (componentId: string) =>
-    `/components/${encodeURIComponent(componentId)}`,
   surveys: (holeId: string) => `${holeBase(holeId)}/surveys`,
   addSurvey: (holeId: string) => `${holeBase(holeId)}/surveys/new`,
   surveyDetail: (holeId: string, surveyId: string) =>

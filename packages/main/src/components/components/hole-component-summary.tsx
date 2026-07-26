@@ -33,6 +33,7 @@ import {
   readCompletedUsageRuns,
   titleCase,
 } from "./component-support";
+import { BhaSetupCard } from "./bha-setup-card";
 
 interface Statistic {
   readonly component: Component;
@@ -169,14 +170,16 @@ export function HoleComponentSummary({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · hole equipment"
-        title={`${holeId} components`}
-        description="Current bit and reamer assignments, exact-depth change history, and completed-run usage statistics."
+        eyebrow="Stage 3 · downhole setup"
+        title={`${holeId} bottom hole assembly`}
+        description="Assembly measurements, constant stick-up, serial numbers, and exact-depth bit and reamer changes."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
       />
 
       {noticeMessage ? <OperationNotice tone="success">{noticeMessage}</OperationNotice> : null}
       {error ? <OperationNotice tone="error">{error}</OperationNotice> : null}
+
+      <BhaSetupCard holeId={holeId} />
 
       <section aria-label="Component context" className="grid grid-cols-2 gap-3 md:grid-cols-4">
         <MetricDisplay
@@ -233,14 +236,6 @@ export function HoleComponentSummary({
                       <div><dt className="text-[var(--tl-ink-muted)]">Coverage</dt><dd className="font-bold">{boundaryRunSummary(statistic.usage)}</dd></div>
                       <div><dt className="text-[var(--tl-ink-muted)]">Installed by</dt><dd className="font-bold">{statistic.assignment.installedByNameSnapshot}</dd></div>
                     </dl>
-                    <Link
-                      href={runbookRoutes.componentDetail(
-                        statistic.component.localId,
-                      )}
-                      className="mt-4 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-                    >
-                      View registry detail
-                    </Link>
                   </>
                 ) : (
                   <p className="mt-4 text-sm leading-6 text-[var(--tl-ink-muted)]">
@@ -303,7 +298,7 @@ export function HoleComponentSummary({
                   {[...state.statistics].reverse().map(({ component, assignment, usage }) => (
                     <tr key={assignment.localId}>
                       <th scope="row" className="py-3 pr-4">
-                        <Link href={runbookRoutes.componentDetail(component.localId)} className="font-bold text-[var(--tl-primary)]">{component.serialNumber}</Link>
+                        <span className="font-bold">{component.serialNumber}</span>
                         <span className="mt-0.5 block text-xs text-[var(--tl-ink-muted)]">{titleCase(component.type)} · {assignment.status}</span>
                       </th>
                       <td className="py-3 pr-4">{formatComponentDepth(assignment.startDepthDm)} – {assignment.endDepthDm === undefined ? "active" : formatComponentDepth(assignment.endDepthDm)}</td>
@@ -320,12 +315,6 @@ export function HoleComponentSummary({
         )}
       </SectionPanel>
 
-      <Link
-        href={runbookRoutes.componentRegistry()}
-        className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-      >
-        Open global component registry
-      </Link>
     </div>
   );
 }

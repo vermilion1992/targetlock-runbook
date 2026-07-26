@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { RunbookPreview } from "@/components/holes/runbook-preview";
-import { targetLockStage2Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 interface RunbookPageProps {
   params: Promise<{ holeId: string }>;
@@ -10,7 +10,7 @@ interface RunbookPageProps {
 export default async function RunbookPage({ params }: RunbookPageProps) {
   const { holeId } = await params;
 
-  if (holeId !== targetLockStage2Seed.hole.name) {
+  if (!isRoutableHoleId(holeId)) {
     notFound();
   }
 

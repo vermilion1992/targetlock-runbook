@@ -446,9 +446,9 @@ describe("hole lock enforcement", () => {
     const guard = new HoleMutationGuard(completionRepository);
     const runs = new LocalRunRepository(storage, [], guard);
 
-    expect(() =>
+    await expect(
       runs.writeDraft(HOLE_ID, { ...draftPayload, localId: "run-active" }),
-    ).not.toThrow();
+    ).resolves.toMatchObject({ ok: true });
 
     await lockHole(completionRepository, "COMPLETED");
     const lifecycle = await completionRepository.getLifecycleState(HOLE_ID);
@@ -467,8 +467,8 @@ describe("hole lock enforcement", () => {
     expect(reopened.hole.status).toBe("ACTIVE");
     expect(reopened.completion.finalStatus).toBe("COMPLETED");
 
-    expect(() =>
+    await expect(
       runs.writeDraft(HOLE_ID, { ...draftPayload, localId: "run-reopened" }),
-    ).not.toThrow();
+    ).resolves.toMatchObject({ ok: true });
   });
 });

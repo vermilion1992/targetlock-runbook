@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { TrayLibrary } from "@/components/trays/tray-library";
-import { targetLockStage4Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 interface TraysPageProps {
   params: Promise<{ holeId: string }>;
@@ -10,7 +10,7 @@ interface TraysPageProps {
 export default async function TraysPage({ params }: TraysPageProps) {
   const { holeId } = await params;
 
-  if (holeId !== targetLockStage4Seed.hole.name) {
+  if (!isRoutableHoleId(holeId)) {
     notFound();
   }
 

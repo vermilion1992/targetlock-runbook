@@ -9,7 +9,8 @@
  * no target-attitude modes, so it is not reused as the primary solver. Runbook
  * keeps a single deterministic MC-backed source for recovery paths.
  *
- * Geometric guidance only — not steering-tool feasibility certification.
+ * Guidance is only released when the solved path also fits the configured
+ * steering envelope. The envelope must be validated for the active BHA.
  */
 
 import { decimetres } from "./measurements";
@@ -47,8 +48,14 @@ export const CURVED_TARGET_SOLVER_VERSION = "curved-target-mc-v1" as const;
 /** Numerical convergence residual (metres) — separate from target radius. */
 export const CURVED_SOLVER_POSITION_TOLERANCE_M = 0.25;
 export const CURVED_SOLVER_ATTITUDE_TOLERANCE_DEG = 0.75;
-/** Advisory dogleg sharpness threshold (°/30 m). */
+/** Default steering envelope (°/30 m) when a hole-specific profile is absent. */
 export const CURVED_SOLVER_REVIEW_DLS_PER_30M = 8;
+export const DEFAULT_STEERING_LIMITS: SteeringLimits = {
+  maximumDoglegPer30mDegrees: CURVED_SOLVER_REVIEW_DLS_PER_30M,
+  maximumLiftPer30mDegrees: CURVED_SOLVER_REVIEW_DLS_PER_30M,
+  maximumDropPer30mDegrees: CURVED_SOLVER_REVIEW_DLS_PER_30M,
+  maximumTurnPer30mDegrees: CURVED_SOLVER_REVIEW_DLS_PER_30M,
+};
 
 export type CurvedTargetSolutionStatus =
   | "SOLVED"
@@ -64,6 +71,7 @@ export type CurvedTargetWarningCode =
   | "SURVEY_AT_TARGET_OUTSIDE"
   | "MISSING_NEXT_SURVEY_DEPTH"
   | "SHARP_CURVATURE"
+  | "STEERING_LIMIT_EXCEEDED"
   | "ATTITUDE_RESIDUAL"
   | "POSITION_RESIDUAL"
   | "COLLAR_BASED_GUIDANCE";
@@ -121,6 +129,33 @@ export interface RecoveryPathDiagnostics {
   };
 }
 
+export interface SteeringLimits {
+  readonly maximumDoglegPer30mDegrees: number;
+  readonly maximumLiftPer30mDegrees: number;
+  readonly maximumDropPer30mDegrees: number;
+  readonly maximumTurnPer30mDegrees: number;
+}
+
+export type SteeringLimitKind = "DOGLEG" | "LIFT" | "DROP" | "TURN";
+
+export interface SteeringLimitViolation {
+  readonly kind: SteeringLimitKind;
+  readonly actualPer30mDegrees: number;
+  readonly limitPer30mDegrees: number;
+  readonly fromMdM: number;
+  readonly toMdM: number;
+}
+
+export interface SteeringConstraintAssessment {
+  readonly feasible: boolean;
+  readonly limits: SteeringLimits;
+  readonly maximumDoglegPer30mDegrees: number;
+  readonly maximumLiftPer30mDegrees: number;
+  readonly maximumDropPer30mDegrees: number;
+  readonly maximumTurnPer30mDegrees: number;
+  readonly violations: readonly SteeringLimitViolation[];
+}
+
 export interface RecoveryPathQuality {
   readonly hasBuildReversal: boolean;
   readonly hasTurnReversal: boolean;
@@ -161,6 +196,7 @@ export interface CurvedTargetSolutionInput {
   readonly nextSurveyMeasuredDepthM?: number;
   readonly calculationReference: NorthReference;
   readonly referenceConfiguration?: ReferenceConfiguration | null;
+  readonly steeringLimits?: Partial<SteeringLimits>;
   readonly holeId?: string;
 }
 
@@ -190,6 +226,7 @@ export interface CurvedTargetSolution {
     readonly toMdM: number;
   } | null;
   readonly intervalDiagnostics?: readonly RecoveryIntervalDiagnostic[];
+  readonly steeringAssessment?: SteeringConstraintAssessment;
   readonly pathQuality?: RecoveryPathQuality;
   readonly solverConverged: boolean;
   readonly engineVersion: typeof TRAJECTORY_ENGINE_VERSION;
@@ -347,6 +384,123 @@ export function summariseRecoveryPathDiagnostics(
     maximumDoglegInterval,
     endpointResidualM,
     targetAttitudeResidual,
+  };
+}
+
+function validSteeringLimit(value: number | undefined, fallback: number): number {
+  return value !== undefined && Number.isFinite(value) && value > 0
+    ? value
+    : fallback;
+}
+
+export function resolveSteeringLimits(
+  partial?: Partial<SteeringLimits>,
+): SteeringLimits {
+  return {
+    maximumDoglegPer30mDegrees: validSteeringLimit(
+      partial?.maximumDoglegPer30mDegrees,
+      DEFAULT_STEERING_LIMITS.maximumDoglegPer30mDegrees,
+    ),
+    maximumLiftPer30mDegrees: validSteeringLimit(
+      partial?.maximumLiftPer30mDegrees,
+      DEFAULT_STEERING_LIMITS.maximumLiftPer30mDegrees,
+    ),
+    maximumDropPer30mDegrees: validSteeringLimit(
+      partial?.maximumDropPer30mDegrees,
+      DEFAULT_STEERING_LIMITS.maximumDropPer30mDegrees,
+    ),
+    maximumTurnPer30mDegrees: validSteeringLimit(
+      partial?.maximumTurnPer30mDegrees,
+      DEFAULT_STEERING_LIMITS.maximumTurnPer30mDegrees,
+    ),
+  };
+}
+
+export function assessSteeringConstraints(
+  intervals: readonly RecoveryIntervalDiagnostic[],
+  partialLimits?: Partial<SteeringLimits>,
+): SteeringConstraintAssessment {
+  const limits = resolveSteeringLimits(partialLimits);
+  let maximumDogleg = 0;
+  let maximumLift = 0;
+  let maximumDrop = 0;
+  let maximumTurn = 0;
+  let doglegInterval: RecoveryIntervalDiagnostic | undefined;
+  let liftInterval: RecoveryIntervalDiagnostic | undefined;
+  let dropInterval: RecoveryIntervalDiagnostic | undefined;
+  let turnInterval: RecoveryIntervalDiagnostic | undefined;
+
+  for (const interval of intervals) {
+    const lift = Math.max(0, interval.buildRatePer30mDegrees);
+    const drop = Math.max(0, -interval.buildRatePer30mDegrees);
+    const turn = Math.abs(interval.turnRatePer30mDegrees);
+    if (interval.doglegPer30mDegrees >= maximumDogleg) {
+      maximumDogleg = interval.doglegPer30mDegrees;
+      doglegInterval = interval;
+    }
+    if (lift >= maximumLift) {
+      maximumLift = lift;
+      liftInterval = interval;
+    }
+    if (drop >= maximumDrop) {
+      maximumDrop = drop;
+      dropInterval = interval;
+    }
+    if (turn >= maximumTurn) {
+      maximumTurn = turn;
+      turnInterval = interval;
+    }
+  }
+
+  const violations: SteeringLimitViolation[] = [];
+  const addViolation = (
+    kind: SteeringLimitKind,
+    actual: number,
+    limit: number,
+    interval: RecoveryIntervalDiagnostic | undefined,
+  ) => {
+    if (actual <= limit + 1e-9 || !interval) return;
+    violations.push({
+      kind,
+      actualPer30mDegrees: actual,
+      limitPer30mDegrees: limit,
+      fromMdM: interval.fromMdM,
+      toMdM: interval.toMdM,
+    });
+  };
+  addViolation(
+    "DOGLEG",
+    maximumDogleg,
+    limits.maximumDoglegPer30mDegrees,
+    doglegInterval,
+  );
+  addViolation(
+    "LIFT",
+    maximumLift,
+    limits.maximumLiftPer30mDegrees,
+    liftInterval,
+  );
+  addViolation(
+    "DROP",
+    maximumDrop,
+    limits.maximumDropPer30mDegrees,
+    dropInterval,
+  );
+  addViolation(
+    "TURN",
+    maximumTurn,
+    limits.maximumTurnPer30mDegrees,
+    turnInterval,
+  );
+
+  return {
+    feasible: violations.length === 0,
+    limits,
+    maximumDoglegPer30mDegrees: maximumDogleg,
+    maximumLiftPer30mDegrees: maximumLift,
+    maximumDropPer30mDegrees: maximumDrop,
+    maximumTurnPer30mDegrees: maximumTurn,
+    violations,
   };
 }
 
@@ -889,14 +1043,31 @@ function isFeasible(evalResult: PathEvalMetrics): boolean {
  * the proven converging formulation — path quality must not block endpoint fit,
  * but soft monotonic penalties steer away from lateral S-curves early.
  */
-function residualSeekingCost(evalResult: PathEvalMetrics): number {
+function steeringEnvelopePenalty(
+  evalResult: PathEvalMetrics,
+  input: CurvedTargetSolutionInput,
+): number {
+  const assessment = assessSteeringConstraints(
+    evalResult.intervals,
+    input.steeringLimits,
+  );
+  return assessment.violations.reduce(
+    (sum, violation) =>
+      sum +
+      (violation.actualPer30mDegrees - violation.limitPer30mDegrees) ** 2,
+    0,
+  );
+}
+
+function residualSeekingCost(
+  evalResult: PathEvalMetrics,
+  input: CurvedTargetSolutionInput,
+): number {
   const attitudePenalty = evalResult.attitudeResidual
     ? evalResult.attitudeResidual.dipDegrees ** 2 +
       evalResult.attitudeResidual.azimuthDegrees ** 2
     : 0;
-  const curvaturePenalty =
-    Math.max(0, evalResult.maxDoglegPer30m - CURVED_SOLVER_REVIEW_DLS_PER_30M) **
-    2;
+  const steeringPenalty = steeringEnvelopePenalty(evalResult, input);
   const reversalPenalty =
     (evalResult.hasBuildReversal ? 8 : 0) +
     (evalResult.hasTurnReversal ? 12 : 0) +
@@ -904,7 +1075,7 @@ function residualSeekingCost(evalResult: PathEvalMetrics): number {
   return (
     evalResult.residualM ** 2 * 100 +
     attitudePenalty * 4 +
-    curvaturePenalty * 0.05 +
+    steeringPenalty * 0.5 +
     evalResult.maxDogleg * 0.01 +
     reversalPenalty
   );
@@ -915,13 +1086,17 @@ function residualSeekingCost(evalResult: PathEvalMetrics): number {
  * Unnecessary signed reversals / lateral excursion rank far worse than a
  * slightly larger residual within tolerance.
  */
-function smoothnessRank(evalResult: PathEvalMetrics): number {
+function smoothnessRank(
+  evalResult: PathEvalMetrics,
+  input: CurvedTargetSolutionInput,
+): number {
   const reversalPenalty =
     (evalResult.hasBuildReversal ? 5_000 : 0) +
     (evalResult.hasTurnReversal ? 8_000 : 0) +
     (evalResult.hasCrossTrackOvershoot ? 12_000 : 0);
   return (
     reversalPenalty +
+    steeringEnvelopePenalty(evalResult, input) * 1_000 +
     evalResult.maxDoglegPer30m ** 2 * 2 +
     evalResult.curvatureVariationCost * 1.5 +
     evalResult.buildVariationCost * 0.3 +
@@ -1071,7 +1246,7 @@ function refineFromSeed(
   let bestAttitudes = cloneAttitudes(seed);
   let bestOpt = evaluateForOptimisation(input, bestAttitudes, md1, md2);
   if (!bestOpt) return null;
-  let bestCost = residualSeekingCost(bestOpt);
+  let bestCost = residualSeekingCost(bestOpt, input);
 
   const steps = [20, 10, 5, 2.5, 1.25, 0.6, 0.3, 0.15, 0.08, 0.04];
   for (const step of steps) {
@@ -1091,7 +1266,7 @@ function refineFromSeed(
           );
           const evaluated = evaluateForOptimisation(input, candidate, md1, md2);
           if (!evaluated) continue;
-          const cost = residualSeekingCost(evaluated);
+          const cost = residualSeekingCost(evaluated, input);
           if (cost + 1e-12 < bestCost) {
             bestCost = cost;
             bestAttitudes = candidate;
@@ -1129,7 +1304,8 @@ function refineFromSeed(
         continue;
       }
       gradients.push(
-        (residualSeekingCost(plusEval) - residualSeekingCost(minusEval)) /
+        (residualSeekingCost(plusEval, input) -
+          residualSeekingCost(minusEval, input)) /
           (2 * eps),
       );
     }
@@ -1149,7 +1325,7 @@ function refineFromSeed(
       learningRate *= 0.5;
       continue;
     }
-    const cost = residualSeekingCost(evaluated);
+    const cost = residualSeekingCost(evaluated, input);
     if (cost + 1e-12 < bestCost) {
       bestCost = cost;
       bestAttitudes = candidate;
@@ -1178,7 +1354,7 @@ function polishSmoothness(
 } {
   let bestAttitudes = cloneAttitudes(attitudes);
   let bestOpt = evaluateForOptimisation(input, bestAttitudes, md1, md2)!;
-  let bestRank = smoothnessRank(bestOpt);
+  let bestRank = smoothnessRank(bestOpt, input);
 
   const steps = [2, 1, 0.5, 0.25, 0.12, 0.06];
   for (const step of steps) {
@@ -1198,7 +1374,7 @@ function polishSmoothness(
           );
           const evaluated = evaluateForOptimisation(input, candidate, md1, md2);
           if (!evaluated || !isFeasible(evaluated)) continue;
-          const rank = smoothnessRank(evaluated);
+          const rank = smoothnessRank(evaluated, input);
           if (rank + 1e-12 < bestRank) {
             bestRank = rank;
             bestAttitudes = candidate;
@@ -1239,8 +1415,8 @@ function optimiseAttitudes(
     );
     if (!refined) continue;
     const rank = isFeasible(refined.opt)
-      ? smoothnessRank(refined.opt)
-      : 1e9 + residualSeekingCost(refined.opt);
+      ? smoothnessRank(refined.opt, input)
+      : 1e9 + residualSeekingCost(refined.opt, input);
     if (rank + 1e-12 < bestRank) {
       bestRank = rank;
       bestAttitudes = refined.attitudes;
@@ -1533,12 +1709,18 @@ export function solveCurvedTarget(
     });
   }
 
+  const steeringAssessment = assessSteeringConstraints(
+    evaluated.intervals,
+    input.steeringLimits,
+  );
+  const doglegLimit =
+    steeringAssessment.limits.maximumDoglegPer30mDegrees;
   const concentrated =
     evaluated.maxDoglegChangePer30m >
       Math.max(6, evaluated.meanDoglegPer30m * 1.5) &&
-    evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M;
+    evaluated.maxDoglegPer30m > doglegLimit;
 
-  if (evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M) {
+  if (evaluated.maxDoglegPer30m > doglegLimit) {
     warnings.push({
       code: "SHARP_CURVATURE",
       message: concentrated
@@ -1556,7 +1738,21 @@ export function solveCurvedTarget(
     });
   }
 
-  const suppressGuidance = pathQuality.advancedPathReviewRequired;
+  if (!steeringAssessment.feasible) {
+    const summary = steeringAssessment.violations
+      .map(
+        (violation) =>
+          `${violation.kind.toLowerCase()} ${violation.actualPer30mDegrees.toFixed(1)}°/30 m (limit ${violation.limitPer30mDegrees.toFixed(1)}°/30 m)`,
+      )
+      .join("; ");
+    warnings.push({
+      code: "STEERING_LIMIT_EXCEEDED",
+      message: `GUIDANCE WITHHELD — solved path exceeds the configured steering envelope: ${summary}.`,
+    });
+  }
+
+  const suppressGuidance =
+    pathQuality.advancedPathReviewRequired || !steeringAssessment.feasible;
 
   let nextSurveyTarget: CurvedTargetSolution["nextSurveyTarget"] = null;
   if (
@@ -1597,7 +1793,7 @@ export function solveCurvedTarget(
   const status: CurvedTargetSolutionStatus = !converged
     ? "NO_SOLUTION"
     : pathQuality.advancedPathReviewRequired ||
-        evaluated.maxDoglegPer30m > CURVED_SOLVER_REVIEW_DLS_PER_30M
+        !steeringAssessment.feasible
       ? "REVIEW_REQUIRED"
       : "SOLVED";
 
@@ -1628,6 +1824,7 @@ export function solveCurvedTarget(
       ? { fromMdM: maxInterval.fromMdM, toMdM: maxInterval.toMdM }
       : null,
     intervalDiagnostics: evaluated.intervals,
+    steeringAssessment,
     pathQuality,
     solverConverged: converged,
     engineVersion: TRAJECTORY_ENGINE_VERSION,

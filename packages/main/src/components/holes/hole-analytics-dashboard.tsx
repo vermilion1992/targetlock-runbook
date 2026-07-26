@@ -14,18 +14,12 @@ import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { HoleAnalytics } from "@/domain";
 
 import {
-  HoleCasingPanel,
-  HoleChartsSection,
-  HoleCompletenessPanel,
-  HoleComponentPanel,
-  HoleOverviewPanel,
-  HoleProductionPanel,
-  HoleRodPanel,
-  HoleShiftPanel,
-  HoleSurveyPanel,
-  HoleTrayPanel,
+  HoleBarrelChangesPanel,
+  HoleBitStatisticsPanel,
+  HoleRunStatisticsPanel,
+  HoleShiftStatisticsPanel,
+  HoleSurveyRegisterPanel,
 } from "./hole-analytics-panels";
-import { HoleAnalyticsTrajectoryPanel } from "./hole-analytics-trajectory-panel";
 
 type VersionOption = {
   readonly completionId: string;
@@ -58,17 +52,21 @@ export function HoleAnalyticsDashboard({ holeId }: { holeId: string }) {
     }
 
     const holeAnalytics = services.holeAnalytics;
-    void Promise.all([
-      listHoleAnalyticsVersions(holeId, holeAnalytics),
-      getHoleAnalytics(
+    void listHoleAnalyticsVersions(holeId, holeAnalytics)
+      .then((nextVersions) => {
+        if (active) setVersions(nextVersions);
+      })
+      .catch(() => {
+        if (active) setVersions([]);
+      });
+
+    void getHoleAnalytics(
         holeId,
         holeAnalytics,
         selected === "current" ? {} : { completionId: selected },
-      ),
-    ])
-      .then(([nextVersions, nextAnalytics]) => {
+      )
+      .then((nextAnalytics) => {
         if (!active) return;
-        setVersions(nextVersions);
         setAnalytics(nextAnalytics);
         setMessage(null);
       })
@@ -92,7 +90,7 @@ export function HoleAnalyticsDashboard({ holeId }: { holeId: string }) {
       <StagePageHeader
         eyebrow="Analytics"
         title="Hole statistics"
-        description={`${holeId} analytical overview from repository-backed effective records.`}
+        description={`Run, Shift, bit, barrel and Survey records for ${holeId}.`}
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={
           <Link
@@ -162,17 +160,11 @@ export function HoleAnalyticsDashboard({ holeId }: { holeId: string }) {
               Showing completion snapshot {analytics.completionId}.
             </p>
           ) : null}
-          <HoleOverviewPanel analytics={analytics} />
-          <HoleProductionPanel analytics={analytics} />
-          <HoleShiftPanel analytics={analytics} />
-          <HoleChartsSection analytics={analytics} />
-          <HoleRodPanel analytics={analytics} />
-          <HoleComponentPanel analytics={analytics} />
-          <HoleCasingPanel analytics={analytics} />
-          <HoleSurveyPanel analytics={analytics} />
-          <HoleAnalyticsTrajectoryPanel holeId={holeId} />
-          <HoleTrayPanel analytics={analytics} />
-          <HoleCompletenessPanel analytics={analytics} />
+          <HoleRunStatisticsPanel analytics={analytics} />
+          <HoleShiftStatisticsPanel analytics={analytics} />
+          <HoleBitStatisticsPanel analytics={analytics} />
+          <HoleBarrelChangesPanel analytics={analytics} />
+          <HoleSurveyRegisterPanel analytics={analytics} />
         </div>
       )}
     </div>

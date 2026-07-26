@@ -14,6 +14,7 @@ import {
   LocalPrototypeNotice,
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
+import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import {
   decimetres,
   formatMetres,
@@ -87,7 +88,9 @@ function runTimelineEntries(
 ): readonly TimelineEntry[] {
   const localIds = new Set(localRuns.map(({ localId }) => localId));
   const localNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
-  const seedEntries: TimelineEntry[] = seed.runs
+  const seedEntries: TimelineEntry[] = (
+    holeId === seed.hole.name ? seed.runs : []
+  )
     .filter(
       (run) => !localIds.has(run.localId) && !localNumbers.has(run.runNumber),
     )
@@ -245,6 +248,7 @@ function casingTimelineEntries(
 }
 
 function componentTimelineEntries(
+  holeId: string,
   assignments: readonly ComponentAssignment[],
   components: readonly Component[],
 ): readonly TimelineEntry[] {
@@ -270,7 +274,7 @@ function componentTimelineEntries(
       detail: outgoing
         ? `${serialFor(outgoing.componentId)} → ${serialFor(assignment.componentId)}${outgoing.removalReason ? ` · ${outgoing.removalReason.replaceAll("_", " ")}` : ""}`
         : serialFor(assignment.componentId),
-      href: runbookRoutes.componentDetail(assignment.componentId),
+      href: runbookRoutes.holeComponents(holeId),
     });
 
     if (outgoing?.removalReason === "LOST_DOWNHOLE") {
@@ -281,7 +285,7 @@ function componentTimelineEntries(
         occurredAt: outgoing.removedAt ?? assignment.installedAt,
         title: "Component lost downhole",
         detail: serialFor(outgoing.componentId),
-        href: runbookRoutes.componentDetail(outgoing.componentId),
+        href: runbookRoutes.holeComponents(holeId),
       });
     }
   }
@@ -303,7 +307,7 @@ function componentTimelineEntries(
         occurredAt: assignment.removedAt,
         title: `${assignment.componentType === "BIT" ? "Bit" : "Reamer"} removed`,
         detail: `${serialFor(assignment.componentId)}${assignment.removalReason ? ` · ${assignment.removalReason.replaceAll("_", " ")}` : ""}`,
-        href: runbookRoutes.componentDetail(assignment.componentId),
+        href: runbookRoutes.holeComponents(holeId),
       });
     }
   }
@@ -371,7 +375,7 @@ export function TimelinePreview({
           ...runTimelineEntries(holeId, seed, localRuns),
           ...shiftAndHoleEntries,
           ...casingTimelineEntries(holeId, casingEvents),
-          ...componentTimelineEntries(assignments, components),
+          ...componentTimelineEntries(holeId, assignments, components),
           ...surveyTimelineEntries(holeId, surveys),
           ...trayTimelineEntries(holeId, trays),
           ...stageAuditTimelineEntries(holeId, audits),
@@ -390,6 +394,7 @@ export function TimelinePreview({
         eyebrow="Operational timeline"
         title={`${holeId} depth timeline`}
         description="Runs, shift events, surveys, trays, casing, components, and hole lifecycle events shown at their recorded depth position."
+        backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={
           <StatusPill tone="info">
             <Clock3 aria-hidden="true" className="size-3.5" />

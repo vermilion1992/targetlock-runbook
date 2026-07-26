@@ -45,8 +45,8 @@ export function SurveyDetail({
       return;
     }
     void Promise.all([
-      services.surveys.getById(surveyId),
-      services.surveys.listCorrections(surveyId),
+      services.surveys.getById(surveyId, holeId),
+      services.surveys.listCorrections(surveyId, holeId),
       services.shifts.listByHole(holeId),
     ])
       .then(async ([record, history, shifts]) => {
@@ -59,7 +59,7 @@ export function SurveyDetail({
           shifts.find(({ localId }) => localId === record.shiftId) ?? null,
         );
         if (record.photoId) {
-          setPhoto(await services.photos.getById(record.photoId));
+          setPhoto(await services.photos.getById(record.photoId, holeId));
         }
       })
       .catch((caught: unknown) =>

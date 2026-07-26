@@ -4,10 +4,15 @@ import {
   createBrowserCompletionRepository,
   HoleMutationGuard,
 } from "@/infrastructure/completion";
-import { createBrowserComponentRepository } from "@/infrastructure/components";
 import {
+  createBrowserBottomHoleAssemblySetupRepository,
+  createBrowserComponentRepository,
+} from "@/infrastructure/components";
+import {
+  coordinateBrowserRepository,
   createBrowserRunCorrectionRepository,
   createBrowserRunRepository,
+  getBrowserRunbookOperationCoordinator,
 } from "@/infrastructure/drafts";
 import type { RunCorrectionServices } from "./run-correction-use-cases";
 import { createBrowserMediaRepository } from "@/infrastructure/media";
@@ -62,6 +67,9 @@ export type BrowserRunbookServices = ShiftServices &
   TrayServices &
   HoleCompletionApplicationServices &
   ReportServices & {
+    readonly bhaSetups: NonNullable<
+      ReturnType<typeof createBrowserBottomHoleAssemblySetupRepository>
+    >;
     readonly trajectory: NonNullable<
       ReturnType<typeof createBrowserTrajectoryRepository>
     >;
@@ -94,89 +102,139 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     },
   );
 
-  const completion = createBrowserCompletionRepository(
+  const completionRaw = createBrowserCompletionRepository(
     targetLockStage5Seed.organisation.localId,
     targetLockStage5Seed.completionSeed,
   );
-  if (completion === null) return null;
-  const mutationGuard = new HoleMutationGuard(completion);
+  if (completionRaw === null) return null;
+  const mutationGuard = new HoleMutationGuard(completionRaw);
+  const bhaSetupsRaw = createBrowserBottomHoleAssemblySetupRepository(
+    targetLockStage5Seed.rodStringConfigurations.map((configuration) => ({
+      ...configuration,
+      holeId: targetLockStage5Seed.hole.name,
+    })),
+    mutationGuard,
+  );
 
   const runs = createBrowserRunRepository(migrationCandidates, mutationGuard);
-  const shifts = createBrowserShiftRepository(
+  const shiftsRaw = createBrowserShiftRepository(
     ddh041Stage2Shifts,
     mutationGuard,
   );
-  const audits = createBrowserAuditRepository(ddh041Stage5AuditEntries);
-  const runCorrections = createBrowserRunCorrectionRepository(
+  const auditsRaw = createBrowserAuditRepository(ddh041Stage5AuditEntries);
+  const runCorrectionsRaw = createBrowserRunCorrectionRepository(
     migrationCandidates,
     mutationGuard,
-    audits ?? undefined,
+    auditsRaw ?? undefined,
   );
-  let components: ReturnType<typeof createBrowserComponentRepository> = null;
-  components = createBrowserComponentRepository(
+  let componentsRaw: ReturnType<typeof createBrowserComponentRepository> = null;
+  componentsRaw = createBrowserComponentRepository(
     targetLockStage5Seed.organisation.localId,
     targetLockStage5Seed.components,
     targetLockStage5Seed.componentAssignments,
     async (input, result) => {
-      if (components === null || audits === null) return;
+      if (componentsRaw === null || auditsRaw === null) return;
       await recordComponentChangeAudit(input, result, {
-        components,
-        componentAssignments: components,
-        audits,
+        components: componentsRaw,
+        componentAssignments: componentsRaw,
+        audits: auditsRaw,
       });
     },
     mutationGuard,
   );
-  const casing = createBrowserCasingRepository(
+  const casingRaw = createBrowserCasingRepository(
     targetLockStage5Seed.casingStrings,
     targetLockStage5Seed.casingEvents,
     mutationGuard,
   );
-  const media = createBrowserMediaRepository();
-  const surveys = createBrowserSurveyRepository(
+  const media = createBrowserMediaRepository(
+    targetLockStage5Seed.organisation.localId,
+  );
+  const surveysRaw = createBrowserSurveyRepository(
     targetLockStage5Seed.organisation.localId,
     targetLockStage5Seed.surveyTools,
     targetLockStage5Seed.surveys,
     mutationGuard,
   );
-  const surveyTools =
-    surveys === null ? null : createSurveyToolRepository(surveys);
-  const trajectory = createBrowserTrajectoryRepository(
+  const surveyToolsRaw =
+    surveysRaw === null ? null : createSurveyToolRepository(surveysRaw);
+  const trajectoryRaw = createBrowserTrajectoryRepository(
     trajectorySeedByHole,
     mutationGuard,
   );
-  const trays = createBrowserTrayRepository(
+  const traysRaw = createBrowserTrayRepository(
     targetLockStage5Seed.trays,
     targetLockStage5Seed.photos,
     media ?? undefined,
     mutationGuard,
   );
-  const photos = trays === null ? null : createBrowserPhotoRepository(trays);
-  const reportFiles = createBrowserReportFileRepository();
-  const reports = createBrowserReportMetadataRepository(
+  const photosRaw =
+    traysRaw === null ? null : createBrowserPhotoRepository(traysRaw);
+  const reportFiles = createBrowserReportFileRepository(
+    targetLockStage5Seed.organisation.localId,
+  );
+  const reportsRaw = createBrowserReportMetadataRepository(
     targetLockStage5Seed.organisation.localId,
     stage6DefaultRecipients,
   );
   const share = createBrowserReportShareAdapter();
   if (
     runs === null ||
-    shifts === null ||
-    audits === null ||
-    runCorrections === null ||
-    components === null ||
-    casing === null ||
+    shiftsRaw === null ||
+    auditsRaw === null ||
+    runCorrectionsRaw === null ||
+    bhaSetupsRaw === null ||
+    componentsRaw === null ||
+    casingRaw === null ||
     media === null ||
-    surveys === null ||
-    surveyTools === null ||
-    trajectory === null ||
-    trays === null ||
-    photos === null ||
+    surveysRaw === null ||
+    surveyToolsRaw === null ||
+    trajectoryRaw === null ||
+    traysRaw === null ||
+    photosRaw === null ||
     reportFiles === null ||
-    reports === null
+    reportsRaw === null
   )
     return null;
 
-  void runCorrections.recoverInterrupted(targetLockStage5Seed.hole.name);
+  const coordinator = getBrowserRunbookOperationCoordinator();
+  const coordinate = <T extends object>(
+    repository: T,
+    synchronousMethods: readonly string[] = [],
+  ): T =>
+    coordinator === null
+      ? repository
+      : coordinateBrowserRepository(
+          repository,
+          coordinator,
+          synchronousMethods,
+        );
+  const completion = coordinate(completionRaw, [
+    "getHoleMutationSnapshot",
+  ]);
+  const bhaSetups = coordinate(bhaSetupsRaw);
+  const shifts = coordinate(shiftsRaw);
+  const audits = coordinate(auditsRaw);
+  const runCorrections = coordinate(runCorrectionsRaw);
+  const components = coordinate(componentsRaw);
+  const casing = coordinate(casingRaw);
+  const surveys = coordinate(surveysRaw, ["assertHoleMutable"]);
+  const surveyTools = coordinate(surveyToolsRaw);
+  const trajectory = coordinate(trajectoryRaw);
+  const trays = coordinate(traysRaw);
+  const photos = coordinate(photosRaw);
+  const reports = coordinate(reportsRaw);
+  const coordinatedMedia = coordinate(media);
+  const coordinatedReportFiles = coordinate(reportFiles);
+
+  void completion
+    .listHoles()
+    .then((holes) =>
+      Promise.all(
+        holes.map((hole) => runCorrections.recoverInterrupted(hole.localId)),
+      ),
+    )
+    .catch(() => undefined);
 
   const currentState = {
     seed: targetLockStage5Seed,
@@ -188,6 +246,8 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     casing,
     surveys,
     trays,
+    trajectory,
+    bhaSetups,
   };
   const context = createHoleCompletionContextSource({
     currentState,
@@ -215,6 +275,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     {
       runs: targetLockStage5Seed.runs,
       rodEvents: targetLockStage5Seed.rodEvents,
+      holeId: targetLockStage5Seed.hole.localId,
       preferredSurveyIntervalDm:
         targetLockStage5Seed.holeConfigurations[0]?.preferredSurveyIntervalDm,
     },
@@ -230,6 +291,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
       casing,
       components,
       componentAssignments: components,
+      bhaSetups,
       completion,
       currentState,
       shiftAnalytics,
@@ -237,6 +299,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     {
       runs: targetLockStage5Seed.runs,
       rodEvents: targetLockStage5Seed.rodEvents,
+      holeId: targetLockStage5Seed.hole.localId,
       plannedDepthDm: Number(targetLockStage5Seed.hole.plannedDepth),
       preferredSurveyIntervalDm:
         targetLockStage5Seed.holeConfigurations[0]?.preferredSurveyIntervalDm,
@@ -261,6 +324,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     mutationGuard,
     components,
     componentAssignments: components,
+    bhaSetups,
     casing,
     surveys,
     surveyTools,
@@ -269,12 +333,12 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     miniTargetLock,
     trays,
     photos,
-    media,
+    media: coordinatedMedia,
     completion,
     context,
     currentState,
     reports,
-    reportFiles,
+    reportFiles: coordinatedReportFiles,
     share,
     shiftAnalytics,
     holeAnalytics,

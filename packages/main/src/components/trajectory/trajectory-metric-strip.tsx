@@ -1,44 +1,79 @@
 "use client";
 
+import {
+  ArrowDownRight,
+  ArrowLeftRight,
+  ArrowUpRight,
+  Compass,
+  Gauge,
+  Target,
+} from "lucide-react";
+import type { ComponentType } from "react";
+
 import type { MiniTargetLockResult } from "@/domain";
+import { cn } from "@/lib/utils";
 
 import { formatDegrees, formatMetresValue } from "./trajectory-format";
 
-function MetricCell({
+function GuidanceCard({
   label,
-  primary,
-  secondary,
-  tertiary,
+  value,
+  target,
+  supporting,
+  icon: Icon,
+  emphasis = false,
   testId,
 }: {
   label: string;
-  primary: string;
-  secondary?: string;
-  tertiary?: string;
+  value: string;
+  target?: string;
+  supporting?: string;
+  icon: ComponentType<{ className?: string; "aria-hidden"?: boolean }>;
+  emphasis?: boolean;
   testId?: string;
 }) {
   return (
-    <div
-      className="min-w-0 border-l border-[var(--tl-border)] px-3 py-2 first:border-l-0 first:pl-0"
+    <article
+      className={cn(
+        "relative min-w-0 overflow-hidden rounded-[var(--tl-radius-lg)] border bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5",
+        emphasis
+          ? "border-[color-mix(in_srgb,var(--tl-primary)_35%,var(--tl-border))]"
+          : "border-[var(--tl-border)]",
+      )}
       data-testid={testId}
     >
-      <p className="text-[0.65rem] font-semibold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+      <div
+        className={cn(
+          "absolute right-3 top-3 flex size-9 items-center justify-center rounded-full",
+          emphasis
+            ? "bg-[var(--tl-primary-soft)] text-[var(--tl-primary)]"
+            : "bg-[var(--tl-surface-sunken)] text-[var(--tl-ink-muted)]",
+        )}
+      >
+        <Icon aria-hidden className="size-4.5" />
+      </div>
+      <p className="pr-10 text-xs font-bold uppercase tracking-[0.09em] text-[var(--tl-ink-muted)]">
         {label}
       </p>
-      <p className="mt-0.5 text-xl font-semibold tabular-nums leading-tight">
-        {primary}
+      <p
+        className={cn(
+          "mt-3 break-words font-bold tracking-[-0.035em] text-[var(--tl-ink)]",
+          emphasis ? "text-3xl sm:text-4xl" : "text-2xl sm:text-3xl",
+        )}
+      >
+        {value}
       </p>
-      {secondary ? (
-        <p className="mt-0.5 text-xs tabular-nums text-[var(--tl-ink-muted)]">
-          {secondary}
+      {target ? (
+        <p className="mt-2 text-sm font-semibold tabular-nums text-[var(--tl-ink)]">
+          {target}
         </p>
       ) : null}
-      {tertiary ? (
-        <p className="mt-0.5 text-xs tabular-nums text-[var(--tl-ink-muted)]">
-          {tertiary}
+      {supporting ? (
+        <p className="mt-1 text-xs leading-5 text-[var(--tl-ink-muted)]">
+          {supporting}
         </p>
       ) : null}
-    </div>
+    </article>
   );
 }
 
@@ -50,10 +85,13 @@ function northLabel(result: MiniTargetLockResult): string {
   return "Azimuth";
 }
 
-function formatSignedDegrees(value: number): string {
-  if (!Number.isFinite(value)) return "—";
-  const sign = value > 0 ? "+" : value < 0 ? "−" : "";
-  return `${sign}${Math.abs(value).toFixed(1)}°`;
+function actionValue(
+  action: "LIFT" | "DROP" | "LEFT" | "RIGHT" | "HOLD" | "UNAVAILABLE",
+  adjustmentDegrees: number,
+): string {
+  if (action === "UNAVAILABLE") return "REVIEW";
+  if (action === "HOLD") return "HOLD";
+  return `${action} ${adjustmentDegrees.toFixed(1)}°`;
 }
 
 export function TrajectoryMetricStrip({
@@ -75,120 +113,154 @@ export function TrajectoryMetricStrip({
   const advancedPathReview = result.curvedSolution?.warnings.some(
     (warning) => warning.code === "ADVANCED_PATH_REVIEW_REQUIRED",
   );
-  const guidanceUnavailable = Boolean(targetMdReview || advancedPathReview);
+  const steeringLimitExceeded = result.curvedSolution?.warnings.some(
+    (warning) => warning.code === "STEERING_LIMIT_EXCEEDED",
+  );
+  const guidanceUnavailable = Boolean(
+    targetMdReview || advancedPathReview || steeringLimitExceeded,
+  );
   const guidanceReviewLabel = targetMdReview
     ? "Review target MD"
     : advancedPathReview
       ? "Review entry direction"
+      : steeringLimitExceeded
+        ? "Outside configured steering envelope"
       : undefined;
+  const nextMd = next
+    ? `At ${formatMetresValue(next.measuredDepthM)} MD`
+    : intervalMissing
+      ? "Survey interval required"
+      : guidanceReviewLabel;
+  const verticalIcon =
+    next?.verticalAction === "DROP" ? ArrowDownRight : ArrowUpRight;
 
   return (
     <section
-      className="grid grid-cols-2 gap-0 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 py-1 sm:grid-cols-3 lg:grid-cols-4"
+      className="space-y-3"
       data-testid="current-trajectory-tracking"
     >
-      <MetricCell
-        label="Next-Survey Dip"
-        primary={
-          guidanceUnavailable
-            ? "Unavailable"
-            : next
-              ? formatDegrees(next.dipDegrees)
-              : "—"
-        }
-        secondary={
-          guidanceUnavailable
-            ? guidanceReviewLabel
-            : next
-              ? `At ${formatMetresValue(next.measuredDepthM)} MD`
-              : intervalMissing
-                ? "Survey interval required"
-                : undefined
-        }
-        tertiary={
-          !guidanceUnavailable && next
-            ? `Current ${formatDegrees(next.currentDipDegrees)} · Required change ${formatSignedDegrees(next.requiredDipChangeDegrees)}`
-            : undefined
-        }
-        testId="trajectory-metric-required-dip"
-      />
-      <MetricCell
-        label="Next-Survey Azimuth"
-        primary={
-          guidanceUnavailable
-            ? "Unavailable"
-            : next
-              ? `${formatDegrees(next.azimuthDegrees)} ${northLabel(result)}`
-              : "—"
-        }
-        secondary={
-          guidanceUnavailable
-            ? guidanceReviewLabel
-            : next
-              ? `At ${formatMetresValue(next.measuredDepthM)} MD`
-              : intervalMissing
-                ? "Survey interval required"
-                : undefined
-        }
-        tertiary={
-          !guidanceUnavailable && next
-            ? `Current ${formatDegrees(next.currentAzimuthDegrees)} · Required change ${formatSignedDegrees(next.requiredAzimuthChangeDegrees)}`
-            : undefined
-        }
-        testId="trajectory-metric-required-azimuth"
-      />
-      <MetricCell
-        label="Projected Miss"
-        primary={
-          projection
-            ? projection.intersectsTarget
-              ? "0.0 m"
-              : formatMetresValue(projection.missOutsideTargetM)
-            : "—"
-        }
-        secondary={
-          projection
-            ? projection.intersectsTarget
-              ? "Intersects if attitude held"
-              : "Outside if current attitude held"
-            : result.target
-              ? undefined
-              : "Set a target"
-        }
-        tertiary={
-          projection && result.target
-            ? `Closest approach ${formatMetresValue(projection.closestApproachM)} · Radius ${formatMetresValue(result.target.diameterM / 2)}`
-            : latest
-              ? "Hold current Survey attitude"
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <GuidanceCard
+          label="Latest dip"
+          value={latest ? formatDegrees(latest.dipDegrees) : "—"}
+          supporting={
+            latest
+              ? `Latest Survey · ${formatMetresValue(latest.measuredDepthM)} MD`
+              : "No Survey recorded"
+          }
+          icon={Gauge}
+          testId="trajectory-metric-latest-dip"
+        />
+        <GuidanceCard
+          label="Latest azimuth"
+          value={latest ? formatDegrees(latest.azimuthDegrees) : "—"}
+          supporting={`${northLabel(result)} North${
+            latest ? ` · ${formatMetresValue(latest.measuredDepthM)} MD` : ""
+          }`}
+          icon={Compass}
+          testId="trajectory-metric-latest-azimuth"
+        />
+        <GuidanceCard
+          label="Swing"
+          value={
+            guidanceUnavailable
+              ? "REVIEW"
+              : next
+                ? actionValue(
+                    next.horizontalAction,
+                    next.azimuthAdjustmentDegrees,
+                  )
+                : "—"
+          }
+          target={
+            !guidanceUnavailable && next
+              ? `Target ${formatDegrees(next.azimuthDegrees)} · ${nextMd}`
               : undefined
-        }
-        testId="trajectory-metric-projected-miss"
-      />
-      <MetricCell
-        label="Distance to Target"
-        primary={
-          distanceM !== undefined && distanceM !== null
-            ? formatMetresValue(distanceM)
-            : "—"
-        }
-        secondary={
-          result.curvedSolution &&
-          (result.curvedSolution.status === "SOLVED" ||
-            result.curvedSolution.status === "REVIEW_REQUIRED") &&
-          result.curvedSolution.targetResidualM !== null &&
-          !guidanceUnavailable
-            ? `Recovery residual ${formatMetresValue(result.curvedSolution.targetResidualM)}`
-            : "Straight spatial distance"
-        }
-        tertiary={
-          remaining !== null &&
-          remaining !== undefined &&
-          remaining >= 0
-            ? `Remaining MD ${formatMetresValue(remaining)}`
-            : undefined
-        }
-        testId="trajectory-metric-target"
-      />
+          }
+          supporting={
+            guidanceUnavailable
+              ? guidanceReviewLabel
+              : next?.horizontalAction === "UNAVAILABLE"
+                ? "Azimuth is unstable near vertical"
+                : undefined
+          }
+          icon={ArrowLeftRight}
+          emphasis
+          testId="trajectory-metric-required-azimuth"
+        />
+        <GuidanceCard
+          label="Vertical steer"
+          value={
+            guidanceUnavailable
+              ? "REVIEW"
+              : next
+                ? actionValue(
+                    next.verticalAction,
+                    next.dipAdjustmentDegrees,
+                  )
+                : "—"
+          }
+          target={
+            !guidanceUnavailable && next
+              ? `Target ${formatDegrees(next.dipDegrees)} · ${nextMd}`
+              : undefined
+          }
+          supporting={guidanceUnavailable ? guidanceReviewLabel : undefined}
+          icon={verticalIcon}
+          emphasis
+          testId="trajectory-metric-required-dip"
+        />
+      </div>
+
+      <div className="grid gap-px overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-border)] sm:grid-cols-2 lg:grid-cols-4">
+        <div
+          className="bg-[var(--tl-surface)] px-4 py-3"
+          data-testid="trajectory-metric-projected-miss"
+        >
+          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+            Hold miss at target MD
+          </p>
+          <p className="mt-1 font-bold tabular-nums">
+            {projection
+              ? formatMetresValue(projection.endpointMissOutsideTargetM)
+              : "—"}
+          </p>
+        </div>
+        <div
+          className="bg-[var(--tl-surface)] px-4 py-3"
+          data-testid="trajectory-metric-target"
+        >
+          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+            Distance to target
+          </p>
+          <p className="mt-1 font-bold tabular-nums">
+            {distanceM !== undefined && distanceM !== null
+              ? formatMetresValue(distanceM)
+              : "—"}
+          </p>
+        </div>
+        <div className="bg-[var(--tl-surface)] px-4 py-3">
+          <p className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+            Remaining MD
+          </p>
+          <p className="mt-1 font-bold tabular-nums">
+            {remaining !== null && remaining !== undefined && remaining >= 0
+              ? formatMetresValue(remaining)
+              : "—"}
+          </p>
+        </div>
+        <div className="bg-[var(--tl-surface)] px-4 py-3">
+          <p className="flex items-center gap-1 text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+            <Target aria-hidden className="size-3" />
+            Guidance status
+          </p>
+          <p className="mt-1 font-bold">
+            {next
+              ? "Within steering envelope"
+              : guidanceReviewLabel ?? "Awaiting target solution"}
+          </p>
+        </div>
+      </div>
     </section>
   );
 }

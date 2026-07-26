@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
 import { TimelinePreview } from "@/components/holes/timeline-preview";
-import { targetLockStage4Seed } from "@/infrastructure/seed";
+import {
+  isRoutableHoleId,
+  targetLockStage4Seed,
+} from "@/infrastructure/seed";
 
 interface TimelinePageProps {
   params: Promise<{ holeId: string }>;
@@ -10,7 +13,7 @@ interface TimelinePageProps {
 export default async function TimelinePage({ params }: TimelinePageProps) {
   const { holeId } = await params;
 
-  if (holeId !== targetLockStage4Seed.hole.name) {
+  if (!isRoutableHoleId(holeId)) {
     notFound();
   }
 

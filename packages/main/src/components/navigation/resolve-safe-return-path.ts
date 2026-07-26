@@ -103,14 +103,13 @@ export function destinationLabelForPath(
     [runbookRoutes.timeline(holeId), "Timeline"],
     [runbookRoutes.statistics(holeId), "Statistics"],
     [runbookRoutes.casing(holeId), "Casing"],
-    [runbookRoutes.holeComponents(holeId), "Components"],
+    [runbookRoutes.holeComponents(holeId), "Bottom Hole Assembly"],
     [runbookRoutes.surveys(holeId), "Surveys"],
     [runbookRoutes.surveyTools(holeId), "Tools"],
     [runbookRoutes.completeHole(holeId), "Complete Hole"],
     [runbookRoutes.reopenHole(holeId), "Reopen Hole"],
     [runbookRoutes.completedHoles(), "Completed Holes"],
     [runbookRoutes.newHole(), "New Hole"],
-    [runbookRoutes.componentRegistry(), "Component Registry"],
     [runbookRoutes.recordRun(holeId), "Record Run"],
     [runbookRoutes.handover(holeId), "Handover"],
   ];
@@ -128,10 +127,8 @@ export function destinationLabelForPath(
     [`${runbookRoutes.casing(holeId)}/`, "Casing"],
     [`${runbookRoutes.surveys(holeId)}/`, "Surveys"],
     [`${runbookRoutes.trays(holeId)}/`, "Trays"],
-    [`${runbookRoutes.holeComponents(holeId)}/`, "Components"],
+    [`${runbookRoutes.holeComponents(holeId)}/`, "Bottom Hole Assembly"],
     [`${runbookRoutes.trajectory(holeId)}/`, "Trajectory"],
-    ["/components/", "Component Registry"],
-    ["/components", "Component Registry"],
   ];
 
   for (const [prefix, label] of prefixMatches) {

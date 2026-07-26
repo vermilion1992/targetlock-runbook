@@ -143,9 +143,10 @@ export function CurrentHoleDashboard({
       );
   }, [holeId]);
 
+  const isSeedHole = holeId === seed.hole.name;
   const holeStatus = lifecycle
     ? normalizeHoleStatus(lifecycle.status)
-    : normalizeHoleStatus(seed.hole.status);
+    : normalizeHoleStatus(isSeedHole ? seed.hole.status : "ACTIVE");
   const holeLocked =
     holeStatus === "COMPLETED" ||
     holeStatus === "ABANDONED" ||
@@ -158,7 +159,7 @@ export function CurrentHoleDashboard({
   const localRuns = state?.completedLocalRuns ?? [];
   const localRunIds = new Set(localRuns.map(({ localId }) => localId));
   const localRunNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
-  const completedSeedRuns = seed.runs.filter(
+  const completedSeedRuns = (isSeedHole ? seed.runs : []).filter(
     (run) =>
       run.status !== "in_progress" &&
       !localRunIds.has(run.localId) &&
@@ -179,9 +180,17 @@ export function CurrentHoleDashboard({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow={`${seed.project.code} · ${seed.rig.name}`}
+        eyebrow={
+          isSeedHole
+            ? `${seed.project.code} · ${seed.rig.name}`
+            : "Local operational hole"
+        }
         title={`${holeId} current hole`}
-        description={`${seed.project.name} · ${seed.hole.holeSize} · planned ${formatMetres(seed.hole.plannedDepth)}`}
+        description={
+          isSeedHole
+            ? `${seed.project.name} · ${seed.hole.holeSize} · planned ${formatMetres(seed.hole.plannedDepth)}`
+            : "Run, shift, Survey, tray, and trajectory state stored independently for this hole."
+        }
         action={
           loadingState ? (
             <StatusPill tone="neutral">Checking shift</StatusPill>

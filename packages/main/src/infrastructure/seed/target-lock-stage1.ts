@@ -151,7 +151,7 @@ export const briggsUsers: readonly User[] = [
 export const ddh041HoleConfigurations: readonly HoleConfiguration[] = [
   {
     ...metadata("hole-config-ddh041-01"),
-    holeId: "hole-ddh041",
+    holeId: "DDH041",
     effectiveAt: "2026-02-01T06:00:00.000Z",
     holeSize: "HQ",
     plannedDepth: metresToDecimetres(750),
@@ -165,7 +165,7 @@ export const ddh041HoleConfigurations: readonly HoleConfiguration[] = [
       "hole-config-ddh041-02",
       "2026-03-10T06:00:00.000Z",
     ),
-    holeId: "hole-ddh041",
+    holeId: "DDH041",
     effectiveAt: "2026-03-10T06:00:00.000Z",
     holeSize: "HQ",
     plannedDepth: metresToDecimetres(750),
@@ -180,7 +180,7 @@ export const ddh041RodStringConfigurations: readonly RodStringConfiguration[] =
   [
     {
       ...metadata("rod-config-ddh041-01"),
-      holeId: "hole-ddh041",
+      holeId: "DDH041",
       effectiveAt: "2026-02-01T06:00:00.000Z",
       bottomHoleAssemblyLength: metresToDecimetres(4.5),
       constantStickUp: metresToDecimetres(2),
@@ -195,7 +195,7 @@ export const ddh041RodStringConfigurations: readonly RodStringConfiguration[] =
         "rod-config-ddh041-02",
         "2026-03-08T06:00:00.000Z",
       ),
-      holeId: "hole-ddh041",
+      holeId: "DDH041",
       effectiveAt: "2026-03-08T06:00:00.000Z",
       bottomHoleAssemblyLength: metresToDecimetres(4.3),
       constantStickUp: metresToDecimetres(2),
@@ -210,7 +210,7 @@ export const ddh041RodStringConfigurations: readonly RodStringConfiguration[] =
         "rod-config-ddh041-03",
         "2026-03-18T06:00:00.000Z",
       ),
-      holeId: "hole-ddh041",
+      holeId: "DDH041",
       effectiveAt: "2026-03-18T06:00:00.000Z",
       bottomHoleAssemblyLength: metresToDecimetres(4.3),
       constantStickUp: metresToDecimetres(1.8),
@@ -300,7 +300,7 @@ function createDdh041RodEvents(): readonly RodAddition[] {
         `rod-event-ddh041-${String(index + 1).padStart(3, "0")}`,
         spec.occurredAt,
       ),
-      holeId: "hole-ddh041",
+      holeId: "DDH041",
       runId: spec.runId,
       shiftId: spec.shiftId,
       sequence: index + 1,
@@ -370,7 +370,7 @@ export const ddh041CurrentState = {
 } as const;
 
 export const ddh041: Hole = {
-  ...metadata("hole-ddh041", "2026-03-20T18:30:00.000Z"),
+  ...metadata("DDH041", "2026-03-20T18:30:00.000Z"),
   projectId: briggsProject.localId,
   rigId: rig10.localId,
   name: "DDH041",
@@ -1372,7 +1372,7 @@ export const seedSyncOperations: readonly SyncOperation[] = [
     retryCount: 0,
     payload: {
       localPath: "/seed/placeholders/ddh041/tray-111-current-run.jpg",
-      holeId: "hole-ddh041",
+      holeId: "DDH041",
     },
     lastError: null,
   },

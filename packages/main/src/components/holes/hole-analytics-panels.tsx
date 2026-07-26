@@ -1,18 +1,29 @@
 "use client";
 
+import Link from "next/link";
 import { useId, useState } from "react";
 
-import { formatMetres, type HoleAnalytics } from "@/domain";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
-import { CollapsibleFieldSection } from "@/components/shifts/collapsible-field-section";
-
-import { HoleAnalyticsCharts } from "./hole-analytics-charts";
+import { StatusPill } from "@/components/field/status-pill";
+import { formatFieldDateTime } from "@/components/holes/prototype-format";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
-  formatGrossMetresPerHour,
+  formatMetres,
+  formatTenths,
+  type HoleAnalytics,
+  type NorthReference,
+} from "@/domain";
+
+import {
+  BitMetresChart,
+  CumulativeDepthChart,
+  RunMetresChart,
+  ShiftMetresChart,
+} from "./hole-analytics-charts";
+import {
   formatOptionalMetres,
   formatRecoveryTenths,
-  formatSignedMetres,
   HOLE_METRIC_DEFINITIONS,
 } from "./hole-analytics-format";
 
@@ -20,7 +31,7 @@ function MetricInfo({ text }: { text: string }) {
   const [open, setOpen] = useState(false);
   const panelId = useId();
   return (
-    <div className="relative inline-flex">
+    <span className="relative inline-flex">
       <button
         type="button"
         className="inline-flex size-11 items-center justify-center rounded-md text-sm font-bold text-[var(--tl-ink-muted)] hover:bg-[var(--tl-border)]"
@@ -32,111 +43,47 @@ function MetricInfo({ text }: { text: string }) {
         i
       </button>
       {open ? (
-        <p
+        <span
           id={panelId}
           role="note"
-          className="absolute left-0 top-11 z-10 w-64 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-3 text-sm shadow-[var(--tl-shadow-sm)]"
+          className="absolute left-0 top-11 z-10 w-64 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-3 text-left text-sm font-normal shadow-[var(--tl-shadow-sm)]"
         >
           {text}
-        </p>
+        </span>
       ) : null}
-    </div>
+    </span>
   );
 }
 
-export function HoleOverviewPanel({ analytics }: { analytics: HoleAnalytics }) {
-  const { production, shifts, components, surveys, trays } = analytics;
-  return (
-    <SectionPanel
-      title="OVERVIEW"
-      description="Repository-backed Hole analytics from effective completed records."
-    >
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-overview">
-        <MetricDisplay
-          label="Final / current depth"
-          value={formatMetres(production.currentOrFinalDepthDm)}
-          emphasis="strong"
-        />
-        <MetricDisplay
-          label="Planned depth"
-          value={formatMetres(production.plannedDepthDm)}
-        />
-        <MetricDisplay
-          label="vs planned"
-          value={formatSignedMetres(production.differenceFromPlannedDm)}
-        />
-        <MetricDisplay
-          label="Total Runs"
-          value={production.totalCompletedRuns}
-        />
-        <MetricDisplay label="Total Shifts" value={shifts.completedShifts} />
-        <MetricDisplay
-          label="Weighted recovery"
-          value={formatRecoveryTenths(production.weightedRecoveryTenths)}
-          supportingText={
-            <span className="inline-flex items-center gap-1">
-              Weighted, not average
-              <MetricInfo text={HOLE_METRIC_DEFINITIONS.weightedRecovery} />
-            </span>
-          }
-        />
-        <MetricDisplay
-          label="Avg metres / Shift"
-          value={formatOptionalMetres(shifts.averageMetresPerCompletedShiftDm)}
-          supportingText={
-            <MetricInfo text={HOLE_METRIC_DEFINITIONS.averageMetresPerShift} />
-          }
-        />
-        <MetricDisplay label="Bits used" value={components.bitsUsed} />
-        <MetricDisplay label="Reamers used" value={components.reamersUsed} />
-        <MetricDisplay label="Surveys" value={surveys.totalSurveys} />
-        <MetricDisplay label="Trays" value={trays.totalTrays} />
-      </div>
-    </SectionPanel>
-  );
+function referenceLabel(reference: NorthReference): string {
+  return reference === "NOT_SPECIFIED"
+    ? "Not specified"
+    : `${reference[0]}${reference.slice(1).toLocaleLowerCase("en-AU")}`;
 }
 
-export function HoleProductionPanel({
+export function HoleRunStatisticsPanel({
   analytics,
 }: {
   analytics: HoleAnalytics;
 }) {
   const { production } = analytics;
   return (
-    <CollapsibleFieldSection title="Production" defaultOpen>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-production">
-        <MetricDisplay
-          label="Starting depth"
-          value={formatMetres(production.startingDepthDm)}
-        />
+    <SectionPanel
+      title="Run statistics"
+      description="Recorded metres, Run lengths and exceptions."
+    >
+      <div
+        className="grid grid-cols-2 gap-3 md:grid-cols-3"
+        data-testid="hole-analytics-production"
+      >
         <MetricDisplay
           label="Total drilled"
           value={formatMetres(production.totalDrilledDm)}
-        />
-        <MetricDisplay
-          label="Total recovered"
-          value={formatMetres(production.totalRecoveredDm)}
-        />
-        <MetricDisplay
-          label="Core loss"
-          value={formatMetres(production.totalCoreLossDm)}
-        />
-        <MetricDisplay
-          label="Core gain"
-          value={formatMetres(production.totalCoreGainDm)}
-        />
-        <MetricDisplay
-          label="Weighted recovery"
-          value={formatRecoveryTenths(production.weightedRecoveryTenths)}
+          emphasis="strong"
         />
         <MetricDisplay
           label="Completed Runs"
           value={production.totalCompletedRuns}
-        />
-        <MetricDisplay label="Voided Runs" value={production.totalVoidedRuns} />
-        <MetricDisplay
-          label="Corrected Runs"
-          value={production.totalCorrectedRuns}
         />
         <MetricDisplay
           label="Average Run"
@@ -147,30 +94,59 @@ export function HoleProductionPanel({
           value={formatOptionalMetres(production.medianRunLengthDm)}
         />
         <MetricDisplay
-          label="Shortest valid Run"
-          value={formatOptionalMetres(production.shortestValidRunDm)}
-        />
-        <MetricDisplay
-          label="Longest valid Run"
+          label="Longest Run"
           value={formatOptionalMetres(production.longestValidRunDm)}
         />
+        <MetricDisplay
+          label="Weighted core recovery"
+          value={formatRecoveryTenths(production.weightedRecoveryTenths)}
+          supportingText={
+            <span className="inline-flex items-center gap-1">
+              Hole-wide result
+              <MetricInfo text={HOLE_METRIC_DEFINITIONS.weightedRecovery} />
+            </span>
+          }
+        />
       </div>
-    </CollapsibleFieldSection>
+
+      <div className="mt-4 flex flex-wrap gap-2">
+        <StatusPill
+          tone={production.totalCorrectedRuns > 0 ? "warning" : "neutral"}
+        >
+          {production.totalCorrectedRuns} corrected
+        </StatusPill>
+        <StatusPill
+          tone={production.totalVoidedRuns > 0 ? "danger" : "neutral"}
+        >
+          {production.totalVoidedRuns} voided
+        </StatusPill>
+      </div>
+
+      <div className="mt-5">
+        <RunMetresChart analytics={analytics} />
+      </div>
+    </SectionPanel>
   );
 }
 
-export function HoleShiftPanel({ analytics }: { analytics: HoleAnalytics }) {
+export function HoleShiftStatisticsPanel({
+  analytics,
+}: {
+  analytics: HoleAnalytics;
+}) {
   const { shifts } = analytics;
   return (
-    <CollapsibleFieldSection title="Shifts" defaultOpen>
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-shifts">
-        <MetricDisplay label="Day Shifts" value={shifts.totalDayShifts} />
-        <MetricDisplay label="Night Shifts" value={shifts.totalNightShifts} />
+    <SectionPanel
+      title="Shift statistics"
+      description="Production output across completed Day and Night Shifts."
+    >
+      <div
+        className="grid grid-cols-2 gap-3 md:grid-cols-3"
+        data-testid="hole-analytics-shifts"
+      >
         <MetricDisplay label="Completed Shifts" value={shifts.completedShifts} />
-        <MetricDisplay label="Handovers" value={shifts.handovers} />
-        <MetricDisplay label="Shared Runs" value={shifts.sharedRuns} />
         <MetricDisplay
-          label="Avg metres / Shift"
+          label="Average metres / Shift"
           value={formatOptionalMetres(shifts.averageMetresPerCompletedShiftDm)}
         />
         <MetricDisplay
@@ -178,345 +154,349 @@ export function HoleShiftPanel({ analytics }: { analytics: HoleAnalytics }) {
           value={formatOptionalMetres(shifts.medianMetresPerCompletedShiftDm)}
         />
         <MetricDisplay
-          label="Avg Day metres"
-          value={formatOptionalMetres(shifts.averageDayShiftMetresDm)}
-        />
-        <MetricDisplay
-          label="Avg Night metres"
-          value={formatOptionalMetres(shifts.averageNightShiftMetresDm)}
-        />
-        <MetricDisplay
           label="Highest Shift metres"
           value={formatOptionalMetres(shifts.highestShiftMetresDm)}
         />
         <MetricDisplay
-          label="Lowest Shift metres"
-          value={formatOptionalMetres(shifts.lowestShiftMetresDm)}
+          label="Average Day metres"
+          value={formatOptionalMetres(shifts.averageDayShiftMetresDm)}
         />
         <MetricDisplay
-          label="Day weighted recovery"
-          value={formatRecoveryTenths(shifts.averageDayWeightedRecoveryTenths)}
-        />
-        <MetricDisplay
-          label="Night weighted recovery"
-          value={formatRecoveryTenths(shifts.averageNightWeightedRecoveryTenths)}
-        />
-        <MetricDisplay
-          label="Gross m / elapsed Shift hour"
-          value={formatGrossMetresPerHour(
-            shifts.grossMetresPerElapsedShiftHourTenths,
-          )}
-          supportingText={
-            <MetricInfo text={HOLE_METRIC_DEFINITIONS.grossMetresPerHour} />
-          }
+          label="Average Night metres"
+          value={formatOptionalMetres(shifts.averageNightShiftMetresDm)}
         />
       </div>
-      {analytics.drillerOperational.length > 0 ? (
-        <div className="mt-4 space-y-2">
-          <h3 className="text-sm font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-            Operational record by driller
-          </h3>
-          <p className="text-sm text-[var(--tl-ink-muted)]">
-            Neutral operational record — not a performance leaderboard.
-          </p>
-          <ul className="space-y-2">
-            {analytics.drillerOperational.map((row) => (
-              <li
-                key={row.drillerId}
-                className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-3 text-sm"
-              >
-                <strong>{row.drillerName}</strong>
-                <span className="block text-[var(--tl-ink-muted)]">
-                  {row.shiftsWorked} Shift(s) · {row.runsCompleted} Run(s) ·{" "}
-                  {formatMetres(row.metresAttributedDm)} · recovery{" "}
-                  {formatRecoveryTenths(row.weightedRecoveryTenths)}
-                </span>
-              </li>
-            ))}
-          </ul>
-        </div>
-      ) : null}
-    </CollapsibleFieldSection>
+
+      <div className="mt-5 grid gap-4 lg:grid-cols-2">
+        <ShiftMetresChart analytics={analytics} />
+        <CumulativeDepthChart analytics={analytics} />
+      </div>
+    </SectionPanel>
   );
 }
 
-export function HoleRodPanel({ analytics }: { analytics: HoleAnalytics }) {
-  const { rods } = analytics;
-  return (
-    <CollapsibleFieldSection title="Rods">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-rods">
-        <MetricDisplay
-          label="Rod number"
-          value={`${rods.startingRodNumber} → ${rods.finalOrCurrentRodNumber}`}
-        />
-        <MetricDisplay
-          label="R/S"
-          value={`${formatMetres(rods.startingRodStringDm)} → ${formatMetres(rods.finalOrCurrentRodStringDm)}`}
-        />
-        <MetricDisplay label="3.0 m rods added" value={rods.rodsAdded3m} />
-        <MetricDisplay label="6.0 m rods added" value={rods.rodsAdded6m} />
-        <MetricDisplay label="Rods removed" value={rods.rodsRemoved} />
-        <MetricDisplay
-          label="Net physical rod change"
-          value={rods.netPhysicalRodChange}
-        />
-        <MetricDisplay
-          label="BHA configuration changes"
-          value={rods.bhaConfigurationChanges}
-        />
-        <MetricDisplay
-          label="Constant stick-up changes"
-          value={rods.constantStickUpChanges}
-        />
-        <MetricDisplay
-          label="Corrected rod events"
-          value={rods.correctedRodEvents}
-        />
-        <MetricDisplay label="Voided rod events" value={rods.voidedRodEvents} />
-      </div>
-    </CollapsibleFieldSection>
-  );
-}
-
-export function HoleComponentPanel({
+export function HoleBitStatisticsPanel({
   analytics,
 }: {
   analytics: HoleAnalytics;
 }) {
-  const { components } = analytics;
+  const bits = analytics.components.assignments
+    .filter((assignment) => assignment.componentType === "BIT")
+    .sort(
+      (left, right) =>
+        Number(left.startDepthDm) - Number(right.startDepthDm),
+    );
+  const currentBit = [...bits]
+    .reverse()
+    .find((assignment) => assignment.finalStatus === "ACTIVE");
+  const changeCount = Math.max(0, bits.length - 1);
+
   return (
-    <CollapsibleFieldSection title="Components">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-components">
-        <MetricDisplay label="Bits used" value={components.bitsUsed} />
-        <MetricDisplay label="Reamers used" value={components.reamersUsed} />
+    <SectionPanel
+      title="Bit statistics"
+      description="Bit utilisation, drilled intervals and change history."
+      action={<StatusPill tone="info">{changeCount} changes</StatusPill>}
+    >
+      <div
+        className="grid grid-cols-2 gap-3 md:grid-cols-4"
+        data-testid="hole-analytics-components"
+      >
+        <MetricDisplay label="Bits used" value={analytics.components.bitsUsed} />
         <MetricDisplay
-          label="Avg metres / Bit"
-          value={formatOptionalMetres(components.averageRecordedMetresPerBitDm)}
+          label="Current Bit"
+          value={currentBit?.serialNumber ?? "Not assigned"}
         />
         <MetricDisplay
-          label="Avg metres / Reamer"
+          label="Average metres / Bit"
           value={formatOptionalMetres(
-            components.averageRecordedMetresPerReamerDm,
+            analytics.components.averageRecordedMetresPerBitDm,
           )}
         />
         <MetricDisplay
           label="Longest Bit interval"
-          value={formatOptionalMetres(components.longestBitIntervalDm)}
-        />
-        <MetricDisplay
-          label="Longest Reamer interval"
-          value={formatOptionalMetres(components.longestReamerIntervalDm)}
+          value={formatOptionalMetres(
+            analytics.components.longestBitIntervalDm,
+          )}
         />
       </div>
-      <ul className="mt-4 space-y-3">
-        {components.assignments.map((assignment) => (
-          <li
-            key={assignment.assignmentId}
-            className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-3 text-sm"
-          >
-            <strong>
-              {assignment.componentType} {assignment.serialNumber}
-            </strong>
-            <span className="block text-[var(--tl-ink-muted)]">
-              {formatMetres(assignment.startDepthDm)}–
-              {formatMetres(assignment.endDepthDm)} · recorded{" "}
-              {formatMetres(assignment.recordedMetresDm)} ·{" "}
-              {assignment.runsTouched} Run(s) touched
-              {assignment.partialBoundaryRuns > 0
-                ? ` · ${assignment.partialBoundaryRuns} partial boundary Run(s)`
-                : ""}
-            </span>
-            <span className="mt-1 block">
-              Observed recovery during assignment:{" "}
-              {formatRecoveryTenths(assignment.observedRecoveryTenths)}
-              {assignment.recoveryEstimateStatus === "RUN_LEVEL_ESTIMATE"
-                ? " (run-level estimate — partial boundary)"
-                : ""}
-            </span>
-            {assignment.removalReason ? (
-              <span className="mt-1 block text-[var(--tl-ink-muted)]">
-                Removal: {assignment.removalReason.replaceAll("_", " ")}
-              </span>
-            ) : null}
-          </li>
-        ))}
-      </ul>
-      <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-        {HOLE_METRIC_DEFINITIONS.observedComponentRecovery}
-      </p>
-    </CollapsibleFieldSection>
-  );
-}
 
-export function HoleCasingPanel({ analytics }: { analytics: HoleAnalytics }) {
-  const { casing } = analytics;
-  return (
-    <CollapsibleFieldSection title="Casing">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-casing">
-        <MetricDisplay label="Strings" value={casing.stringCount} />
-        <MetricDisplay label="Installs" value={casing.installCount} />
-        <MetricDisplay label="Advancements" value={casing.advancementCount} />
-        <MetricDisplay label="Corrections" value={casing.correctionCount} />
-        <MetricDisplay
-          label="Deepest casing"
-          value={formatOptionalMetres(casing.deepestCasingDm)}
-        />
-        <MetricDisplay
-          label="Sizes"
-          value={casing.sizes.length === 0 ? "—" : casing.sizes.join(", ")}
-        />
+      <div className="mt-5">
+        <BitMetresChart analytics={analytics} />
       </div>
-      <ul className="mt-4 space-y-2 text-sm">
-        {casing.timeline.map((item) => (
-          <li key={item.casingId}>
-            {item.size}: {formatMetres(item.startDepthDm)}–
-            {formatMetres(item.endDepthDm)} · {item.status}
-          </li>
-        ))}
-      </ul>
-    </CollapsibleFieldSection>
-  );
-}
 
-export function HoleSurveyPanel({ analytics }: { analytics: HoleAnalytics }) {
-  const { surveys } = analytics;
-  return (
-    <CollapsibleFieldSection title="Surveys">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-surveys">
-        <MetricDisplay label="Total Surveys" value={surveys.totalSurveys} />
-        <MetricDisplay
-          label="First Survey depth"
-          value={formatOptionalMetres(surveys.firstSurveyDepthDm)}
-        />
-        <MetricDisplay
-          label="Latest Survey depth"
-          value={formatOptionalMetres(surveys.latestSurveyDepthDm)}
-        />
-        <MetricDisplay
-          label="Distance to latest"
-          value={formatOptionalMetres(surveys.distanceFromFinalDepthToLatestDm)}
-        />
-        <MetricDisplay
-          label="Average spacing"
-          value={formatOptionalMetres(surveys.averageSurveySpacingDm)}
-        />
-        <MetricDisplay
-          label="Median spacing"
-          value={formatOptionalMetres(surveys.medianSurveySpacingDm)}
-        />
-        <MetricDisplay
-          label="Largest gap"
-          value={formatOptionalMetres(surveys.largestSurveyGapDm)}
-        />
-        <MetricDisplay
-          label="Duplicate depths"
-          value={surveys.duplicateDepthSurveyCount}
-        />
-        <MetricDisplay
-          label="Corrected Surveys"
-          value={surveys.correctedSurveyCount}
-        />
-        <MetricDisplay
-          label="With photographs"
-          value={surveys.surveysWithPhotographs}
-        />
-      </div>
-      {surveys.mixedNorthReferenceWarning ? (
-        <p
-          role="status"
-          className="mt-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-3 text-sm"
-        >
-          {surveys.mixedNorthReferenceWarning}
+      {bits.length === 0 ? (
+        <p className="mt-5 rounded-[var(--tl-radius-md)] border border-dashed border-[var(--tl-border-strong)] p-5 text-center text-sm text-[var(--tl-ink-muted)]">
+          No bit assignments recorded.
         </p>
-      ) : null}
-    </CollapsibleFieldSection>
+      ) : (
+        <>
+          <div className="mt-5 space-y-3 md:hidden">
+            {bits.map((bit) => (
+              <article
+                key={bit.assignmentId}
+                className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-4"
+              >
+                <div className="flex items-start justify-between gap-3">
+                  <strong>{bit.serialNumber}</strong>
+                  <StatusPill
+                    tone={bit.finalStatus === "ACTIVE" ? "info" : "neutral"}
+                  >
+                    {bit.finalStatus}
+                  </StatusPill>
+                </div>
+                <p className="mt-2 tl-tabular text-sm">
+                  {formatMetres(bit.startDepthDm)}–{formatMetres(bit.endDepthDm)}
+                </p>
+                <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                  {formatMetres(bit.recordedMetresDm)} drilled
+                  {bit.removalReason
+                    ? ` · ${bit.removalReason.replaceAll("_", " ")}`
+                    : ""}
+                </p>
+              </article>
+            ))}
+          </div>
+          <div className="mt-5 hidden overflow-x-auto rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] md:block">
+            <table className="w-full min-w-[720px] border-collapse text-left text-sm">
+              <thead className="bg-[var(--tl-surface-raised)] text-xs uppercase tracking-[0.06em] text-[var(--tl-ink-muted)]">
+                <tr>
+                  {[
+                    "Bit",
+                    "Depth interval",
+                    "Metres drilled",
+                    "Removal reason",
+                    "Status",
+                  ].map((heading) => (
+                    <th key={heading} className="px-4 py-3 font-bold">
+                      {heading}
+                    </th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {bits.map((bit) => (
+                  <tr
+                    key={bit.assignmentId}
+                    className="border-t border-[var(--tl-border)]"
+                  >
+                    <td className="px-4 py-3 font-bold">{bit.serialNumber}</td>
+                    <td className="px-4 py-3 tl-tabular">
+                      {formatMetres(bit.startDepthDm)}–
+                      {formatMetres(bit.endDepthDm)}
+                    </td>
+                    <td className="px-4 py-3 tl-tabular">
+                      {formatMetres(bit.recordedMetresDm)}
+                    </td>
+                    <td className="px-4 py-3">
+                      {bit.removalReason?.replaceAll("_", " ") ?? "—"}
+                    </td>
+                    <td className="px-4 py-3">
+                      <StatusPill
+                        tone={
+                          bit.finalStatus === "ACTIVE" ? "info" : "neutral"
+                        }
+                      >
+                        {bit.finalStatus}
+                      </StatusPill>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </>
+      )}
+    </SectionPanel>
   );
 }
 
-export function HoleTrayPanel({ analytics }: { analytics: HoleAnalytics }) {
-  const { trays } = analytics;
-  return (
-    <CollapsibleFieldSection title="Trays">
-      <div className="grid grid-cols-2 gap-3 md:grid-cols-3" data-testid="hole-analytics-trays">
-        <MetricDisplay label="Total Trays" value={trays.totalTrays} />
-        <MetricDisplay
-          label="First Tray"
-          value={trays.firstTrayNumber ?? "—"}
-        />
-        <MetricDisplay
-          label="Latest Tray"
-          value={trays.latestTrayNumber ?? "—"}
-        />
-        <MetricDisplay
-          label="With depth ranges"
-          value={trays.traysWithDepthRanges}
-        />
-        <MetricDisplay
-          label="Final partial"
-          value={trays.finalPartialTrays}
-        />
-        <MetricDisplay
-          label="Photo replacements"
-          value={trays.photographReplacements}
-        />
-        <MetricDisplay
-          label="Depth coverage"
-          value={formatMetres(trays.depthCoverageDm)}
-        />
-        <MetricDisplay label="Coverage gaps" value={trays.coverageGaps} />
-        <MetricDisplay label="Depth overlaps" value={trays.depthOverlaps} />
-        <MetricDisplay
-          label="Duplicate numbers"
-          value={trays.duplicateNumberConflicts}
-        />
-        <MetricDisplay
-          label="Uncovered to hole depth"
-          value={formatOptionalMetres(trays.uncoveredIntervalToHoleDepthDm)}
-        />
-      </div>
-    </CollapsibleFieldSection>
-  );
-}
-
-export function HoleCompletenessPanel({
+export function HoleBarrelChangesPanel({
   analytics,
 }: {
   analytics: HoleAnalytics;
 }) {
+  const { barrels } = analytics;
   return (
-    <CollapsibleFieldSection title="Record completeness" defaultOpen>
-      <div data-testid="hole-analytics-completeness" className="space-y-3">
-        <p className="text-sm text-[var(--tl-ink-muted)]">
-          Transparent category checks — not a combined Hole score.
+    <SectionPanel
+      title="Barrel changes"
+      description="Recorded serial-number changes from the BHA setup history."
+    >
+      <div
+        className="grid grid-cols-2 gap-3"
+        data-testid="hole-analytics-barrels"
+      >
+        <MetricDisplay
+          label="Current barrel"
+          value={barrels.currentSerialNumber ?? "Not recorded"}
+        />
+        <MetricDisplay label="Recorded changes" value={barrels.changeCount} />
+      </div>
+
+      {barrels.changes.length === 0 ? (
+        <p className="mt-5 rounded-[var(--tl-radius-md)] border border-dashed border-[var(--tl-border-strong)] p-5 text-center text-sm text-[var(--tl-ink-muted)]">
+          No barrel serial changes recorded.
         </p>
-        <ul className="space-y-2">
-          {analytics.completeness.categories.map((category) => (
+      ) : (
+        <ol className="mt-5 space-y-3">
+          {barrels.changes.map((change) => (
             <li
-              key={category.category}
-              className="flex flex-wrap items-baseline justify-between gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-3 py-2"
+              key={change.setupId}
+              className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-4"
             >
-              <span className="font-semibold">{category.category}</span>
-              <span className="tl-tabular font-bold">{category.status}</span>
-              {category.notes.length > 0 ? (
-                <span className="basis-full text-sm text-[var(--tl-ink-muted)]">
-                  {category.notes.join(" · ")}
+              <div className="flex flex-wrap items-start justify-between gap-3">
+                <strong className="tl-tabular">
+                  {change.previousSerialNumber} → {change.serialNumber}
+                </strong>
+                <span className="text-sm text-[var(--tl-ink-muted)]">
+                  {formatFieldDateTime(change.effectiveAt)}
                 </span>
-              ) : null}
+              </div>
+              <p className="mt-2 text-sm">
+                BHA length{" "}
+                <strong>{formatMetres(change.bottomHoleAssemblyLengthDm)}</strong>
+                {" · "}
+                {change.reason}
+              </p>
+              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                Recorded by {change.recordedByName}
+              </p>
             </li>
           ))}
-        </ul>
-      </div>
-    </CollapsibleFieldSection>
+        </ol>
+      )}
+    </SectionPanel>
   );
 }
 
-export function HoleChartsSection({ analytics }: { analytics: HoleAnalytics }) {
+export function HoleSurveyRegisterPanel({
+  analytics,
+}: {
+  analytics: HoleAnalytics;
+}) {
+  const records = analytics.surveys.records;
   return (
-    <CollapsibleFieldSection title="Charts" defaultOpen>
-      <p className="mb-3 text-sm text-[var(--tl-ink-muted)]">
-        {HOLE_METRIC_DEFINITIONS.shortLongRuns}
-      </p>
-      <HoleAnalyticsCharts charts={analytics.charts} />
-    </CollapsibleFieldSection>
+    <SectionPanel
+      title="Survey register"
+      description="Survey records ordered by measured depth."
+      action={<StatusPill tone="info">{records.length} surveys</StatusPill>}
+    >
+      <div data-testid="hole-analytics-surveys">
+        {records.length === 0 ? (
+          <p className="rounded-[var(--tl-radius-md)] border border-dashed border-[var(--tl-border-strong)] p-5 text-center text-sm text-[var(--tl-ink-muted)]">
+            No Surveys recorded.
+          </p>
+        ) : (
+          <>
+            <div className="space-y-3 md:hidden">
+              {records.map((survey) => (
+                <Link
+                  key={survey.surveyId}
+                  href={runbookRoutes.surveyDetail(
+                    analytics.holeId,
+                    survey.surveyId,
+                  )}
+                  className="block rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] p-4 no-underline"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <strong className="tl-tabular text-xl">
+                      {formatMetres(survey.depthDm)}
+                    </strong>
+                    <span className="flex flex-wrap justify-end gap-1">
+                      {survey.corrected ? (
+                        <StatusPill tone="warning">Corrected</StatusPill>
+                      ) : null}
+                      {survey.hasPhotograph ? (
+                        <StatusPill tone="info">Photo</StatusPill>
+                      ) : null}
+                    </span>
+                  </div>
+                  <p className="mt-2 font-bold">
+                    Dip {formatTenths(survey.dipTenths)}° · Azimuth{" "}
+                    {formatTenths(survey.azimuthTenths)}°
+                  </p>
+                  <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                    {referenceLabel(survey.northReference)} ·{" "}
+                    {survey.toolName ?? "Tool not specified"}
+                  </p>
+                  <p className="mt-1 text-xs text-[var(--tl-ink-muted)]">
+                    {formatFieldDateTime(survey.recordedAt)}
+                  </p>
+                </Link>
+              ))}
+            </div>
+
+            <div className="hidden overflow-x-auto rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] md:block">
+              <table className="w-full min-w-[840px] border-collapse text-left text-sm">
+                <thead className="bg-[var(--tl-surface-raised)] text-xs uppercase tracking-[0.06em] text-[var(--tl-ink-muted)]">
+                  <tr>
+                    {[
+                      "Depth",
+                      "Dip",
+                      "Azimuth",
+                      "Reference",
+                      "Tool",
+                      "Recorded",
+                      "Record",
+                    ].map((heading) => (
+                      <th key={heading} className="px-4 py-3 font-bold">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {records.map((survey) => (
+                    <tr
+                      key={survey.surveyId}
+                      className="border-t border-[var(--tl-border)]"
+                    >
+                      <td className="px-4 py-3 font-bold">
+                        <Link
+                          href={runbookRoutes.surveyDetail(
+                            analytics.holeId,
+                            survey.surveyId,
+                          )}
+                        >
+                          {formatMetres(survey.depthDm)}
+                        </Link>
+                      </td>
+                      <td className="px-4 py-3 tl-tabular">
+                        {formatTenths(survey.dipTenths)}°
+                      </td>
+                      <td className="px-4 py-3 tl-tabular">
+                        {formatTenths(survey.azimuthTenths)}°
+                      </td>
+                      <td className="px-4 py-3">
+                        {referenceLabel(survey.northReference)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {survey.toolName ?? "Not specified"}
+                        {survey.toolSerialNumber
+                          ? ` · ${survey.toolSerialNumber}`
+                          : ""}
+                      </td>
+                      <td className="px-4 py-3">
+                        {formatFieldDateTime(survey.recordedAt)}
+                      </td>
+                      <td className="px-4 py-3">
+                        <span className="flex flex-wrap gap-1">
+                          {survey.corrected ? (
+                            <StatusPill tone="warning">Corrected</StatusPill>
+                          ) : null}
+                          {survey.hasPhotograph ? (
+                            <StatusPill tone="info">Photo</StatusPill>
+                          ) : null}
+                          {!survey.corrected && !survey.hasPhotograph ? "—" : null}
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
+      </div>
+    </SectionPanel>
   );
 }

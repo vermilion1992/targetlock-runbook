@@ -548,7 +548,7 @@ export function drawTrajectoryGraphics(
       ctx.stroke();
     }
     drawTargetRadiusPlan(ctx, model, map, colors);
-    if (!model.fieldMode) {
+    if (model.plannedPath.length > 0) {
       drawDashedPolyline(
         ctx,
         model.plannedPath.map(map),
@@ -585,7 +585,7 @@ export function drawTrajectoryGraphics(
         padding,
         verticalScale,
       );
-      if (!model.fieldMode) {
+      if (model.plannedPath.length > 0) {
         drawDashedPolyline(
           ctx,
           model.plannedPath.map(map),
@@ -686,7 +686,7 @@ export function drawTrajectoryGraphics(
     const actual = model.actualPath.map((point) =>
       project3d(point, model, camera, verticalScale, width, height),
     );
-    if (!model.fieldMode) {
+    if (planned.length > 0) {
       drawDashedPolyline(ctx, planned, colors.planned, 2.5, [8, 5]);
     }
     drawSolidPolyline(ctx, actual, colors.actual, 2.5);

@@ -19,12 +19,10 @@ import {
 } from "react-hook-form";
 import { z } from "zod";
 
-import { ConditionTagPicker } from "@/components/field/condition-tag-picker";
 import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetreInput } from "@/components/field/metre-input";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
-import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
@@ -61,15 +59,6 @@ import {
   type RunDraftPayload,
 } from "@/infrastructure/drafts";
 
-type Ddh041CurrentState =
-  typeof import("@/infrastructure/seed").ddh041CurrentState;
-
-interface RunConditionOption {
-  readonly value: string;
-  readonly label: string;
-  readonly description: string;
-}
-
 interface RecordRunFormProps {
   holeId: string;
   runNumber: number;
@@ -77,8 +66,12 @@ interface RecordRunFormProps {
   shiftLabel: string;
   primaryDrillerId: string;
   primaryDriller: string;
-  currentState: Ddh041CurrentState;
-  conditionOptions: readonly RunConditionOption[];
+  currentState: {
+    readonly rodNumber: number;
+    readonly currentRodString: Decimetres;
+    readonly previousCompletedDepth: Decimetres;
+    readonly measuredStickUp?: Decimetres;
+  };
   initialRodLength?: 3 | 6;
 }
 
@@ -118,7 +111,6 @@ function metreFieldSchema(label: string) {
 const runFormSchema = z.object({
   stickUpMetres: metreFieldSchema("Measured stick-up"),
   recoveredMetres: metreFieldSchema("Core recovered"),
-  conditionTagIds: z.array(z.string().min(1)),
   comment: z
     .string()
     .max(500, "Comment must be 500 characters or fewer."),
@@ -126,16 +118,23 @@ const runFormSchema = z.object({
 
 type RunFormValues = z.infer<typeof runFormSchema>;
 
-interface DerivedRunValues {
+interface DerivedRunPosition {
   readonly rodNumber: number;
   readonly rodString: Decimetres;
   readonly stickUp: Decimetres;
   readonly holeDepth: Decimetres;
   readonly drilledLength: Decimetres;
+}
+
+interface DerivedRunValues extends DerivedRunPosition {
   readonly recoveredLength: Decimetres;
   readonly recoveryPercentage: number;
   readonly variance: CoreRecoveryVariance;
 }
+
+type PositionResult =
+  | { readonly ok: true; readonly values: DerivedRunPosition }
+  | { readonly ok: false; readonly reason: string };
 
 type DerivedResult =
   | { readonly ok: true; readonly values: DerivedRunValues }
@@ -158,19 +157,17 @@ function domainRodEvents(
   }));
 }
 
-function deriveRunValues(
+function deriveRunPosition(
   context: RunDraftContext,
   pendingEvents: readonly PendingDraftRodEvent[],
   stickUpValue: string,
-  recoveredValue: string,
-): DerivedResult {
+): PositionResult {
   const stickUp = parseMetreValue(stickUpValue);
-  const recoveredLength = parseMetreValue(recoveredValue);
 
-  if (stickUp === null || recoveredLength === null) {
+  if (stickUp === null) {
     return {
       ok: false,
-      reason: "Enter stick-up and recovery in valid 0.1 m increments.",
+      reason: "Enter stick-up in valid 0.1 m increments.",
     };
   }
 
@@ -203,12 +200,6 @@ function deriveRunValues(
         stickUp,
         holeDepth,
         drilledLength,
-        recoveredLength,
-        recoveryPercentage: calculateRecoveryPercentage(
-          drilledLength,
-          recoveredLength,
-        ),
-        variance: calculateCoreLossOrGain(drilledLength, recoveredLength),
       },
     };
   } catch (error) {
@@ -220,6 +211,35 @@ function deriveRunValues(
           : "The run values could not be calculated.",
     };
   }
+}
+
+function deriveRunValues(
+  position: PositionResult,
+  recoveredValue: string,
+): DerivedResult {
+  if (!position.ok) return position;
+  const recoveredLength = parseMetreValue(recoveredValue);
+  if (recoveredLength === null) {
+    return {
+      ok: false,
+      reason: "Enter recovery in valid 0.1 m increments.",
+    };
+  }
+  return {
+    ok: true,
+    values: {
+      ...position.values,
+      recoveredLength,
+      recoveryPercentage: calculateRecoveryPercentage(
+        position.values.drilledLength,
+        recoveredLength,
+      ),
+      variance: calculateCoreLossOrGain(
+        position.values.drilledLength,
+        recoveredLength,
+      ),
+    },
+  };
 }
 
 function metreNumber(value: Decimetres): string {
@@ -252,7 +272,6 @@ export function RecordRunForm({
   primaryDrillerId,
   primaryDriller,
   currentState,
-  conditionOptions,
   initialRodLength,
 }: RecordRunFormProps) {
   const router = useRouter();
@@ -280,6 +299,7 @@ export function RecordRunForm({
     useState<readonly PendingDraftRodEvent[]>(initialPendingEvents);
   const [hydrated, setHydrated] = useState(false);
   const [saving, setSaving] = useState(false);
+  const [recoveredOverridden, setRecoveredOverridden] = useState(false);
   const [draftIdentity, setDraftIdentity] = useState<{
     readonly localId: string;
     readonly startedAt: string;
@@ -303,37 +323,38 @@ export function RecordRunForm({
     control,
     handleSubmit,
     reset,
+    setValue,
     trigger,
     formState: { errors, isValid },
   } = useForm<RunFormValues>({
     resolver: zodResolver(runFormSchema),
     mode: "onChange",
     defaultValues: {
-      stickUpMetres: metreNumber(currentState.measuredStickUp),
-      recoveredMetres: metreNumber(currentState.recoveredLength),
-      conditionTagIds: [],
+      stickUpMetres:
+        currentState.measuredStickUp === undefined
+          ? ""
+          : metreNumber(currentState.measuredStickUp),
+      recoveredMetres: "",
       comment: "",
     },
   });
 
-  const [stickUpMetres, recoveredMetres, conditionTagIds, comment] = useWatch({
+  const [stickUpMetres, recoveredMetres, comment] = useWatch({
     control,
-    name: [
-      "stickUpMetres",
-      "recoveredMetres",
-      "conditionTagIds",
-      "comment",
-    ],
+    name: ["stickUpMetres", "recoveredMetres", "comment"],
   });
-  const derived = useMemo(
+  const position = useMemo(
     () =>
-      deriveRunValues(
+      deriveRunPosition(
         context,
         pendingEvents,
         stickUpMetres,
-        recoveredMetres,
       ),
-    [context, pendingEvents, recoveredMetres, stickUpMetres],
+    [context, pendingEvents, stickUpMetres],
+  );
+  const derived = useMemo(
+    () => deriveRunValues(position, recoveredMetres),
+    [position, recoveredMetres],
   );
 
   useEffect(() => {
@@ -370,10 +391,13 @@ export function RecordRunForm({
         });
         setContext(savedDraft.envelope.payload.context);
         setPendingEvents(savedDraft.envelope.payload.pendingRodEvents);
+        setRecoveredOverridden(
+          savedDraft.envelope.payload.recoveredOverridden ??
+            savedDraft.envelope.payload.recoveredMetresInput.trim().length > 0,
+        );
         reset({
           stickUpMetres: savedDraft.envelope.payload.stickUpMetresInput,
           recoveredMetres: savedDraft.envelope.payload.recoveredMetresInput,
-          conditionTagIds: savedDraft.envelope.payload.conditionTagIds,
           comment: savedDraft.envelope.payload.comment,
         });
         setDraftStatus(
@@ -405,9 +429,9 @@ export function RecordRunForm({
           reset({
             stickUpMetres: "",
             recoveredMetres: "",
-            conditionTagIds: [],
             comment: "",
           });
+          setRecoveredOverridden(false);
           setDraftStatus(
             `Prepared run ${latestCompleted.runNumber + 1} from locally saved run ${latestCompleted.runNumber}. Current edits will auto-save.`,
           );
@@ -485,6 +509,23 @@ export function RecordRunForm({
   ]);
 
   useEffect(() => {
+    if (!hydrated || recoveredOverridden || !position.ok) return;
+    const recoveredDefault = metreNumber(position.values.drilledLength);
+    if (recoveredMetres !== recoveredDefault) {
+      setValue("recoveredMetres", recoveredDefault, {
+        shouldDirty: false,
+        shouldValidate: true,
+      });
+    }
+  }, [
+    hydrated,
+    position,
+    recoveredMetres,
+    recoveredOverridden,
+    setValue,
+  ]);
+
+  useEffect(() => {
     if (!hydrated) {
       return;
     }
@@ -515,7 +556,8 @@ export function RecordRunForm({
       pendingRodEvents: [...pendingEvents],
       stickUpMetresInput: stickUpMetres,
       recoveredMetresInput: recoveredMetres,
-      conditionTagIds: [...conditionTagIds],
+      recoveredOverridden,
+      conditionTagIds: [],
       comment,
       activeBitAssignmentId: draftIdentity.activeBitAssignmentId,
       activeReamerAssignmentId: draftIdentity.activeReamerAssignmentId,
@@ -526,35 +568,45 @@ export function RecordRunForm({
       casingSummarySnapshot: draftIdentity.casingSummarySnapshot,
     };
     const savedAt = new Date().toISOString();
-    const result = repository.writeDraft(holeId, payload, savedAt);
-    const statusTimer = window.setTimeout(() => {
-      setDraftStatus(
-        result.ok
-          ? `Draft saved locally at ${new Date(savedAt).toLocaleTimeString("en-AU", {
-              hour: "2-digit",
-              minute: "2-digit",
-            })}. Not synced.`
-          : result.reason,
-      );
-    }, 0);
+    let active = true;
+    let statusTimer: number | undefined;
+    void repository
+      .writeDraft(holeId, payload, savedAt)
+      .then((result) => {
+        if (!active) return;
+        statusTimer = window.setTimeout(() => {
+          setDraftStatus(
+            result.ok
+              ? `Draft saved locally at ${new Date(savedAt).toLocaleTimeString("en-AU", {
+                  hour: "2-digit",
+                  minute: "2-digit",
+                })}. Not synced.`
+              : result.reason,
+          );
+        }, 0);
+      })
+      .catch(() => {
+        if (active) setDraftStatus("The draft could not be saved safely.");
+      });
     const persistBeforeUnload = () => {
-      repository.writeDraft(holeId, payload);
+      void repository.writeDraft(holeId, payload);
     };
 
     window.addEventListener("beforeunload", persistBeforeUnload);
     return () => {
-      window.clearTimeout(statusTimer);
+      active = false;
+      if (statusTimer !== undefined) window.clearTimeout(statusTimer);
       window.removeEventListener("beforeunload", persistBeforeUnload);
     };
   }, [
     comment,
-    conditionTagIds,
     context,
     draftIdentity,
     holeId,
     hydrated,
     pendingEvents,
     recoveredMetres,
+    recoveredOverridden,
     stickUpMetres,
   ]);
 
@@ -583,10 +635,13 @@ export function RecordRunForm({
     setSaving(true);
     setSaveStatus(null);
 
-    const currentDerived = deriveRunValues(
+    const currentPosition = deriveRunPosition(
       context,
       pendingEvents,
       values.stickUpMetres,
+    );
+    const currentDerived = deriveRunValues(
+      currentPosition,
       values.recoveredMetres,
     );
     if (!currentDerived.ok) {
@@ -634,7 +689,7 @@ export function RecordRunForm({
           occurredAt: savedAt,
         };
       }),
-      conditionTagIds: [...values.conditionTagIds],
+      conditionTagIds: [],
       comment: values.comment.trim(),
     };
     let result;
@@ -665,6 +720,7 @@ export function RecordRunForm({
     router.push(runbookRoutes.runDetail(holeId, snapshot.localId));
   };
 
+  const displayedPosition = position.ok ? position.values : null;
   const displayedValues = derived.ok ? derived.values : null;
   const recoveryWarning =
     displayedValues !== null && displayedValues.recoveryPercentage > 100;
@@ -674,6 +730,19 @@ export function RecordRunForm({
       : displayedValues.variance.kind === "exact"
         ? "Exact recovery"
         : `${displayedValues.variance.kind === "gain" ? "Core gain" : "Core loss"} ${formatMetres(displayedValues.variance.amount)}`;
+  const threeMetreRods = pendingEvents.filter(
+    ({ rodLengthDm }) => rodLengthDm === 30,
+  ).length;
+  const sixMetreRods = pendingEvents.length - threeMetreRods;
+  const rodChangeSummary =
+    pendingEvents.length === 0
+      ? "No rods added this run"
+      : [
+          threeMetreRods > 0 ? `${threeMetreRods} × 3.0 m` : null,
+          sixMetreRods > 0 ? `${sixMetreRods} × 6.0 m` : null,
+        ]
+          .filter(Boolean)
+          .join(" · ");
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -687,31 +756,9 @@ export function RecordRunForm({
         )}
       />
 
-      <aside
-        aria-label="Local draft status"
-        className="flex items-start gap-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-primary-soft)] p-4"
-      >
-        <HardDrive
-          aria-hidden="true"
-          className="mt-0.5 size-5 shrink-0 text-[var(--tl-primary)]"
-        />
-        <div>
-          <p className="font-bold text-[var(--tl-ink)]">
-            Auto-saved draft · local-only
-          </p>
-          <p
-            role="status"
-            aria-live="polite"
-            className="mt-1 text-sm leading-5 text-[var(--tl-ink-muted)]"
-          >
-            {draftStatus}
-          </p>
-        </div>
-      </aside>
-
       <section
         aria-labelledby="run-context-heading"
-        className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)]"
+        className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-3"
       >
         <h2 id="run-context-heading" className="sr-only">
           Run context
@@ -731,97 +778,85 @@ export function RecordRunForm({
             </div>
           ))}
         </dl>
+        <div
+          aria-label="Local draft status"
+          className="mt-3 flex items-start gap-2 border-t border-[var(--tl-border)] pt-3 text-xs text-[var(--tl-ink-muted)]"
+        >
+          <HardDrive
+            aria-hidden="true"
+            className="mt-0.5 size-4 shrink-0 text-[var(--tl-primary)]"
+          />
+          <p role="status" aria-live="polite">
+            <strong className="text-[var(--tl-ink)]">Auto-saved locally.</strong>{" "}
+            {draftStatus}
+          </p>
+        </div>
       </section>
 
       <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
         <SectionPanel
-          title="Rod string"
-          description="Pending additions stay as individual events until this run is saved."
-        >
-          <div className="grid grid-cols-2 gap-3">
-            <MetricDisplay
-              label="Rod number"
-              value={displayedValues?.rodNumber ?? context.rodNumber}
-              supportingText="Current + pending"
-            />
-            <MetricDisplay
-              label="Current R/S"
-              value={
-                displayedValues
-                  ? metreNumber(displayedValues.rodString)
-                  : metreNumber(
-                      decimetres(context.currentRodStringDm),
-                    )
-              }
-              unit="m"
-              supportingText="No CSU added"
-            />
-          </div>
-
-          <div className="mt-4 grid gap-2 sm:grid-cols-3">
-            <button
-              type="button"
-              onClick={() => addRod(30)}
-              className="flex min-h-14 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-4 font-bold text-white"
-            >
-              <Plus aria-hidden="true" className="size-5" />
-              Add 3.0 m
-            </button>
-            <button
-              type="button"
-              onClick={() => addRod(60)}
-              className="flex min-h-14 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-4 font-bold text-white"
-            >
-              <Plus aria-hidden="true" className="size-5" />
-              Add 6.0 m
-            </button>
-            <button
-              type="button"
-              disabled={pendingEvents.length === 0}
-              onClick={removeLastPendingRod}
-              className="flex min-h-14 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold text-[var(--tl-ink)] disabled:cursor-not-allowed disabled:opacity-50"
-            >
-              <RotateCcw aria-hidden="true" className="size-5" />
-              Undo last pending rod
-            </button>
-          </div>
-
-          <div className="mt-4 rounded-[var(--tl-radius-md)] bg-[var(--tl-surface-raised)] p-4">
-            <h3 className="text-sm font-bold text-[var(--tl-ink)]">
-              Pending rod events ({pendingEvents.length})
-            </h3>
-            {pendingEvents.length === 0 ? (
-              <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-                No pending additions. Saved rod history cannot be changed from
-                this run form.
-              </p>
-            ) : (
-              <ol className="mt-2 space-y-2">
-                {pendingEvents.map((event, index) => (
-                  <li
-                    key={event.localId}
-                    className="flex min-h-11 items-center justify-between gap-3 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 py-2"
-                  >
-                    <span className="flex items-center gap-2 font-semibold text-[var(--tl-ink)]">
-                      <Plus aria-hidden="true" className="size-4 text-[var(--tl-primary)]" />
-                      Event {index + 1}: add{" "}
-                      {formatMetres(decimetres(event.rodLengthDm))} rod
-                    </span>
-                    {index === pendingEvents.length - 1 ? (
-                      <StatusPill tone="info">Undoable</StatusPill>
-                    ) : null}
-                  </li>
-                ))}
-              </ol>
-            )}
-          </div>
-        </SectionPanel>
-
-        <SectionPanel
           title="Run measurements"
-          description="Use the numeric keyboard. Measurements are stored at 0.1 m precision."
+          description="Enter stick-up to see drilled metres. Recovery defaults to drilled and can be adjusted."
         >
-          <div className="grid gap-6 lg:grid-cols-2">
+          <section
+            aria-labelledby="rod-change-heading"
+            className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-4"
+          >
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div>
+                <h3 id="rod-change-heading" className="font-bold text-[var(--tl-ink)]">
+                  Rod string
+                </h3>
+                <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                  {rodChangeSummary}
+                </p>
+              </div>
+              <div className="grid grid-cols-2 gap-2 text-right text-sm">
+                <span className="text-[var(--tl-ink-muted)]">Rod number</span>
+                <strong>{displayedPosition?.rodNumber ?? context.rodNumber}</strong>
+                <span className="text-[var(--tl-ink-muted)]">Current R/S</span>
+                <strong>
+                  {metreNumber(
+                    displayedPosition?.rodString ??
+                      decimetres(context.currentRodStringDm),
+                  )}{" "}
+                  m
+                </strong>
+              </div>
+            </div>
+            <p className="mt-2 text-xs text-[var(--tl-ink-muted)]">
+              Bottom-hole assembly and constant stick-up are already included in R/S.
+            </p>
+            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+              <button
+                type="button"
+                onClick={() => addRod(30)}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-4 font-bold text-white"
+              >
+                <Plus aria-hidden="true" className="size-5" />
+                Add 3.0 m rod
+              </button>
+              <button
+                type="button"
+                onClick={() => addRod(60)}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-4 font-bold text-white"
+              >
+                <Plus aria-hidden="true" className="size-5" />
+                Add 6.0 m rod
+              </button>
+              <button
+                type="button"
+                disabled={pendingEvents.length === 0}
+                onClick={removeLastPendingRod}
+                className="flex min-h-12 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold text-[var(--tl-ink)] disabled:cursor-not-allowed disabled:opacity-50"
+              >
+                <RotateCcw aria-hidden="true" className="size-5" />
+                Undo last rod
+              </button>
+            </div>
+          </section>
+
+          <div className="mt-6 grid gap-6 lg:grid-cols-2">
             <Controller
               name="stickUpMetres"
               control={control}
@@ -849,7 +884,10 @@ export function RecordRunForm({
                 <MetreInput
                   label="Core recovered"
                   value={field.value}
-                  onValueChange={field.onChange}
+                  onValueChange={(value) => {
+                    setRecoveredOverridden(true);
+                    field.onChange(value);
+                  }}
                   onBlur={() => {
                     normalizeMetreInput(field.value, field.onChange);
                     field.onBlur();
@@ -857,14 +895,35 @@ export function RecordRunForm({
                   min={0}
                   required
                   error={errors.recoveredMetres?.message}
-                  helpText="Values above drilled length are allowed as measured core gain."
+                  helpText={
+                    recoveredOverridden
+                      ? "Manually adjusted. Values above drilled are allowed as measured core gain."
+                      : "Automatically matches drilled metres until you adjust it."
+                  }
                   className="h-16 text-2xl"
                 />
               )}
             />
           </div>
 
-          {!derived.ok ? (
+          {recoveredOverridden && position.ok ? (
+            <button
+              type="button"
+              className="mt-3 min-h-11 font-bold text-[var(--tl-primary)]"
+              onClick={() => {
+                setRecoveredOverridden(false);
+                setValue(
+                  "recoveredMetres",
+                  metreNumber(position.values.drilledLength),
+                  { shouldValidate: true },
+                );
+              }}
+            >
+              Reset recovered to drilled
+            </button>
+          ) : null}
+
+          {!position.ok ? (
             <div
               role="status"
               aria-live="polite"
@@ -874,15 +933,15 @@ export function RecordRunForm({
                 aria-hidden="true"
                 className="mt-0.5 size-4 shrink-0 text-[var(--tl-warning)]"
               />
-              {derived.reason}
+              {position.reason}
             </div>
           ) : null}
 
           <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
             <MetricDisplay
               label="Depth"
-              value={displayedValues ? metreNumber(displayedValues.holeDepth) : "—"}
-              unit={displayedValues ? "m" : undefined}
+              value={displayedPosition ? metreNumber(displayedPosition.holeDepth) : "—"}
+              unit={displayedPosition ? "m" : undefined}
               supportingText={`Previous ${formatMetres(decimetres(context.previousCompletedDepthDm))}`}
               emphasis="strong"
               className="col-span-2 lg:col-span-1"
@@ -890,9 +949,12 @@ export function RecordRunForm({
             <MetricDisplay
               label="Drilled"
               value={
-                displayedValues ? metreNumber(displayedValues.drilledLength) : "—"
+                displayedPosition
+                  ? metreNumber(displayedPosition.drilledLength)
+                  : "—"
               }
-              unit={displayedValues ? "m" : undefined}
+              unit={displayedPosition ? "m" : undefined}
+              emphasis="strong"
             />
             <MetricDisplay
               label="Recovery"
@@ -934,24 +996,10 @@ export function RecordRunForm({
         </SectionPanel>
 
         <SectionPanel
-          title="Conditions and comment"
-          description="Add field context that will remain with this local snapshot."
+          title="Comment"
+          description="Add optional field context that should remain with this run."
         >
-          <Controller
-            name="conditionTagIds"
-            control={control}
-            render={({ field }) => (
-              <ConditionTagPicker
-                label="Condition tags"
-                options={conditionOptions}
-                value={field.value}
-                onValueChange={field.onChange}
-                helpText="Choose every condition that applies."
-              />
-            )}
-          />
-
-          <div className="mt-6">
+          <div>
             <label
               htmlFor="run-comment"
               className="mb-2 block text-sm font-bold text-[var(--tl-ink)]"

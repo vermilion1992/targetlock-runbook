@@ -75,8 +75,9 @@ export function SurveyForm({ holeId }: { holeId: string }) {
       getCurrentHoleState(holeId, services.currentState),
       services.surveyTools.listActive(),
       services.surveys.listByHole(holeId),
+      services.trajectory.getActualConfiguration(holeId),
     ])
-      .then(([state, activeTools, surveys]) => {
+      .then(([state, activeTools, surveys, actualConfiguration]) => {
         setCurrentDepth(state.currentDepthDm);
         setDepth((current) =>
           current || (state.currentDepthDm / 10).toFixed(1),
@@ -97,7 +98,8 @@ export function SurveyForm({ holeId }: { holeId: string }) {
           ({ localId }) => localId === inheritedToolId,
         );
         setNorthReference(
-          latest?.northReference ??
+          actualConfiguration?.preferredSurveyNorthReference ??
+            latest?.northReference ??
             inheritedTool?.defaultNorthReference ??
             "NOT_SPECIFIED",
         );

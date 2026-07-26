@@ -70,39 +70,64 @@ export function RunDetail({
       );
       return;
     }
-    void Promise.all([
-      services.shifts.listByHole(holeId),
-      Promise.resolve(services.runs.readCompletedRuns(holeId)),
-      services.audits.listByHole(holeId),
-      services.surveys.listByHole(holeId),
-      services.trays.listByHole(holeId),
-      services.runCorrections.listByRun(holeId, runId),
-    ])
-      .then(
-        ([
-          nextShifts,
-          local,
-          nextAudits,
-          nextSurveys,
-          nextTrays,
-          nextCorrections,
-        ]) => {
-        if (local.status === "invalid") throw new Error(local.reason);
+    void Promise.resolve()
+      .then(() => services.runs.readCompletedRuns(holeId))
+      .then((local) => {
+        if (local.status === "invalid") {
+          throw new Error(local.reason);
+        }
         const localRun = local.snapshots.find((run) => run.localId === runId);
-        const seedRun = targetLockStage3Seed.runs.find((run) => run.localId === runId);
-        if (localRun !== undefined) setDetail({ source: "local", run: localRun });
-        else if (seedRun !== undefined) setDetail({ source: "seed", run: seedRun });
-        else throw new Error("The run was not found.");
-        setShifts(nextShifts);
-        setAudits(nextAudits);
-        setSurveys(nextSurveys);
-        setTrays(nextTrays);
-        setCorrections(nextCorrections);
+        const seedRun = targetLockStage3Seed.runs.find(
+          (run) => run.localId === runId && run.holeId === holeId,
+        );
+        if (localRun === undefined && seedRun === undefined) {
+          throw new Error("The run was not found.");
+        }
+        if (localRun !== undefined) {
+          setDetail({ source: "local", run: localRun });
+        } else if (seedRun !== undefined) {
+          setDetail({ source: "seed", run: seedRun });
+        }
         setMessage("");
+
+        void Promise.all([
+          services.shifts.listByHole(holeId),
+          services.audits.listByHole(holeId),
+          services.surveys.listByHole(holeId),
+          services.trays.listByHole(holeId),
+          services.runCorrections.listByRun(holeId, runId),
+        ])
+          .then(
+            ([
+              nextShifts,
+              nextAudits,
+              nextSurveys,
+              nextTrays,
+              nextCorrections,
+            ]) => {
+              setShifts(nextShifts);
+              setAudits(nextAudits);
+              setSurveys(nextSurveys);
+              setTrays(nextTrays);
+              setCorrections(nextCorrections);
+            },
+          )
+          .catch((error: unknown) =>
+            setMessage(
+              error instanceof Error
+                ? error.message
+                : "Related run records could not be loaded.",
+            ),
+          );
       })
-      .catch((error: unknown) =>
-        setMessage(error instanceof Error ? error.message : "Run detail could not be loaded."),
-      );
+      .catch((error: unknown) => {
+        setDetail(null);
+        setMessage(
+          error instanceof Error
+            ? error.message
+            : "Run detail could not be loaded.",
+        );
+      });
   }, [holeId, runId]);
 
   if (detail === null) return <p role="status">{message}</p>;

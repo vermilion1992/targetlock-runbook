@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { RecordRunGate } from "@/components/runs/record-run-gate";
-import { targetLockStage2Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 interface NewRunPageProps {
   params: Promise<{ holeId: string }>;
@@ -14,7 +14,7 @@ export default async function NewRunPage({
 }: NewRunPageProps) {
   const [{ holeId }, query] = await Promise.all([params, searchParams]);
 
-  if (holeId !== targetLockStage2Seed.hole.name) {
+  if (!isRoutableHoleId(holeId)) {
     notFound();
   }
 

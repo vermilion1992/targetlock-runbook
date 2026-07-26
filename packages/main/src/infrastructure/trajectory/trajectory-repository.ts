@@ -136,7 +136,13 @@ const actualSchema = z.object({
   collarAzimuthTenths: z.number().int().min(0).max(3599),
   collarNorthReference: northReferenceSchema,
   desurveyMethod: z.literal("MINIMUM_CURVATURE"),
+  preferredSurveyNorthReference: northReferenceSchema.optional(),
   preferredSurveyIntervalDm: z.number().int().positive().optional(),
+  maximumDoglegPer30mTenths: z.number().int().min(1).max(900).optional(),
+  maximumLiftPer30mTenths: z.number().int().min(1).max(900).optional(),
+  maximumDropPer30mTenths: z.number().int().min(1).max(900).optional(),
+  maximumTurnPer30mTenths: z.number().int().min(1).max(900).optional(),
+  guidanceDeadbandTenths: z.number().int().min(0).max(50).optional(),
 });
 
 const selectionSchema = z.object({
@@ -187,6 +193,27 @@ const envelopeSchema = z.object({
 });
 
 type Envelope = z.infer<typeof envelopeSchema>;
+
+function assertEnvelopeOwnership(envelope: Envelope, holeId: string): void {
+  const ownedRecords = [
+    envelope.coordinateConfiguration,
+    envelope.referenceConfiguration,
+    ...envelope.plans,
+    envelope.target,
+    envelope.actualConfiguration,
+    ...envelope.selections,
+    envelope.tolerance,
+  ].filter((record) => record !== null);
+  if (
+    envelope.holeId !== holeId ||
+    ownedRecords.some((record) => record.holeId !== holeId)
+  ) {
+    throw new TrajectoryRepositoryError(
+      "CORRUPTED_STORAGE",
+      "Trajectory storage contains data belonging to another hole.",
+    );
+  }
+}
 
 export type TrajectoryRepositoryErrorCode =
   | "CORRUPTED_STORAGE"
@@ -280,8 +307,14 @@ export interface SaveActualConfigurationInput {
   readonly collarDipTenths: number;
   readonly collarAzimuthTenths: number;
   readonly collarNorthReference: NorthReference;
+  readonly preferredSurveyNorthReference?: NorthReference;
   /** Pass null to clear a previously saved Survey interval. */
   readonly preferredSurveyIntervalDm?: number | null;
+  readonly maximumDoglegPer30mTenths?: number;
+  readonly maximumLiftPer30mTenths?: number;
+  readonly maximumDropPer30mTenths?: number;
+  readonly maximumTurnPer30mTenths?: number;
+  readonly guidanceDeadbandTenths?: number;
   readonly occurredAt: string;
 }
 
@@ -430,7 +463,7 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
     if (raw === null) {
       const seed = this.seedByHole.get(holeId);
       if (!seed) return emptyEnvelope(holeId);
-      return {
+      const envelope: Envelope = {
         ...emptyEnvelope(holeId),
         coordinateConfiguration: seed.coordinateConfiguration
           ? {
@@ -464,6 +497,8 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
         })),
         tolerance: seed.tolerance ?? null,
       };
+      assertEnvelopeOwnership(envelope, holeId);
+      return envelope;
     }
     let parsed: unknown;
     try {
@@ -481,6 +516,7 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
         "Trajectory storage failed validation.",
       );
     }
+    assertEnvelopeOwnership(result.data, holeId);
     return result.data;
   }
 
@@ -952,6 +988,23 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
         collarAzimuthTenths: input.collarAzimuthTenths,
         collarNorthReference: input.collarNorthReference,
         desurveyMethod: "MINIMUM_CURVATURE",
+        preferredSurveyNorthReference:
+          input.preferredSurveyNorthReference ??
+          existing?.preferredSurveyNorthReference,
+        maximumDoglegPer30mTenths:
+          input.maximumDoglegPer30mTenths ??
+          existing?.maximumDoglegPer30mTenths,
+        maximumLiftPer30mTenths:
+          input.maximumLiftPer30mTenths ??
+          existing?.maximumLiftPer30mTenths,
+        maximumDropPer30mTenths:
+          input.maximumDropPer30mTenths ??
+          existing?.maximumDropPer30mTenths,
+        maximumTurnPer30mTenths:
+          input.maximumTurnPer30mTenths ??
+          existing?.maximumTurnPer30mTenths,
+        guidanceDeadbandTenths:
+          input.guidanceDeadbandTenths ?? existing?.guidanceDeadbandTenths,
         ...(preferredSurveyIntervalDm === undefined
           ? {}
           : { preferredSurveyIntervalDm }),

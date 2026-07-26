@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { ChangeComponentForm } from "@/components/components/change-component-form";
 import type { ComponentType } from "@/domain";
-import { targetLockStage3Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 function toComponentType(value: string): ComponentType | null {
   const normalized = value.toLocaleUpperCase("en-AU");
@@ -16,7 +16,7 @@ export default async function ChangeComponentPage({
 }) {
   const { holeId, componentType: routeType } = await params;
   const componentType = toComponentType(routeType);
-  if (holeId !== targetLockStage3Seed.hole.name || componentType === null) {
+  if (!isRoutableHoleId(holeId) || componentType === null) {
     notFound();
   }
   return <ChangeComponentForm holeId={holeId} componentType={componentType} />;

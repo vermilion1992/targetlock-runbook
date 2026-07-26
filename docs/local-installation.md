@@ -57,8 +57,14 @@ npm run build
 - Tray photographs and report binaries use IndexedDB databases
   (`targetlock-runbook-media-v1`, `targetlock-runbook-reports-v1`).
 - Data is hole/organisation scoped and browser-local.
+- New media/report blob keys include organisation and hole namespaces.
+- Current Chrome/Edge tabs serialise repository operations with Web Locks.
+  When another tab writes, reload from the in-app stale-data prompt before
+  continuing.
 - Clearing site data restores seed fixtures on next load.
 - Seed data never overwrites already-persisted local user records.
+- See `docs/data-model.md` under “Multi-hole ownership and persistence” for the
+  complete ownership rules.
 
 ## Browser recommendations
 

@@ -7,11 +7,11 @@ export default function HoleNotFound() {
   return (
     <StatePanel
       state="empty"
-      title="Hole not available in Stage 1"
-      description="This prototype contains DDH041 only. Open the seeded hole to continue."
+      title="Hole or record not available"
+      description="The requested hole or hole-owned record could not be found."
       action={
         <FieldActionButton asChild>
-          <Link href="/holes/DDH041/current">Open DDH041 current hole</Link>
+          <Link href="/holes/new">Create or select a hole</Link>
         </FieldActionButton>
       }
     />

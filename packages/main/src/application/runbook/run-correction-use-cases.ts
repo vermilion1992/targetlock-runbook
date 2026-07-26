@@ -27,6 +27,13 @@ export interface RunCorrectionServices {
   readonly mutationGuard?: HoleMutationGuardPort;
 }
 
+function seedRunsForHole(
+  holeId: string,
+  seedRuns: readonly Run[] | undefined,
+): readonly Run[] {
+  return (seedRuns ?? []).filter((run) => run.holeId === holeId);
+}
+
 export function runToEffectiveProjection(run: Run): EffectiveRunProjection {
   return {
     localId: run.localId,
@@ -141,7 +148,9 @@ export async function previewRunCorrectionForHole(
     addRodEvent: input.addRodEvent,
     surveyDepthsDm: input.surveyDepthsDm,
     reportIdsByFingerprintRelevance: input.reportIds,
-    seedRuns: (input.seedRuns ?? []).map(runToEffectiveProjection),
+    seedRuns: seedRunsForHole(input.holeId, input.seedRuns).map(
+      runToEffectiveProjection,
+    ),
   });
 }
 
@@ -167,7 +176,9 @@ export async function applyRunCorrection(
         (snapshot) => snapshot.localId === input.runId,
       );
       if (!hasLocal && input.seedRuns) {
-        const seed = input.seedRuns.find((run) => run.localId === input.runId);
+        const seed = seedRunsForHole(input.holeId, input.seedRuns).find(
+          (run) => run.localId === input.runId,
+        );
         if (seed !== undefined) {
           await services.runCorrections.materializeSeedRun(
             input.holeId,
@@ -202,7 +213,9 @@ export async function voidRun(
         (snapshot) => snapshot.localId === input.runId,
       );
       if (!hasLocal && input.seedRuns) {
-        const seed = input.seedRuns.find((run) => run.localId === input.runId);
+        const seed = seedRunsForHole(input.holeId, input.seedRuns).find(
+          (run) => run.localId === input.runId,
+        );
         if (seed !== undefined) {
           await services.runCorrections.materializeSeedRun(
             input.holeId,
@@ -243,6 +256,8 @@ export async function previewVoidRunForHole(
     reassignToRunId: input.reassignToRunId,
     surveyDepthsDm: input.surveyDepthsDm,
     reportIdsByFingerprintRelevance: input.reportIds,
-    seedRuns: (input.seedRuns ?? []).map(runToEffectiveProjection),
+    seedRuns: seedRunsForHole(input.holeId, input.seedRuns).map(
+      runToEffectiveProjection,
+    ),
   });
 }

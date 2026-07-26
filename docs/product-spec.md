@@ -65,7 +65,8 @@ voided Runs are never physically deleted.
 
 ## Stage 1 scope
 
-- A dedicated TargetLock experience for the seeded hole `DDH041`.
+- A dedicated TargetLock experience defaulting to `DDH041`, with additional
+  lifecycle seed holes and user-created holes routed by canonical `holeId`.
 - Hole/setup summary, current run entry, calculated results, recent run context, and draft status.
 - Integer-decimetre domain arithmetic with metre values displayed to one decimal place.
 - Validation for required values, impossible negative results, incompatible rod counts, and completion state.

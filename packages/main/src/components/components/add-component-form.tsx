@@ -74,8 +74,12 @@ function FieldLabel({
 
 export function AddComponentForm({
   initialType = "BIT",
+  holeId = targetLockStage3Seed.hole.name,
+  returnTo,
 }: {
   initialType?: ComponentType;
+  holeId?: string;
+  returnTo?: string;
 }) {
   const router = useRouter();
   const [type, setType] = useState<ComponentType>(initialType);
@@ -84,7 +88,7 @@ export function AddComponentForm({
   const [error, setError] = useState<string | null>(null);
   const [isDirty, setIsDirty] = useState(false);
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
-  const parentHref = runbookRoutes.componentRegistry();
+  const parentHref = returnTo ?? runbookRoutes.holeComponents(holeId);
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
@@ -123,7 +127,7 @@ export function AddComponentForm({
         {
           id,
           organisationId: targetLockStage3Seed.organisation.localId,
-          auditHoleId: targetLockStage3Seed.hole.name,
+          auditHoleId: holeId,
           type,
           serialNumber,
           manufacturer: formValue(values, "manufacturer") || undefined,
@@ -142,9 +146,7 @@ export function AddComponentForm({
         services,
       );
       setIsDirty(false);
-      router.push(
-        `${runbookRoutes.componentDetail(id)}?notice=component-created`,
-      );
+      router.push(parentHref);
     } catch (cause) {
       setError(
         cause instanceof ComponentRepositoryError &&
@@ -161,9 +163,9 @@ export function AddComponentForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · registry entry"
-        title="Add component"
-        description="Create an audited local registry record. Active status is set only through an assignment workflow."
+        eyebrow="Stage 3 · bottom hole assembly"
+        title={`Add ${titleCase(type)} serial`}
+        description="Record an available bit or reamer serial, then assign it to the hole from the BHA page."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
@@ -173,7 +175,7 @@ export function AddComponentForm({
         className="space-y-5"
       >
         <SectionPanel
-          title="Registry details"
+          title="Equipment details"
           description="Serial number uniqueness is enforced within each component type."
         >
           <div className="grid gap-5 md:grid-cols-2">

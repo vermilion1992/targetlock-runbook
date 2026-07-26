@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
 import { HandoverForm } from "@/components/shifts/handover-form";
-import { targetLockStage2Seed } from "@/infrastructure/seed";
+import {
+  isRoutableHoleId,
+  targetLockStage2Seed,
+} from "@/infrastructure/seed";
 
 export default async function HandoverPage({
   params,
@@ -9,7 +12,7 @@ export default async function HandoverPage({
   params: Promise<{ holeId: string }>;
 }) {
   const { holeId } = await params;
-  if (holeId !== targetLockStage2Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return (
     <HandoverForm
       holeId={holeId}

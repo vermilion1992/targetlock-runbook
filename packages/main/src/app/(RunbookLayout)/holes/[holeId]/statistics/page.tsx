@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { HoleAnalyticsDashboard } from "@/components/holes/hole-analytics-dashboard";
-import { isStage5HoleId } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function HoleStatisticsPage({
   params,
@@ -9,6 +9,6 @@ export default async function HoleStatisticsPage({
   params: Promise<{ holeId: string }>;
 }) {
   const { holeId } = await params;
-  if (!isStage5HoleId(holeId)) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return <HoleAnalyticsDashboard holeId={holeId} />;
 }

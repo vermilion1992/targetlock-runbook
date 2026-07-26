@@ -51,7 +51,7 @@ export function SurveyCorrectionForm({
       return;
     }
     void services.surveys
-      .getById(surveyId)
+      .getById(surveyId, holeId)
       .then((record) => {
         if (record === null || record.holeId !== holeId) {
           throw new Error("Survey was not found.");

@@ -270,8 +270,11 @@ function brandReport(
 
 export interface ReportMetadataRepository {
   listReports(holeId: string): Promise<readonly GeneratedReportRecord[]>;
-  getReport(reportId: string): Promise<GeneratedReportRecord | null>;
-  getSnapshot(snapshotId: string): Promise<ReportSnapshot | null>;
+  getReport(
+    reportId: string,
+    holeId: string,
+  ): Promise<GeneratedReportRecord | null>;
+  getSnapshot(snapshotId: string, holeId: string): Promise<ReportSnapshot | null>;
   nextVersion(holeId: string, reportType: ReportType, format: ReportFormat): Promise<number>;
   beginGeneration(input: {
     readonly operationId: string;
@@ -386,13 +389,23 @@ export class LocalReportMetadataRepository implements ReportMetadataRepository {
       .sort((left, right) => right.generatedAt.localeCompare(left.generatedAt));
   }
 
-  async getReport(reportId: string): Promise<GeneratedReportRecord | null> {
-    const report = this.read().reports.find((item) => item.localId === reportId);
+  async getReport(
+    reportId: string,
+    holeId: string,
+  ): Promise<GeneratedReportRecord | null> {
+    const report = this.read().reports.find(
+      (item) => item.localId === reportId && item.holeId === holeId,
+    );
     return report === undefined ? null : brandReport(report);
   }
 
-  async getSnapshot(snapshotId: string): Promise<ReportSnapshot | null> {
-    const snapshot = this.read().snapshots.find((item) => item.id === snapshotId);
+  async getSnapshot(
+    snapshotId: string,
+    holeId: string,
+  ): Promise<ReportSnapshot | null> {
+    const snapshot = this.read().snapshots.find(
+      (item) => item.id === snapshotId && item.holeId === holeId,
+    );
     return snapshot === undefined ? null : brandSnapshot(snapshot);
   }
 

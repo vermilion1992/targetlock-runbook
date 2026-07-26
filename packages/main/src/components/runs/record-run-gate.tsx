@@ -12,10 +12,6 @@ import {
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { RecordRunForm } from "@/components/runs/record-run-form";
-import {
-  ddh041Stage2CurrentState,
-  targetLockStage2Seed,
-} from "@/infrastructure/seed";
 
 export function RecordRunGate({
   holeId,
@@ -83,18 +79,13 @@ export function RecordRunGate({
       shiftLabel={active.shiftType === "DAY" ? "Day Shift" : "Night Shift"}
       primaryDrillerId={active.primaryDrillerId}
       primaryDriller={active.primaryDrillerNameSnapshot}
-      currentState={ddh041Stage2CurrentState}
+      currentState={{
+        rodNumber: state.currentRodNumber,
+        currentRodString: state.currentRodStringDm,
+        previousCompletedDepth: state.previousCompletedDepthDm,
+        measuredStickUp: state.measuredStickUpDm,
+      }}
       initialRodLength={initialRodLength}
-      conditionOptions={targetLockStage2Seed.runConditionTags.map((tag) => ({
-        value: tag.localId,
-        label: tag.label,
-        description:
-          tag.code === "COMP"
-            ? "Stable, competent core"
-            : tag.code === "BRKN"
-              ? "Broken or fragmented interval"
-              : "Recovery exceeds drilled length",
-      }))}
     />
   );
 }

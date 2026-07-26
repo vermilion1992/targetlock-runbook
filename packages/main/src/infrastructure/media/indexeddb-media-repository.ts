@@ -1,4 +1,5 @@
 import {
+  mediaStorageKey,
   MediaRepositoryError,
   type MediaKind,
   type MediaRepository,
@@ -43,7 +44,10 @@ function transactionComplete(transaction: IDBTransaction): Promise<void> {
 export class IndexedDbMediaRepository implements MediaRepository {
   private databasePromise?: Promise<IDBDatabase>;
 
-  constructor(private readonly indexedDb: IDBFactory = window.indexedDB) {}
+  constructor(
+    private readonly indexedDb: IDBFactory = window.indexedDB,
+    private readonly organisationId = "local-organisation",
+  ) {}
 
   private database(): Promise<IDBDatabase> {
     this.databasePromise ??= new Promise((resolve, reject) => {
@@ -101,7 +105,10 @@ export class IndexedDbMediaRepository implements MediaRepository {
         input.operationId,
       ),
     )) as StoredMedia[];
-    const existing = records.find((record) => record.kind === kind);
+    const existing = records.find(
+      (record) =>
+        record.kind === kind && record.holeId === input.holeId,
+    );
     if (existing !== undefined) {
       if (
         existing.sizeBytes !== input.blob.size ||
@@ -116,10 +123,17 @@ export class IndexedDbMediaRepository implements MediaRepository {
     }
     const storageKey =
       input.storageKey ??
-      `${input.operationId}:${kind.toLowerCase()}:${crypto.randomUUID()}`;
+      mediaStorageKey(
+        this.organisationId,
+        input.holeId,
+        input.operationId,
+        kind,
+        crypto.randomUUID(),
+      );
     const record: StoredMedia = {
       storageKey,
       operationId: input.operationId,
+      holeId: input.holeId,
       kind,
       mimeType: input.blob.type,
       sizeBytes: input.blob.size,
@@ -153,9 +167,11 @@ export class IndexedDbMediaRepository implements MediaRepository {
   }
 }
 
-export function createBrowserMediaRepository(): MediaRepository | null {
+export function createBrowserMediaRepository(
+  organisationId = "local-organisation",
+): MediaRepository | null {
   if (typeof window === "undefined" || window.indexedDB === undefined) {
     return null;
   }
-  return new IndexedDbMediaRepository(window.indexedDB);
+  return new IndexedDbMediaRepository(window.indexedDB, organisationId);
 }

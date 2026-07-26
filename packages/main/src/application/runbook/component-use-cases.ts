@@ -261,6 +261,7 @@ export async function changeOperationalComponent(
 ): Promise<ComponentChangeResult> {
   const outgoing = await services.componentAssignments.getAssignmentById(
     input.outgoingAssignmentId,
+    input.holeId,
   );
   if (outgoing === null) {
     throw new ComponentChangeValidationError(
@@ -336,6 +337,7 @@ export async function correctComponentAssignment(
 ): Promise<ComponentAssignment> {
   const previous = await services.componentAssignments.getAssignmentById(
     input.assignmentId,
+    input.holeId,
   );
   if (previous === null) throw new Error("Assignment not found.");
   const assignment =

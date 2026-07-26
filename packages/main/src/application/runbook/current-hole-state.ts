@@ -30,11 +30,13 @@ import type {
 import type { ShiftRepository } from "@/infrastructure/shifts";
 import type { CasingRepository } from "@/infrastructure/casing";
 import type {
+  BottomHoleAssemblySetupRepository,
   ComponentAssignmentRepository,
   ComponentRepository,
 } from "@/infrastructure/components";
 import type { SurveyRepository } from "@/infrastructure/surveys";
 import type { TrayRepository } from "@/infrastructure/trays";
+import type { TrajectoryRepository } from "@/infrastructure/trajectory";
 
 type SeedCurrentState = typeof ddh041CurrentState;
 
@@ -76,8 +78,10 @@ export interface CurrentHoleStateDependencies {
   readonly casing: CasingRepository;
   readonly components: ComponentRepository;
   readonly componentAssignments: ComponentAssignmentRepository;
+  readonly bhaSetups?: BottomHoleAssemblySetupRepository;
   readonly surveys: SurveyRepository;
   readonly trays: TrayRepository;
+  readonly trajectory?: Pick<TrajectoryRepository, "getActualConfiguration">;
 }
 
 export class CurrentHoleStateError extends Error {
@@ -99,8 +103,10 @@ export async function getCurrentHoleState(
     casing,
     components,
     componentAssignments,
+    bhaSetups,
     surveys,
     trays,
+    trajectory,
   } = dependencies;
   const isPrimarySeedHole = seed.hole.name === holeId;
 
@@ -183,6 +189,8 @@ export async function getCurrentHoleState(
     casingStrings,
     surveyRecords,
     trayRecords,
+    actualTrajectoryConfiguration,
+    bhaSetupHistory,
   ] = await Promise.all([
     shifts.getActiveShift(holeId),
     shifts.getPendingHandover(holeId),
@@ -191,7 +199,34 @@ export async function getCurrentHoleState(
     casing.listByHole(holeId),
     surveys.listByHole(holeId),
     trays.listByHole(holeId),
+    trajectory?.getActualConfiguration(holeId) ?? Promise.resolve(null),
+    bhaSetups?.listByHole(holeId) ?? Promise.resolve([]),
   ]);
+  const currentBhaSetup = bhaSetupHistory.at(-1);
+  if (currentBhaSetup !== undefined) {
+    const latestRunCompletedAt = latestLocal?.completedAt;
+    const baseAtLatestRun =
+      latestRunCompletedAt === undefined
+        ? isPrimarySeedHole
+          ? seed.rodStringConfigurations.at(-1)?.baseRodStringLength ??
+            decimetres(0)
+          : decimetres(0)
+        : [...bhaSetupHistory]
+            .reverse()
+            .find(
+              ({ effectiveAt }) =>
+                Date.parse(effectiveAt) <= Date.parse(latestRunCompletedAt),
+            )?.baseRodStringLengthDm ??
+          (isPrimarySeedHole
+            ? seed.rodStringConfigurations.at(-1)?.baseRodStringLength
+            : decimetres(0)) ??
+          decimetres(0);
+    currentRodStringDm = decimetres(
+      Number(currentRodStringDm) +
+        Number(currentBhaSetup.baseRodStringLengthDm) -
+        Number(baseAtLatestRun),
+    );
+  }
   const latestSurvey = [...surveyRecords].sort(
     (left, right) =>
       right.depthDm - left.depthDm ||
@@ -200,11 +235,14 @@ export async function getCurrentHoleState(
   const lastCompletedTray = [...trayRecords].sort(
     (left, right) => right.trayNumber - left.trayNumber,
   )[0];
-  const preferredSurveyIntervalDm = [...seed.holeConfigurations]
-    .sort(
-      (left, right) =>
-        Date.parse(right.effectiveAt) - Date.parse(left.effectiveAt),
-    )[0]?.preferredSurveyIntervalDm;
+  const preferredSurveyIntervalDm =
+    actualTrajectoryConfiguration?.preferredSurveyIntervalDm ??
+    (isPrimarySeedHole
+      ? [...seed.holeConfigurations].sort(
+          (left, right) =>
+            Date.parse(right.effectiveAt) - Date.parse(left.effectiveAt),
+        )[0]?.preferredSurveyIntervalDm
+      : undefined);
   const [activeBit, activeReamer] = await Promise.all([
     activeBitAssignment === null
       ? Promise.resolve(null)
@@ -250,7 +288,7 @@ export async function getCurrentHoleState(
     currentDepthDm,
     previousCompletedDepthDm: decimetres(
       latestLocal?.previousCompletedDepthDm ??
-        seedCurrentState.previousCompletedDepth,
+        (isPrimarySeedHole ? seedCurrentState.previousCompletedDepth : 0),
     ),
     currentRodNumber,
     currentRodStringDm,

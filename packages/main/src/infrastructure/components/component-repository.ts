@@ -253,6 +253,7 @@ export interface ResolveAtHoleCompletionInput {
 
 export interface CorrectAssignmentInput {
   readonly operationId: string;
+  readonly holeId: string;
   readonly assignmentId: string;
   readonly expectedVersion: number;
   readonly startDepthDm?: Decimetres;
@@ -327,6 +328,7 @@ export interface ComponentAssignmentRepository {
   ): Promise<readonly ComponentAssignment[]>;
   getAssignmentById(
     assignmentId: string,
+    holeId: string,
   ): Promise<ComponentAssignment | null>;
   assignInitial(input: AssignComponentInput): Promise<ComponentAssignment>;
   changeComponent(input: ChangeComponentInput): Promise<ComponentChangeResult>;
@@ -1003,11 +1005,13 @@ export class LocalComponentRepository
 
   async getAssignmentById(
     assignmentId: string,
+    holeId: string,
   ): Promise<ComponentAssignment | null> {
     await this.recoverInterruptedChange();
     return (
       this.readState().assignments.find(
-        (assignment) => assignment.localId === assignmentId,
+        (assignment) =>
+          assignment.localId === assignmentId && assignment.holeId === holeId,
       ) ?? null
     );
   }
@@ -1685,7 +1689,9 @@ export class LocalComponentRepository
   ): Promise<ComponentAssignment> {
     const state = this.readState();
     const previous = state.assignments.find(
-      (assignment) => assignment.localId === input.assignmentId,
+      (assignment) =>
+        assignment.localId === input.assignmentId &&
+        assignment.holeId === input.holeId,
     );
     if (previous === undefined) {
       throw new ComponentRepositoryError("NOT_FOUND", "Assignment not found.");

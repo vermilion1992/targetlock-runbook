@@ -4,10 +4,10 @@ import {
   ChevronRight,
   CircleDot,
   ClipboardList,
+  Clock3,
   Compass,
   Cylinder,
   History,
-  PackageSearch,
   RotateCcw,
   Settings,
   type LucideIcon,
@@ -109,14 +109,6 @@ function MoreSection({
 export function MorePreview({ holeId }: { holeId: string }) {
   const holePlanning: readonly MoreItem[] = [
     {
-      id: "trajectory",
-      label: "Trajectory",
-      description:
-        "Direct-to-target attitude, projected miss, and surveyed path tracking.",
-      icon: Compass,
-      href: runbookRoutes.trajectory(holeId),
-    },
-    {
       id: "survey-settings",
       label: "Survey & Reference Settings",
       description:
@@ -136,8 +128,9 @@ export function MorePreview({ holeId }: { holeId: string }) {
     },
     {
       id: "components",
-      label: "Bits and components",
-      description: "Review bit and reamer installation and removal events.",
+      label: "Bottom hole assembly",
+      description:
+        "Assembly measurements, constant stick-up, serials, bits and reamers.",
       icon: CircleDot,
       href: runbookRoutes.holeComponents(holeId),
     },
@@ -151,6 +144,14 @@ export function MorePreview({ holeId }: { holeId: string }) {
   ];
 
   const analysisOutput: readonly MoreItem[] = [
+    {
+      id: "timeline",
+      label: "Timeline",
+      description:
+        "Review runs, shifts, surveys, trays and equipment changes by depth.",
+      icon: Clock3,
+      href: runbookRoutes.timeline(holeId),
+    },
     {
       id: "statistics",
       label: "Hole statistics",
@@ -215,13 +216,6 @@ export function MorePreview({ holeId }: { holeId: string }) {
       description: "Create a hole with collar direction and optional coordinates.",
       icon: CircleDot,
       href: runbookRoutes.newHole(),
-    },
-    {
-      id: "component-registry",
-      label: "Component registry",
-      description: "Search all registered bits and reamers across known holes.",
-      icon: PackageSearch,
-      href: runbookRoutes.componentRegistry(),
     },
     {
       id: "settings",

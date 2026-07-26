@@ -81,6 +81,7 @@ export const runDraftPayloadSchema = z.object({
   pendingRodEvents: z.array(pendingRodEventSchema),
   stickUpMetresInput: z.string(),
   recoveredMetresInput: z.string(),
+  recoveredOverridden: z.boolean().optional(),
   conditionTagIds: z.array(z.string().min(1)),
   comment: z.string().max(500),
   activeBitAssignmentId: z.string().min(1).nullable(),

@@ -153,7 +153,10 @@ test("Railway D — DDH041 KPIs, residual, radius, views, projection", async ({
 
   await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
   const dipMetric = page.getByTestId("trajectory-metric-required-dip");
-  await expect(dipMetric).toContainText(/At .+ MD/i);
+  await expect(dipMetric).toContainText(/REVIEW/i);
+  await expect(
+    page.getByTestId("steering-envelope-review-banner"),
+  ).toBeVisible();
   await expect(
     page.getByTestId("trajectory-metric-projected-miss"),
   ).toBeVisible();

@@ -182,7 +182,7 @@ export function InitialComponentAssignmentForm({
       <form onSubmit={handleSubmit} onChange={() => setIsDirty(true)}>
         <SectionPanel
           title="Incoming component"
-          description="Only registry records currently available for assignment are shown."
+          description="Only serials currently available or serviceable for assignment are shown."
           action={<PackagePlus aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />}
         >
           <label htmlFor="initial-component" className="mb-2 block text-sm font-bold text-[var(--tl-ink)]">
@@ -220,8 +220,13 @@ export function InitialComponentAssignmentForm({
 
           {context?.components.length === 0 ? (
             <p role="status" className="mt-4 rounded-[var(--tl-radius-sm)] bg-[var(--tl-warning-soft)] p-3 text-sm font-semibold">
-              No available or serviceable {componentType.toLocaleLowerCase("en-AU")} is in the registry.{" "}
-              <Link href="/components/new" className="font-bold text-[var(--tl-primary)]">Add a component</Link>.
+              No available or serviceable {componentType.toLocaleLowerCase("en-AU")} serial is recorded.{" "}
+              <Link
+                href={`/components/new?type=${componentType}&holeId=${encodeURIComponent(holeId)}&returnTo=${encodeURIComponent(parentHref)}`}
+                className="font-bold text-[var(--tl-primary)]"
+              >
+                Add a serial
+              </Link>.
             </p>
           ) : null}
 

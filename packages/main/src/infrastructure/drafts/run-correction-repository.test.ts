@@ -67,6 +67,19 @@ function snapshot(overrides: Partial<SavedRunSnapshot> = {}): SavedRunSnapshot {
 }
 
 describe("run correction repository", () => {
+  it("rejects materializing a seed run into another hole", async () => {
+    const storage = new MemoryStorage();
+    const repository = new LocalRunCorrectionRepository(storage, []);
+
+    await expect(
+      repository.materializeSeedRun("DDH042", snapshot({ holeId: "DDH041" })),
+    ).rejects.toMatchObject({
+      code: "INVALID",
+      message: "The run belongs to another hole.",
+    });
+    await expect(repository.getEnvelope("DDH042")).resolves.toBeNull();
+  });
+
   it("applies stick-up correction idempotently and preserves original", async () => {
     const storage = new MemoryStorage();
     const audits = new LocalAuditRepository(storage, []);

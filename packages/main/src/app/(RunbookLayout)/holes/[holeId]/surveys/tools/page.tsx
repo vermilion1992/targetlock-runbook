@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { SurveyToolRegistry } from "@/components/surveys/survey-tool-registry";
-import { targetLockStage4Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function SurveyToolsPage({
   params,
@@ -9,6 +9,6 @@ export default async function SurveyToolsPage({
   params: Promise<{ holeId: string }>;
 }) {
   const { holeId } = await params;
-  if (holeId !== targetLockStage4Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return <SurveyToolRegistry holeId={holeId} />;
 }

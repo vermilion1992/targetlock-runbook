@@ -38,6 +38,7 @@ export interface ShiftAnalyticsQueryServices {
   readonly currentState: CurrentHoleStateDependencies;
   readonly seedRuns: readonly Run[];
   readonly seedRodEvents: readonly RodAddition[];
+  readonly seedHoleId: string;
   readonly preferredSurveyIntervalDm?: number;
 }
 
@@ -222,6 +223,7 @@ export async function loadShiftAnalyticsForShift(
         : undefined;
 
   const preferredInterval =
+    holeId !== services.seedHoleId ||
     services.preferredSurveyIntervalDm === undefined
       ? undefined
       : decimetres(services.preferredSurveyIntervalDm);
@@ -310,6 +312,7 @@ export function createShiftAnalyticsQueryServices(
   seed: {
     readonly runs: readonly Run[];
     readonly rodEvents: readonly RodAddition[];
+    readonly holeId: string;
     readonly preferredSurveyIntervalDm?: number;
   },
 ): ShiftAnalyticsQueryServices {
@@ -324,6 +327,7 @@ export function createShiftAnalyticsQueryServices(
     currentState: browser.currentState,
     seedRuns: seed.runs,
     seedRodEvents: seed.rodEvents,
+    seedHoleId: seed.holeId,
     preferredSurveyIntervalDm: seed.preferredSurveyIntervalDm,
   };
 }

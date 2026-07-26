@@ -5,7 +5,10 @@ import {
   densifyCurvedRecoveryPath,
 } from "./trajectory-view-model";
 import type { MiniTargetLockResult } from "./mini-target-lock";
-import type { CalculatedTrajectory } from "./trajectory-types";
+import type {
+  CalculatedTrajectory,
+  HoleTrajectoryComparison,
+} from "./trajectory-types";
 
 function stubTrajectory(): CalculatedTrajectory {
   const station = {
@@ -142,6 +145,14 @@ describe("buildFieldTrajectoryViewModel", () => {
           northingM: 200_008.4,
           rlM: 400,
         },
+        projectedEndpoint: {
+          eastingM: 100_250,
+          northingM: 200_000,
+          rlM: 350,
+        },
+        endpointDistanceToTargetM: 70.7,
+        endpointMissOutsideTargetM: 67.7,
+        projectionLengthM: 150,
         projectedPath: [
           { eastingM: 100_050, northingM: 200_000, rlM: 413.4 },
           { eastingM: 100_250, northingM: 200_000, rlM: 350 },
@@ -168,6 +179,26 @@ describe("buildFieldTrajectoryViewModel", () => {
       model.markers.find((marker) => marker.kind === "SURVEY_STATION")
         ?.azimuthDegrees,
     ).toBe(90);
+
+    const planned = {
+      ...stubTrajectory(),
+      trajectoryType: "PLANNED" as const,
+    };
+    const comparison: HoleTrajectoryComparison = {
+      holeId: "DDH050",
+      planned,
+      actual: result.actualTrajectory,
+      trackingPoints: [],
+      warnings: [],
+      sourceVersions: [],
+      blocked: false,
+      toleranceConfigured: false,
+    };
+    const modelWithPlan = buildFieldTrajectoryViewModel(result, comparison);
+    expect(modelWithPlan.plannedPath).toHaveLength(planned.renderPath.length);
+    expect(
+      modelWithPlan.markers.some((marker) => marker.kind === "PLANNED_STATION"),
+    ).toBe(true);
   });
 
   it("densifies curved recovery path with MC mid-samples", () => {

@@ -131,11 +131,38 @@ export function TrajectoryFieldDetails({
         </section>
       ) : null}
 
+      {curved?.warnings.some((w) => w.code === "STEERING_LIMIT_EXCEEDED") ? (
+        <section
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] p-4"
+          data-testid="steering-envelope-review-banner"
+        >
+          <h2 className="text-sm font-bold uppercase tracking-wide text-[var(--tl-warning)]">
+            Guidance withheld
+          </h2>
+          <p className="mt-2 text-sm text-[var(--tl-ink)]">
+            {
+              curved.warnings.find(
+                (warning) => warning.code === "STEERING_LIMIT_EXCEEDED",
+              )?.message
+            }
+          </p>
+          <Link
+            href={runbookRoutes.surveySettings(holeId, {
+              returnTo: runbookRoutes.trajectory(holeId),
+            })}
+            className="mt-3 inline-flex min-h-10 items-center font-bold text-[var(--tl-primary)]"
+          >
+            Review steering envelope
+          </Link>
+        </section>
+      ) : null}
+
       {reviewCurvature &&
       !curved?.warnings.some(
         (w) =>
           w.code === "TARGET_MD_REVIEW_REQUIRED" ||
-          w.code === "ADVANCED_PATH_REVIEW_REQUIRED",
+          w.code === "ADVANCED_PATH_REVIEW_REQUIRED" ||
+          w.code === "STEERING_LIMIT_EXCEEDED",
       ) ? (
         <section
           className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-surface)] p-4"
@@ -164,8 +191,9 @@ export function TrajectoryFieldDetails({
             Next-Survey guidance
           </h2>
           <p className="mt-1 text-xs text-[var(--tl-ink-muted)]">
-            Geometric minimum-curvature guidance — not steering-tool
-            certification.
+            Geometric minimum-curvature guidance, released only inside the
+            configured steering envelope. Confirm the envelope for the active
+            BHA and ground conditions.
           </p>
           {next ? (
             <dl className="mt-3 grid gap-2 text-sm sm:grid-cols-3">

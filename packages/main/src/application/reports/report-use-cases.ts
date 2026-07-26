@@ -239,7 +239,10 @@ export async function generateReport(
   try {
     let snapshot: ReportSnapshot | null = null;
     if (transaction.snapshotId) {
-      snapshot = await services.reports.getSnapshot(transaction.snapshotId);
+      snapshot = await services.reports.getSnapshot(
+        transaction.snapshotId,
+        input.holeId,
+      );
     }
 
     if (transaction.stage === "SNAPSHOT_BUILDING" || snapshot === null) {
@@ -387,6 +390,7 @@ export async function generateReport(
         });
         const saved = await services.reportFiles.save(
           input.operationId,
+          input.holeId,
           filename,
           mimeType,
           blob,
@@ -595,7 +599,7 @@ export async function downloadReport(
   readonly filename: string;
   readonly mimeType: string;
 }> {
-  const report = await services.reports.getReport(input.reportId);
+  const report = await services.reports.getReport(input.reportId, input.holeId);
   if (report === null || report.holeId !== input.holeId) {
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
@@ -653,7 +657,7 @@ export async function openReport(
   },
   services: ReportServices,
 ): Promise<OpenReportResult> {
-  const report = await services.reports.getReport(input.reportId);
+  const report = await services.reports.getReport(input.reportId, input.holeId);
   if (report === null || report.holeId !== input.holeId) {
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
@@ -731,7 +735,7 @@ export async function shareReport(
   },
   services: ReportServices,
 ): Promise<ShareReportResult> {
-  const report = await services.reports.getReport(input.reportId);
+  const report = await services.reports.getReport(input.reportId, input.holeId);
   if (report === null || report.holeId !== input.holeId) {
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
@@ -822,7 +826,7 @@ export async function prepareEmailDraft(
   readonly mailtoUrl: string;
   readonly manualAttachRequired: boolean;
 }> {
-  const report = await services.reports.getReport(input.reportId);
+  const report = await services.reports.getReport(input.reportId, input.holeId);
   if (report === null || report.holeId !== input.holeId) {
     throw new ReportApplicationError("NOT_FOUND", "Report was not found.");
   }
@@ -951,7 +955,10 @@ export async function evaluateGeneratedReportCurrency(
   report: GeneratedReportRecord,
   services: ReportServices,
 ): Promise<ReportCurrencyResult> {
-  const snapshot = await services.reports.getSnapshot(report.snapshotId);
+  const snapshot = await services.reports.getSnapshot(
+    report.snapshotId,
+    report.holeId,
+  );
   if (snapshot === null) {
     return {
       status: "out_of_date",

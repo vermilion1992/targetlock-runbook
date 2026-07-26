@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { CasingDetail } from "@/components/casing/casing-detail";
-import { targetLockStage3Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function CasingDetailPage({
   params,
@@ -14,7 +14,7 @@ export default async function CasingDetailPage({
     params,
     searchParams,
   ]);
-  if (holeId !== targetLockStage3Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return (
     <CasingDetail
       holeId={holeId}

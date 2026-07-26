@@ -1,9 +1,9 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useState, useSyncExternalStore } from "react";
+import { useEffect, useState, useSyncExternalStore } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { StaleServiceWorkerCleanup } from "@/components/app-shell/stale-service-worker-cleanup";
@@ -15,6 +15,8 @@ import {
   holeIdFromPathname,
   runbookRoutes,
 } from "@/components/navigation/runbook-routes";
+import { subscribeToExternalRunbookStorageChanges } from "@/infrastructure/drafts";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 function subscribeToConnectivity(onStoreChange: () => void): () => void {
   window.addEventListener("online", onStoreChange);
@@ -36,13 +38,39 @@ interface RunbookShellProps {
 
 export function RunbookShell({ children }: RunbookShellProps) {
   const pathname = usePathname();
-  const holeId = holeIdFromPathname(pathname);
+  const searchParams = useSearchParams();
+  const requestedHoleId = searchParams.get("holeId")?.trim();
+  const holeId =
+    pathname?.startsWith("/components") &&
+    requestedHoleId !== undefined &&
+    isRoutableHoleId(requestedHoleId)
+      ? requestedHoleId
+      : holeIdFromPathname(pathname);
   const [railExpanded, setRailExpanded] = useState(false);
+  const [externalChange, setExternalChange] = useState(false);
   const browserOnline = useSyncExternalStore(
     subscribeToConnectivity,
     getConnectivitySnapshot,
     () => true,
   );
+  useEffect(() => {
+    const markExternalChange = () => setExternalChange(true);
+    const handleStorage = (event: StorageEvent) => {
+      if (
+        event.key === null ||
+        event.key.startsWith("targetlock:prototype:")
+      ) {
+        markExternalChange();
+      }
+    };
+    const unsubscribe =
+      subscribeToExternalRunbookStorageChanges(markExternalChange);
+    window.addEventListener("storage", handleStorage);
+    return () => {
+      unsubscribe();
+      window.removeEventListener("storage", handleStorage);
+    };
+  }, []);
 
   return (
     <div className="target-lock">
@@ -74,6 +102,22 @@ export function RunbookShell({ children }: RunbookShellProps) {
         />
         <ThemeModeControl />
       </header>
+
+      {externalChange ? (
+        <div
+          role="status"
+          className="flex items-center justify-between gap-3 border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-950"
+        >
+          <span>Another tab updated local runbook data.</span>
+          <button
+            type="button"
+            className="min-h-9 rounded-md bg-amber-900 px-3 py-1.5 text-white"
+            onClick={() => window.location.reload()}
+          >
+            Reload this view
+          </button>
+        </div>
+      ) : null}
 
       <div className="flex min-h-[calc(100dvh-var(--tl-header-height))]">
         <aside

@@ -1,7 +1,10 @@
 import { notFound } from "next/navigation";
 
 import { CurrentHoleDashboard } from "@/components/holes/current-hole-dashboard";
-import { targetLockStage4Seed } from "@/infrastructure/seed";
+import {
+  isRoutableHoleId,
+  targetLockStage4Seed,
+} from "@/infrastructure/seed";
 
 interface CurrentHolePageProps {
   params: Promise<{ holeId: string }>;
@@ -14,7 +17,7 @@ export default async function CurrentHolePage({
 }: CurrentHolePageProps) {
   const [{ holeId }, query] = await Promise.all([params, searchParams]);
 
-  if (holeId !== targetLockStage4Seed.hole.name) {
+  if (!isRoutableHoleId(holeId)) {
     notFound();
   }
 

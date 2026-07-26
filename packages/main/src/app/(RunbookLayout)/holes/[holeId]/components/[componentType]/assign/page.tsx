@@ -2,7 +2,7 @@ import { notFound } from "next/navigation";
 
 import { InitialComponentAssignmentForm } from "@/components/components/initial-component-assignment-form";
 import type { ComponentType } from "@/domain";
-import { targetLockStage3Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 function toComponentType(value: string): ComponentType | null {
   const normalized = value.toLocaleUpperCase("en-AU");
@@ -16,7 +16,7 @@ export default async function InitialComponentAssignmentPage({
 }) {
   const { holeId, componentType: routeType } = await params;
   const componentType = toComponentType(routeType);
-  if (holeId !== targetLockStage3Seed.hole.name || componentType === null) {
+  if (!isRoutableHoleId(holeId) || componentType === null) {
     notFound();
   }
   return (

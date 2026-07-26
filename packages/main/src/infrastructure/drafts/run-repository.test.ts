@@ -128,11 +128,11 @@ const savedRun: SavedRunSnapshot = {
 };
 
 describe("local run repository", () => {
-  it("round-trips a hole-scoped draft with integer-decimetre rod events", () => {
+  it("round-trips a hole-scoped draft with integer-decimetre rod events", async () => {
     const storage = new MemoryStorage();
     const repository = new LocalRunRepository(storage);
 
-    expect(repository.writeDraft(holeId, draft, completedAt)).toEqual({
+    expect(await repository.writeDraft(holeId, draft, completedAt)).toEqual({
       ok: true,
     });
     expect(repository.readDraft(holeId)).toEqual({
@@ -149,11 +149,11 @@ describe("local run repository", () => {
     expect(storage.values.has(runDraftKey(holeId))).toBe(true);
   });
 
-  it("persists completed runs across repository instances", () => {
+  it("persists completed runs across repository instances", async () => {
     const storage = new MemoryStorage();
     const firstRepository = new LocalRunRepository(storage);
 
-    expect(firstRepository.saveCompletedRun(holeId, savedRun)).toEqual({
+    expect(await firstRepository.saveCompletedRun(holeId, savedRun)).toEqual({
       ok: true,
       status: "saved",
     });
@@ -166,19 +166,19 @@ describe("local run repository", () => {
     expect(storage.values.has(savedRunsKey(holeId))).toBe(true);
   });
 
-  it("makes an identical retry idempotent and rejects conflicting duplicates", () => {
+  it("makes an identical retry idempotent and rejects conflicting duplicates", async () => {
     const repository = new LocalRunRepository(new MemoryStorage());
 
-    expect(repository.saveCompletedRun(holeId, savedRun)).toMatchObject({
+    expect(await repository.saveCompletedRun(holeId, savedRun)).toMatchObject({
       ok: true,
       status: "saved",
     });
-    expect(repository.saveCompletedRun(holeId, savedRun)).toEqual({
+    expect(await repository.saveCompletedRun(holeId, savedRun)).toEqual({
       ok: true,
       status: "already-saved",
     });
     expect(
-      repository.saveCompletedRun(holeId, {
+      await repository.saveCompletedRun(holeId, {
         ...savedRun,
         localId: "another-local-id",
       }),
@@ -187,7 +187,7 @@ describe("local run repository", () => {
       reason: "Run 220 is already saved locally.",
     });
     expect(
-      repository.saveCompletedRun(holeId, {
+      await repository.saveCompletedRun(holeId, {
         ...savedRun,
         recoveredLengthDm: 29,
       }),
@@ -210,18 +210,18 @@ describe("local run repository", () => {
     );
   });
 
-  it("reports unavailable storage without losing in-memory input", () => {
+  it("reports unavailable storage without losing in-memory input", async () => {
     const repository = new LocalRunRepository(new UnavailableStorage());
 
     expect(repository.readDraft(holeId)).toEqual({
       status: "invalid",
       reason: "Browser storage is unavailable.",
     });
-    expect(repository.writeDraft(holeId, draft)).toEqual({
+    expect(await repository.writeDraft(holeId, draft)).toEqual({
       ok: false,
       reason: "This browser could not save the draft.",
     });
-    expect(repository.saveCompletedRun(holeId, savedRun)).toEqual({
+    expect(await repository.saveCompletedRun(holeId, savedRun)).toEqual({
       ok: false,
       reason: "Browser storage is unavailable.",
     });

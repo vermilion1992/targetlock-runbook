@@ -57,6 +57,7 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
       .then(([shifts, runs, analyticsMap]) => {
         if (runs.status === "invalid") throw new Error(runs.reason);
         const nextGroups = getShiftRunGroups({
+          holeId,
           shifts,
           seedRuns: targetLockStage2Seed.runs,
           localRuns: runs.snapshots,

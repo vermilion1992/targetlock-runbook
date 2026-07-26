@@ -54,6 +54,10 @@ export function RunCorrectionForm({
   const [isDirty, setIsDirty] = useState(false);
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
   const parentHref = runbookRoutes.runDetail(holeId, runId);
+  const seedRuns = useMemo(
+    () => targetLockStage5Seed.runs.filter((item) => item.holeId === holeId),
+    [holeId],
+  );
 
   useEffect(() => {
     const services = createBrowserRunbookServices();
@@ -71,9 +75,7 @@ export function RunCorrectionForm({
         if (local.status === "invalid") throw new Error(local.reason);
         let snapshot = local.snapshots.find((item) => item.localId === runId);
         if (snapshot === undefined) {
-          const seed = targetLockStage5Seed.runs.find(
-            (item) => item.localId === runId,
-          );
+          const seed = seedRuns.find((item) => item.localId === runId);
           if (seed === undefined) throw new Error("The run was not found.");
           snapshot = await services.runCorrections.materializeSeedRun(holeId, {
             localId: seed.localId,
@@ -136,12 +138,13 @@ export function RunCorrectionForm({
           setRodAction(snapshot.rodEvents[0].action);
         }
       })
-      .catch((caught: unknown) =>
+      .catch((caught: unknown) => {
+        setRun(null);
         setError(
           caught instanceof Error ? caught.message : "Run could not be loaded.",
-        ),
-      );
-  }, [holeId, runId]);
+        );
+      });
+  }, [holeId, runId, seedRuns]);
 
   const previewInput = useMemo(() => {
     if (run === null || choice === null) return null;
@@ -184,7 +187,7 @@ export function RunCorrectionForm({
                   previewInput.run.rodEvents[0].affectedRodNumber,
               }
             : undefined,
-        seedRuns: targetLockStage5Seed.runs,
+        seedRuns,
         surveyDepthsDm: targetLockStage5Seed.surveys
           .filter((survey) => survey.holeId === holeId)
           .map((survey) => survey.depthDm),
@@ -200,7 +203,7 @@ export function RunCorrectionForm({
     return () => {
       cancelled = true;
     };
-  }, [holeId, runId, previewInput]);
+  }, [holeId, runId, previewInput, seedRuns]);
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -269,7 +272,7 @@ export function RunCorrectionForm({
             .filter((survey) => survey.holeId === holeId)
             .map((survey) => survey.depthDm),
           acknowledgeWarnings: acknowledgeWarnings || (impact?.warnings.length ?? 0) === 0,
-          seedRuns: targetLockStage5Seed.runs,
+          seedRuns,
         },
         services,
       );

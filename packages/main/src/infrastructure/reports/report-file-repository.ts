@@ -13,6 +13,7 @@ export interface ReportFileVerifyOptions {
 export interface ReportFileRepository {
   save(
     operationId: string,
+    holeId: string,
     filename: string,
     mimeType: string,
     data: Blob,
@@ -39,7 +40,24 @@ export class ReportFileRepositoryError extends Error {
 }
 
 interface StoredReportFile extends SavedReportFile {
+  readonly holeId: string;
   readonly blob: Blob;
+}
+
+function encodeStorageSegment(value: string): string {
+  return encodeURIComponent(value.trim());
+}
+
+export function reportFileStorageKey(
+  organisationId: string,
+  holeId: string,
+  operationId: string,
+): string {
+  return (
+    `targetlock:v2:org:${encodeStorageSegment(organisationId)}` +
+    `:hole:${encodeStorageSegment(holeId)}` +
+    `:report:${encodeStorageSegment(operationId)}`
+  );
 }
 
 function requestResult<T>(request: IDBRequest<T>): Promise<T> {
@@ -75,7 +93,10 @@ const STORE_NAME = "report-files";
 export class IndexedDbReportFileRepository implements ReportFileRepository {
   private databasePromise?: Promise<IDBDatabase>;
 
-  constructor(private readonly indexedDb: IDBFactory = window.indexedDB) {}
+  constructor(
+    private readonly indexedDb: IDBFactory = window.indexedDB,
+    private readonly organisationId = "local-organisation",
+  ) {}
 
   private database(): Promise<IDBDatabase> {
     this.databasePromise ??= new Promise((resolve, reject) => {
@@ -110,6 +131,7 @@ export class IndexedDbReportFileRepository implements ReportFileRepository {
 
   async save(
     operationId: string,
+    holeId: string,
     filename: string,
     mimeType: string,
     data: Blob,
@@ -121,16 +143,20 @@ export class IndexedDbReportFileRepository implements ReportFileRepository {
       );
     }
     const database = await this.database();
+    const storageKey = reportFileStorageKey(
+      this.organisationId,
+      holeId,
+      operationId,
+    );
     const readTransaction = database.transaction(STORE_NAME, "readonly");
     const existing = (await requestResult(
-      readTransaction.objectStore(STORE_NAME).index("operationId").getAll(operationId),
-    )) as StoredReportFile[];
-    if (existing.length > 0) {
-      const match = existing[0]!;
+      readTransaction.objectStore(STORE_NAME).get(storageKey),
+    )) as StoredReportFile | undefined;
+    if (existing !== undefined) {
       if (
-        match.sizeBytes !== data.size ||
-        match.mimeType !== mimeType ||
-        match.filename !== filename
+        existing.sizeBytes !== data.size ||
+        existing.mimeType !== mimeType ||
+        existing.filename !== filename
       ) {
         throw new ReportFileRepositoryError(
           "IDEMPOTENCY_CONFLICT",
@@ -138,18 +164,18 @@ export class IndexedDbReportFileRepository implements ReportFileRepository {
         );
       }
       return {
-        storageKey: match.storageKey,
-        operationId: match.operationId,
-        filename: match.filename,
-        mimeType: match.mimeType,
-        sizeBytes: match.sizeBytes,
+        storageKey: existing.storageKey,
+        operationId: existing.operationId,
+        filename: existing.filename,
+        mimeType: existing.mimeType,
+        sizeBytes: existing.sizeBytes,
       };
     }
 
-    const storageKey = `report:${operationId}`;
     const record: StoredReportFile = {
       storageKey,
       operationId,
+      holeId,
       filename,
       mimeType,
       sizeBytes: data.size,
@@ -211,8 +237,11 @@ export class IndexedDbReportFileRepository implements ReportFileRepository {
 export class MemoryReportFileRepository implements ReportFileRepository {
   private readonly records = new Map<string, StoredReportFile>();
 
+  constructor(private readonly organisationId = "memory-organisation") {}
+
   async save(
     operationId: string,
+    holeId: string,
     filename: string,
     mimeType: string,
     data: Blob,
@@ -223,9 +252,12 @@ export class MemoryReportFileRepository implements ReportFileRepository {
         "Report files must be non-empty with a mime type.",
       );
     }
-    const existing = [...this.records.values()].find(
-      (record) => record.operationId === operationId,
+    const storageKey = reportFileStorageKey(
+      this.organisationId,
+      holeId,
+      operationId,
     );
+    const existing = this.records.get(storageKey);
     if (existing !== undefined) {
       if (
         existing.sizeBytes !== data.size ||
@@ -245,10 +277,10 @@ export class MemoryReportFileRepository implements ReportFileRepository {
         sizeBytes: existing.sizeBytes,
       };
     }
-    const storageKey = `report:${operationId}`;
     const record: StoredReportFile = {
       storageKey,
       operationId,
+      holeId,
       filename,
       mimeType,
       sizeBytes: data.size,
@@ -297,9 +329,11 @@ export class MemoryReportFileRepository implements ReportFileRepository {
   }
 }
 
-export function createBrowserReportFileRepository(): ReportFileRepository | null {
+export function createBrowserReportFileRepository(
+  organisationId = "local-organisation",
+): ReportFileRepository | null {
   if (typeof window === "undefined" || window.indexedDB === undefined) {
     return null;
   }
-  return new IndexedDbReportFileRepository(window.indexedDB);
+  return new IndexedDbReportFileRepository(window.indexedDB, organisationId);
 }

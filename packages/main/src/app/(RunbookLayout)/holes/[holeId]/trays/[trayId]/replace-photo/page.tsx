@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { TrayPhotoReplacementForm } from "@/components/trays/tray-photo-replacement-form";
-import { targetLockStage4Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function ReplaceTrayPhotoPage({
   params,
@@ -9,6 +9,6 @@ export default async function ReplaceTrayPhotoPage({
   params: Promise<{ holeId: string; trayId: string }>;
 }) {
   const { holeId, trayId } = await params;
-  if (holeId !== targetLockStage4Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return <TrayPhotoReplacementForm holeId={holeId} trayId={trayId} />;
 }

@@ -107,6 +107,7 @@ export function AssignmentCorrectionForm({
       await correctComponentAssignment(
         {
           operationId: createComponentLocalId("correct-assignment"),
+          holeId: assignment.holeId,
           assignmentId: assignment.localId,
           expectedVersion: assignment.version,
           startDepthDm: parsedStart.value,

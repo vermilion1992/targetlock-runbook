@@ -9,6 +9,7 @@ import {
 import type { CasingRepository } from "@/infrastructure/casing";
 import type { CompletionRepository } from "@/infrastructure/completion";
 import type {
+  BottomHoleAssemblySetupRepository,
   ComponentAssignmentRepository,
   ComponentRepository,
 } from "@/infrastructure/components";
@@ -38,11 +39,13 @@ export interface HoleAnalyticsQueryServices {
   readonly casing: CasingRepository;
   readonly components: ComponentRepository;
   readonly componentAssignments: ComponentAssignmentRepository;
+  readonly bhaSetups: BottomHoleAssemblySetupRepository;
   readonly completion: CompletionRepository;
   readonly currentState: CurrentHoleStateDependencies;
   readonly shiftAnalytics: ShiftAnalyticsQueryServices;
   readonly seedRuns: readonly Run[];
   readonly seedRodEvents: readonly RodAddition[];
+  readonly seedHoleId: string;
   readonly plannedDepthDm: number;
   readonly preferredSurveyIntervalDm?: number;
 }
@@ -52,7 +55,7 @@ export interface GetHoleAnalyticsOptions {
   readonly asOf?: string;
 }
 
-function filterAsOf<T extends { readonly recordedAt?: string; readonly installedAt?: string; readonly createdAt?: string; readonly startedAt?: string }>(
+function filterAsOf<T extends { readonly recordedAt?: string; readonly installedAt?: string; readonly createdAt?: string; readonly startedAt?: string; readonly effectiveAt?: string }>(
   items: readonly T[],
   asOf: string | undefined,
   timestampOf: (item: T) => string | undefined,
@@ -89,7 +92,10 @@ async function loadCorrectedSurveyIds(
   const ids = new Set<string>();
   await Promise.all(
     surveys.map(async (survey) => {
-      const corrections = await services.surveys.listCorrections(survey.localId);
+      const corrections = await services.surveys.listCorrections(
+        survey.localId,
+        holeId,
+      );
       if (corrections.length > 0) ids.add(survey.localId);
     }),
   );
@@ -106,11 +112,12 @@ export async function getHoleAnalytics(
   services: HoleAnalyticsQueryServices,
   options: GetHoleAnalyticsOptions = {},
 ): Promise<HoleAnalytics> {
-  const completion = await resolveCompletion(
-    holeId,
-    options.completionId,
-    services,
-  );
+  const [completion, hole, actualTrajectoryConfiguration] = await Promise.all([
+    resolveCompletion(holeId, options.completionId, services),
+    services.completion.getHole(holeId),
+    services.currentState.trajectory?.getActualConfiguration(holeId) ??
+      Promise.resolve(null),
+  ]);
   const asOf = options.asOf ?? completion?.snapshot.capturedAt;
   const runIdFilter =
     completion === null ? undefined : new Set(completion.snapshot.runIds);
@@ -124,6 +131,7 @@ export async function getHoleAnalytics(
     casingEvents,
     componentAssignments,
     components,
+    bhaSetups,
     correctedSurveyIds,
     state,
     shiftAnalyticsById,
@@ -136,6 +144,7 @@ export async function getHoleAnalytics(
     services.casing.listEvents(holeId),
     services.componentAssignments.listByHole(holeId),
     services.components.list(),
+    services.bhaSetups.listByHole(holeId),
     loadCorrectedSurveyIds(holeId, services),
     getCurrentHoleState(holeId, services.currentState).catch(() => null),
     loadAnalyticsForAllShifts(holeId, services.shiftAnalytics),
@@ -158,6 +167,11 @@ export async function getHoleAnalytics(
     componentAssignments,
     asOf,
     (assignment) => assignment.installedAt,
+  );
+  const scopedBhaSetups = filterAsOf(
+    bhaSetups,
+    asOf,
+    (setup) => setup.effectiveAt,
   );
   const scopedCasingStrings = filterAsOf(
     casingStrings,
@@ -191,7 +205,9 @@ export async function getHoleAnalytics(
       : startingDepthDm);
 
   const plannedDepthDm = decimetres(
-    completion?.snapshot.plannedDepthDm ?? services.plannedDepthDm,
+    completion?.snapshot.plannedDepthDm ??
+      hole?.plannedDepth ??
+      services.plannedDepthDm,
   );
 
   const scopedShiftAnalytics = new Map(
@@ -222,9 +238,14 @@ export async function getHoleAnalytics(
     casingEvents: scopedCasingEvents,
     components,
     componentAssignments: scopedAssignments,
+    bhaSetups: scopedBhaSetups,
     corrections: [],
     correctedSurveyIds,
-    preferredSurveyIntervalDm: services.preferredSurveyIntervalDm,
+    preferredSurveyIntervalDm:
+      actualTrajectoryConfiguration?.preferredSurveyIntervalDm ??
+      (holeId === services.seedHoleId
+        ? services.preferredSurveyIntervalDm
+        : undefined),
     shiftAnalyticsById: scopedShiftAnalytics,
   });
 }
@@ -268,6 +289,7 @@ export function createHoleAnalyticsQueryServices(
     readonly casing: CasingRepository;
     readonly components: ComponentRepository;
     readonly componentAssignments: ComponentAssignmentRepository;
+    readonly bhaSetups: BottomHoleAssemblySetupRepository;
     readonly completion: CompletionRepository;
     readonly currentState: CurrentHoleStateDependencies;
     readonly shiftAnalytics: ShiftAnalyticsQueryServices;
@@ -275,6 +297,7 @@ export function createHoleAnalyticsQueryServices(
   seed: {
     readonly runs: readonly Run[];
     readonly rodEvents: readonly RodAddition[];
+    readonly holeId: string;
     readonly plannedDepthDm: number;
     readonly preferredSurveyIntervalDm?: number;
   },
@@ -288,11 +311,13 @@ export function createHoleAnalyticsQueryServices(
     casing: browser.casing,
     components: browser.components,
     componentAssignments: browser.componentAssignments,
+    bhaSetups: browser.bhaSetups,
     completion: browser.completion,
     currentState: browser.currentState,
     shiftAnalytics: browser.shiftAnalytics,
     seedRuns: seed.runs,
     seedRodEvents: seed.rodEvents,
+    seedHoleId: seed.holeId,
     plannedDepthDm: seed.plannedDepthDm,
     preferredSurveyIntervalDm: seed.preferredSurveyIntervalDm,
   };

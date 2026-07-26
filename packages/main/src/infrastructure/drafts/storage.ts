@@ -18,10 +18,13 @@ class BrowserLocalStorageAdapter implements LocalStorageAdapter {
   }
 }
 
+let browserStorageAdapter: LocalStorageAdapter | null = null;
+
 export function getBrowserLocalStorageAdapter(): LocalStorageAdapter | null {
   if (typeof window === "undefined") {
     return null;
   }
 
-  return new BrowserLocalStorageAdapter();
+  browserStorageAdapter ??= new BrowserLocalStorageAdapter();
+  return browserStorageAdapter;
 }

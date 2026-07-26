@@ -1,8 +1,8 @@
 # TargetLock Known Limitations
 
-Status date: 2026-07-24
+Status date: 2026-07-26
 Scope: local pilot of Stages 1–6 in `packages/main` + V2 report reliability +
-Run corrections/voiding
+Run corrections/voiding + multi-hole isolation P0–P2
 
 ## Acceptable local-pilot limitations
 
@@ -19,6 +19,10 @@ Run corrections/voiding
 
 - **Browser-only storage.** Records live in localStorage and IndexedDB on one
   browser profile. Clearing site data loses local work.
+- **Cross-tab scope is browser-local.** Current Chrome/Edge tabs serialise
+  repository operations with Web Locks and stale tabs show a reload prompt.
+  Browsers without Web Locks only receive same-tab ordering; operators must
+  reload before continuing after another tab changes data.
 - **Reports are device-local.** Generated PDF/Excel/CSV blobs are verified in
   IndexedDB on this browser only. They are not backed up or synchronised by
   Railway; download important reports to permanent storage.
@@ -38,6 +42,10 @@ Run corrections/voiding
   delivered.
 - **Browser storage quota.** Large photo/report history can hit quota; there is
   no retention dashboard or garbage collection.
+- **Legacy binary keys remain in place.** New media/report blobs are
+  organisation/hole namespaced, while existing metadata continues to reference
+  exact legacy IndexedDB keys. There is no automatic lazy migration or orphan
+  cleanup.
 - **No physical-device accessibility certification.** Automated checks cover
   names, focus-ish flows, and widths; gloves, glare, screen readers, and 200%
   zoom still need manual device review.
@@ -56,7 +64,10 @@ These must be solved before production or multi-device deployment:
 - Durable transactional storage with backup/restore
 - Server revision / conflict policy and synchronisation
 - Cross-device hole locking
-- Cloud media and report storage
+- Database foreign keys for every hole-owned relationship and composite
+  uniqueness such as `(hole_id, run_number)` and `(hole_id, tray_number)`
+- Cloud media and report storage under organisation/hole namespaces with
+  retention and deletion policies
 - Real SMTP or transactional email if delivery is required
 - Removal or hard isolation of inherited demo routes and unused template deps
 - Production dependency advisory review beyond the local pilot scope
@@ -66,7 +77,10 @@ These must be solved before production or multi-device deployment:
 
 - Interactive 3D / plan / section graphics are **presentation-only** and must
   not be treated as certified anti-collision software.
-- **No steering recommendations** and **no certified anti-collision**.
+- Next-Survey dip/azimuth guidance is released only when the geometric recovery
+  path fits the hole's configured dogleg, lift, drop and turn envelope. The
+  envelope must be validated for the active BHA and ground conditions; this is
+  **not steering-tool certification** or certified anti-collision software.
 - **Display tolerances are visual only** unless supplied by an authorised
   project source.
 - **Mine-grid mode does not reproject** between EPSG systems; entered

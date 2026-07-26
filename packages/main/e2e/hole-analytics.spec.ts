@@ -44,56 +44,47 @@ async function openStatistics(page: Page) {
   await expect(page.getByTestId("hole-analytics-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByTestId("hole-analytics-overview")).toBeVisible({
+  await expect(page.getByTestId("hole-analytics-production")).toBeVisible({
     timeout: 30_000,
   });
 }
 
 test("Workflow 1 — Hole Analytics", async ({ page }) => {
   await openStatistics(page);
-  await expect(page.getByTestId("hole-analytics-overview")).toBeVisible();
-  await expect(page.getByText("Weighted recovery").first()).toBeVisible();
   await expect(page.getByTestId("hole-analytics-production")).toBeVisible();
   await expect(page.getByTestId("hole-analytics-shifts")).toBeVisible();
-  await expect(page.getByText("Day Shifts").first()).toBeVisible();
-  await page.getByRole("button", { name: "Rods" }).click();
-  await expect(page.getByTestId("hole-analytics-rods")).toBeVisible();
-  await page.getByRole("button", { name: "Components" }).click();
   await expect(page.getByTestId("hole-analytics-components")).toBeVisible();
-  await page.getByRole("button", { name: "Surveys" }).click();
+  await expect(page.getByTestId("hole-analytics-barrels")).toBeVisible();
   await expect(page.getByTestId("hole-analytics-surveys")).toBeVisible();
-  await page.getByRole("button", { name: "Trays" }).click();
-  await expect(page.getByTestId("hole-analytics-trays")).toBeVisible();
-  await page
-    .getByRole("button", { name: "Record completeness" })
-    .scrollIntoViewIfNeeded();
-  // Section defaults open; ensure it is expanded if a prior interaction closed it.
-  const completenessToggle = page.getByRole("button", {
-    name: "Record completeness",
-  });
-  if ((await completenessToggle.getAttribute("aria-expanded")) === "false") {
-    await completenessToggle.click();
-  }
-  await expect(page.getByTestId("hole-analytics-completeness")).toBeVisible();
+  await expect(page.getByText("Weighted core recovery").first()).toBeVisible();
+  await expect(page.getByTestId("hole-analytics-casing")).toHaveCount(0);
+  await expect(page.getByTestId("hole-analytics-completeness")).toHaveCount(0);
+  await expect(page.getByTestId("hole-analytics-trays")).toHaveCount(0);
+  await expect(page.getByTestId("hole-analytics-trajectory")).toHaveCount(0);
 
-  const overview = page.getByTestId("hole-analytics-overview");
-  await overview.scrollIntoViewIfNeeded();
-  await expect(overview.getByText("Total Runs")).toBeVisible();
-  await expect(overview.getByText("Weighted recovery")).toBeVisible();
-  const runsBefore = (
-    await overview.getByText("Total Runs").locator("..").locator("dd").first().textContent()
+  const runStatistics = page.getByTestId("hole-analytics-production");
+  await runStatistics.scrollIntoViewIfNeeded();
+  await expect(runStatistics.getByText("Total drilled")).toBeVisible();
+  await expect(runStatistics.getByText("Weighted core recovery")).toBeVisible();
+  const metresBefore = (
+    await runStatistics
+      .getByText("Total drilled")
+      .locator("..")
+      .locator("dd")
+      .first()
+      .textContent()
   )?.trim();
   await page.reload();
-  await expect(page.getByTestId("hole-analytics-overview")).toBeVisible({
+  await expect(page.getByTestId("hole-analytics-production")).toBeVisible({
     timeout: 30_000,
   });
-  if (runsBefore) {
+  if (metresBefore) {
     await expect(
       page
-        .getByTestId("hole-analytics-overview")
-        .getByText("Total Runs")
+        .getByTestId("hole-analytics-production")
+        .getByText("Total drilled")
         .locator("..")
-        .getByText(runsBefore, { exact: true }),
+        .getByText(metresBefore, { exact: true }),
     ).toBeVisible();
   }
 });
@@ -110,14 +101,14 @@ test("Workflow 2 — Corrected Run updates recovery not depth", async ({
 
   await openStatistics(page);
   const depthBefore = await page
-    .getByTestId("hole-analytics-overview")
-    .getByText(/Final \/ current depth/i)
+    .getByTestId("hole-analytics-production")
+    .getByText(/Total drilled/i)
     .locator("..")
     .getByText(/\d+\.\d+ m/)
     .textContent();
   const recoveryBefore = await page
-    .getByTestId("hole-analytics-overview")
-    .getByText(/Weighted recovery/i)
+    .getByTestId("hole-analytics-production")
+    .getByText(/Weighted core recovery/i)
     .locator("..")
     .getByText(/%/)
     .textContent();
@@ -142,16 +133,18 @@ test("Workflow 2 — Corrected Run updates recovery not depth", async ({
   await openStatistics(page);
   if (depthBefore) {
     await expect(
-      page.getByTestId("hole-analytics-overview").getByText(depthBefore),
+      page.getByTestId("hole-analytics-production").getByText(depthBefore),
     ).toBeVisible();
   }
   if (recoveryBefore) {
     await expect(
-      page.getByTestId("hole-analytics-overview").getByText(recoveryBefore),
+      page.getByTestId("hole-analytics-production").getByText(recoveryBefore),
     ).toHaveCount(0);
   }
   await expect(
-    page.getByTestId("hole-analytics-overview").getByText("Weighted recovery"),
+    page
+      .getByTestId("hole-analytics-production")
+      .getByText("Weighted core recovery"),
   ).toBeVisible();
 });
 
@@ -189,14 +182,10 @@ test("Workflow 3 — Voided Run excluded from production", async ({ page }) => {
   });
 
   await openStatistics(page);
-  await expect(
-    page.getByTestId("hole-analytics-production").getByText("Voided Runs"),
-  ).toBeVisible();
   const voided = page
     .getByTestId("hole-analytics-production")
-    .getByText("Voided Runs")
-    .locator("..");
-  await expect(voided.getByText(/[1-9]/)).toBeVisible();
+    .getByText(/[1-9]\d* voided/);
+  await expect(voided).toBeVisible();
   if (completedBefore) {
     const completedNow = page
       .getByTestId("hole-analytics-production")
@@ -204,7 +193,7 @@ test("Workflow 3 — Voided Run excluded from production", async ({ page }) => {
       .locator("..");
     await expect(completedNow).not.toContainText(completedBefore);
   }
-  await expect(page.getByTestId("hole-analytics-completeness")).toContainText(
+  await expect(page.getByTestId("hole-analytics-production")).toContainText(
     /voided/i,
   );
 });
@@ -213,20 +202,14 @@ test("Workflow 4 — Charts render with repository datasets", async ({
   page,
 }) => {
   await openStatistics(page);
-  const chartsToggle = page.getByRole("button", { name: "Charts" });
-  await chartsToggle.scrollIntoViewIfNeeded();
-  if ((await chartsToggle.getAttribute("aria-expanded")) === "false") {
-    await chartsToggle.click();
-  }
-  await expect(page.getByTestId("hole-analytics-charts")).toBeVisible();
-  await expect(page.getByTestId("chart-metres-by-shift")).toBeVisible();
+  await expect(page.getByTestId("chart-run-metres")).toBeVisible();
+  await expect(page.getByTestId("chart-shift-metres")).toBeVisible();
   await expect(page.getByTestId("chart-cumulative-depth")).toBeVisible();
-  await expect(page.getByTestId("chart-recovery-by-depth")).toBeVisible();
-  await expect(page.getByTestId("chart-run-length")).toBeVisible();
-  await expect(page.getByTestId("chart-loss-gain")).toBeVisible();
-  await expect(page.getByTestId("chart-component-intervals")).toBeVisible();
+  await expect(page.getByTestId("chart-bit-metres")).toBeVisible();
+  await expect(page.getByTestId("chart-recovery-by-depth")).toHaveCount(0);
+  await expect(page.getByTestId("chart-loss-gain")).toHaveCount(0);
   await expect(
-    page.getByTestId("chart-metres-by-shift").locator(".sr-only"),
+    page.getByTestId("chart-shift-metres").locator(".sr-only"),
   ).not.toBeEmpty();
 });
 
@@ -278,7 +261,7 @@ test("Workflow 6 — Reopened Hole completion versions stay selectable", async (
     timeout: 20_000,
   });
   await selector.getByText("Current active Hole").click();
-  await expect(page.getByTestId("hole-analytics-overview")).toBeVisible({
+  await expect(page.getByTestId("hole-analytics-production")).toBeVisible({
     timeout: 20_000,
   });
 });

@@ -18,6 +18,10 @@ export interface ShiftRunView {
   readonly completedByNameSnapshot: string | null;
   readonly startedAt: string;
   readonly completedAt: string | null;
+  /** Final rod-string measurement saved on the completed Run. */
+  readonly rodStringDm: Decimetres;
+  /** Final measured stick-up saved on the completed Run. */
+  readonly measuredStickUpDm: Decimetres;
   readonly holeDepthDm: Decimetres;
   readonly drilledLengthDm: Decimetres;
   readonly recoveredLengthDm: Decimetres;
@@ -46,6 +50,8 @@ function seedRunView(run: Run): ShiftRunView {
     completedByNameSnapshot: run.completedByNameSnapshot,
     startedAt: run.startedAt,
     completedAt: run.completedAt,
+    rodStringDm: run.rodStringLength,
+    measuredStickUpDm: run.measuredStickUp,
     holeDepthDm: run.holeDepth,
     drilledLengthDm: run.drilledLength,
     recoveredLengthDm: run.recoveredLength,
@@ -67,6 +73,8 @@ function localRunView(run: SavedRunSnapshot): ShiftRunView {
     completedByNameSnapshot: run.completedByNameSnapshot,
     startedAt: run.startedAt,
     completedAt: run.completedAt,
+    rodStringDm: run.rodStringDm as Decimetres,
+    measuredStickUpDm: run.measuredStickUpDm as Decimetres,
     holeDepthDm: run.holeDepthDm as Decimetres,
     drilledLengthDm: run.drilledLengthDm as Decimetres,
     recoveredLengthDm: run.recoveredLengthDm as Decimetres,
@@ -79,23 +87,27 @@ function localRunView(run: SavedRunSnapshot): ShiftRunView {
 }
 
 export function getShiftRunGroups(input: {
+  readonly holeId: string;
   readonly shifts: readonly RunbookShift[];
   readonly seedRuns: readonly Run[];
   readonly localRuns: readonly SavedRunSnapshot[];
 }): readonly ShiftRunGroup[] {
-  const localIds = new Set(input.localRuns.map(({ localId }) => localId));
-  const localNumbers = new Set(input.localRuns.map(({ runNumber }) => runNumber));
+  const localRuns = input.localRuns.filter((run) => run.holeId === input.holeId);
+  const localIds = new Set(localRuns.map(({ localId }) => localId));
+  const localNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
   const runs = [
     ...input.seedRuns
       .filter(
         (run) =>
+          run.holeId === input.holeId &&
           !localIds.has(run.localId) && !localNumbers.has(run.runNumber),
       )
       .map(seedRunView),
-    ...input.localRuns.map(localRunView),
+    ...localRuns.map(localRunView),
   ];
 
   return [...input.shifts]
+    .filter((shift) => shift.holeId === input.holeId)
     .sort(compareShiftsNewestFirst)
     .map((shift) => {
       const grouped = runs

@@ -16,6 +16,10 @@ import {
   getBrowserLocalStorageAdapter,
   type LocalStorageAdapter,
 } from "./storage";
+import {
+  getBrowserRunbookOperationCoordinator,
+  type RunbookOperationCoordinator,
+} from "./runbook-operation-coordinator";
 import type { HoleMutationGuardPort } from "@/infrastructure/completion";
 
 /**
@@ -29,13 +33,13 @@ export interface RunRepository {
     holeId: string,
     payload: RunDraftPayload,
     savedAt?: string,
-  ): PersistenceResult;
-  clearDraft(holeId: string): PersistenceResult;
+  ): Promise<PersistenceResult>;
+  clearDraft(holeId: string): Promise<PersistenceResult>;
   readCompletedRuns(holeId: string): SavedRunsReadResult;
   saveCompletedRun(
     holeId: string,
     snapshot: SavedRunSnapshot,
-  ): SaveRunResult;
+  ): Promise<SaveRunResult>;
 }
 
 export class LocalRunRepository implements RunRepository {
@@ -43,24 +47,29 @@ export class LocalRunRepository implements RunRepository {
     private readonly storage: LocalStorageAdapter,
     private readonly migrationCandidates: readonly RunAssignmentMigrationCandidate[] = [],
     private readonly mutationGuard?: HoleMutationGuardPort,
+    private readonly coordinator?: RunbookOperationCoordinator,
   ) {}
 
   readDraft(holeId: string): DraftReadResult {
     return readRunDraft(this.storage, holeId, this.migrationCandidates);
   }
 
-  writeDraft(
+  async writeDraft(
     holeId: string,
     payload: RunDraftPayload,
     savedAt?: string,
-  ): PersistenceResult {
-    this.mutationGuard?.assertHoleMutable(holeId);
-    return writeRunDraft(this.storage, holeId, payload, savedAt);
+  ): Promise<PersistenceResult> {
+    return this.runMutation(() => {
+      this.mutationGuard?.assertHoleMutable(holeId);
+      return writeRunDraft(this.storage, holeId, payload, savedAt);
+    });
   }
 
-  clearDraft(holeId: string): PersistenceResult {
-    this.mutationGuard?.assertHoleMutable(holeId);
-    return clearRunDraft(this.storage, holeId);
+  async clearDraft(holeId: string): Promise<PersistenceResult> {
+    return this.runMutation(() => {
+      this.mutationGuard?.assertHoleMutable(holeId);
+      return clearRunDraft(this.storage, holeId);
+    });
   }
 
   readCompletedRuns(holeId: string): SavedRunsReadResult {
@@ -71,12 +80,20 @@ export class LocalRunRepository implements RunRepository {
     );
   }
 
-  saveCompletedRun(
+  async saveCompletedRun(
     holeId: string,
     snapshot: SavedRunSnapshot,
-  ): SaveRunResult {
-    this.mutationGuard?.assertHoleMutable(holeId);
-    return appendSavedRunSnapshot(this.storage, holeId, snapshot);
+  ): Promise<SaveRunResult> {
+    return this.runMutation(() => {
+      this.mutationGuard?.assertHoleMutable(holeId);
+      return appendSavedRunSnapshot(this.storage, holeId, snapshot);
+    });
+  }
+
+  private runMutation<T>(operation: () => T): Promise<T> {
+    return this.coordinator === undefined
+      ? Promise.resolve(operation())
+      : this.coordinator.runExclusive(operation, true);
   }
 }
 
@@ -87,5 +104,10 @@ export function createBrowserRunRepository(
   const storage = getBrowserLocalStorageAdapter();
   return storage === null
     ? null
-    : new LocalRunRepository(storage, migrationCandidates, mutationGuard);
+    : new LocalRunRepository(
+        storage,
+        migrationCandidates,
+        mutationGuard,
+        getBrowserRunbookOperationCoordinator() ?? undefined,
+      );
 }

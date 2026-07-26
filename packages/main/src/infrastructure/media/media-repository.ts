@@ -2,6 +2,7 @@ export type MediaKind = "ORIGINAL" | "PREVIEW";
 
 export interface SaveMediaInput {
   readonly operationId: string;
+  readonly holeId: string;
   readonly blob: Blob;
   readonly storageKey?: string;
 }
@@ -9,6 +10,7 @@ export interface SaveMediaInput {
 export interface SavedMedia {
   readonly storageKey: string;
   readonly operationId: string;
+  readonly holeId: string;
   readonly kind: MediaKind;
   readonly mimeType: string;
   readonly sizeBytes: number;
@@ -49,13 +51,17 @@ export class MemoryMediaRepository implements MediaRepository {
     return this.save("PREVIEW", input);
   }
 
+  constructor(private readonly organisationId = "memory-organisation") {}
+
   private async save(
     kind: MediaKind,
     input: SaveMediaInput,
   ): Promise<SavedMedia> {
     const existing = [...this.records.values()].find(
       (record) =>
-        record.operationId === input.operationId && record.kind === kind,
+        record.operationId === input.operationId &&
+        record.holeId === input.holeId &&
+        record.kind === kind,
     );
     if (existing !== undefined) {
       if (
@@ -70,10 +76,17 @@ export class MemoryMediaRepository implements MediaRepository {
       return existing;
     }
     const storageKey =
-      input.storageKey ?? `${input.operationId}:${kind.toLowerCase()}`;
+      input.storageKey ??
+      mediaStorageKey(
+        this.organisationId,
+        input.holeId,
+        input.operationId,
+        kind,
+      );
     const record = {
       storageKey,
       operationId: input.operationId,
+      holeId: input.holeId,
       kind,
       mimeType: input.blob.type,
       sizeBytes: input.blob.size,
@@ -94,4 +107,25 @@ export class MemoryMediaRepository implements MediaRepository {
   async verify(storageKey: string): Promise<boolean> {
     return this.records.has(storageKey);
   }
+}
+
+function encodeStorageSegment(value: string): string {
+  return encodeURIComponent(value.trim());
+}
+
+export function mediaStorageKey(
+  organisationId: string,
+  holeId: string,
+  operationId: string,
+  kind: MediaKind,
+  uniqueId?: string,
+): string {
+  const base =
+    `targetlock:v2:org:${encodeStorageSegment(organisationId)}` +
+    `:hole:${encodeStorageSegment(holeId)}` +
+    `:media:${encodeStorageSegment(operationId)}` +
+    `:${kind.toLowerCase()}`;
+  return uniqueId === undefined
+    ? base
+    : `${base}:${encodeStorageSegment(uniqueId)}`;
 }

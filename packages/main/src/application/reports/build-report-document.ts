@@ -416,7 +416,7 @@ export async function buildReportDocumentData(
   const surveyCorrections = (
     await Promise.all(
       context.surveys.map((survey) =>
-        dependencies.surveys.listCorrections(survey.localId),
+        dependencies.surveys.listCorrections(survey.localId, input.holeId),
       ),
     )
   ).flat();

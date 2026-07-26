@@ -1,10 +1,9 @@
 "use client";
 
+import { Crosshair, Download, Settings2, Target } from "lucide-react";
 import Link from "next/link";
 
 import type { MiniTargetLockResult } from "@/domain";
-import { namedBackTarget } from "@/components/navigation/runbook-page-back";
-import { RunbookPageBackLink } from "@/components/navigation/runbook-page-back-link";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 
 import { formatMetresValue } from "./trajectory-format";
@@ -12,9 +11,9 @@ import { formatMetresValue } from "./trajectory-format";
 function ProjectionStatusChip({ result }: { result: MiniTargetLockResult }) {
   if (!result.projection || !result.target) {
     return (
-      <div className="min-w-[12rem] rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-3 py-2">
-        <p className="text-xs font-bold uppercase tracking-wide">No target</p>
-        <p className="mt-1 text-sm leading-snug">Set a target to track miss</p>
+      <div className="inline-flex items-center gap-2 rounded-full border border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-3 py-2">
+        <Target aria-hidden className="size-4 text-[var(--tl-ink-muted)]" />
+        <p className="text-sm font-bold">No target configured</p>
       </div>
     );
   }
@@ -24,21 +23,22 @@ function ProjectionStatusChip({ result }: { result: MiniTargetLockResult }) {
     : "border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] text-[var(--tl-warning)]";
   return (
     <div
-      className={`min-w-[12rem] rounded-[var(--tl-radius-md)] border px-3 py-2 ${tone}`}
+      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${tone}`}
       data-testid="trajectory-target-status"
     >
-      <p className="text-xs font-bold uppercase tracking-wide">
-        {intersects
-          ? "Projected to intersect target"
-          : "Projected to miss target"}
-      </p>
-      <p className="mt-1 text-sm tabular-nums leading-snug">
-        Closest approach {formatMetresValue(result.projection.closestApproachM)}
-      </p>
-      <p className="mt-1 text-xs opacity-80">
-        Target diameter {result.target.diameterM.toFixed(1)} m (radius{" "}
-        {(result.target.diameterM / 2).toFixed(1)} m)
-      </p>
+      <Crosshair aria-hidden className="size-4" />
+      <div>
+        <p className="text-sm font-bold">
+          {intersects
+            ? "Projected to intersect target"
+            : "Projected to miss target"}
+        </p>
+        <p className="text-[0.68rem] font-semibold opacity-80">
+          Hold miss{" "}
+          {formatMetresValue(result.projection.endpointMissOutsideTargetM)} ·
+          radius {(result.target.diameterM / 2).toFixed(1)} m
+        </p>
+      </div>
     </div>
   );
 }
@@ -69,18 +69,15 @@ export function TrajectoryCockpitHeader({
   });
 
   return (
-    <header className="flex flex-col gap-3 lg:flex-row lg:items-start lg:justify-between">
-      <div className="min-w-0 space-y-1">
-        <div className="-ml-1">
-          <RunbookPageBackLink
-            target={namedBackTarget(runbookRoutes.more(holeId), "More")}
-          />
-        </div>
-        <p className="text-xs font-semibold uppercase tracking-[0.14em] text-[var(--tl-ink-muted)]">
+    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+      <div className="min-w-0">
+        <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--tl-primary)]">
           {holeId} — TRAJECTORY
         </p>
-        <h1 className="text-2xl font-semibold tracking-tight">Trajectory</h1>
-        <p className="text-sm text-[var(--tl-ink-muted)]">
+        <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[var(--tl-ink)] sm:text-3xl">
+          Trajectory guidance
+        </h1>
+        <p className="mt-2 text-sm leading-6 text-[var(--tl-ink-muted)] sm:text-base">
           {latest
             ? `Latest Survey ${formatMetresValue(latest.measuredDepthM)}`
             : "No Survey yet"}
@@ -89,32 +86,37 @@ export function TrajectoryCockpitHeader({
             : ""}
           {` · ${north}`}
         </p>
-        <div className="flex flex-wrap gap-2 pt-1">
+      </div>
+      <div className="flex flex-col items-start gap-3 lg:items-end">
+        <ProjectionStatusChip result={result} />
+        <div className="flex flex-wrap gap-2">
           <button
             type="button"
-            className="inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 text-sm font-semibold"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 text-sm font-bold text-white shadow-[var(--tl-shadow-sm)]"
             onClick={onEditTarget}
             data-testid="trajectory-edit-target"
           >
+            <Target aria-hidden className="size-4" />
             {result.target ? "Edit Target" : "Set Target"}
           </button>
           <button
             type="button"
-            className="inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 text-sm font-semibold"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-4 text-sm font-bold"
             onClick={onExportImage}
             data-testid="trajectory-export-image"
           >
+            <Download aria-hidden className="size-4" />
             Export Image
           </button>
           <Link
             href={surveySettingsHref}
-            className="inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 text-sm font-semibold"
+            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-4 text-sm font-bold"
           >
+            <Settings2 aria-hidden className="size-4" />
             Survey Settings
           </Link>
         </div>
       </div>
-      <ProjectionStatusChip result={result} />
     </header>
   );
 }

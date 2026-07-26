@@ -43,13 +43,15 @@ export function TrayPhotoReplacementForm({
       return;
     }
     void services.trays
-      .getById(trayId)
+      .getById(trayId, holeId)
       .then(async (record) => {
         if (record === null || record.holeId !== holeId) {
           throw new Error("Tray was not found.");
         }
         setTray(record);
-        setCurrentPhoto(await services.photos.getById(record.primaryPhotoId));
+        setCurrentPhoto(
+          await services.photos.getById(record.primaryPhotoId, holeId),
+        );
       })
       .catch((caught: unknown) =>
         setError(caught instanceof Error ? caught.message : "Tray could not be loaded."),

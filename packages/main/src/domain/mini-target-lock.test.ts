@@ -6,6 +6,7 @@ import {
   diameterMToRadiusDm,
   directToTargetFromPositions,
   projectAttitudeClosestApproach,
+  resolveNextSurveyActions,
   targetDiameterM,
 } from "./mini-target-lock";
 import type {
@@ -134,6 +135,60 @@ describe("mini-target-lock geometry", () => {
     expect(projection.intersectsTarget).toBe(false);
     expect(projection.closestApproachM).toBeCloseTo(20, 5);
     expect(projection.missOutsideTargetM).toBeCloseTo(17, 5);
+  });
+
+  it("projects hold attitude to the target measured-depth horizon", () => {
+    const projection = projectAttitudeClosestApproach({
+      origin: { eastingM: 0, northingM: 0, rlM: 100 },
+      dipDegrees: 0,
+      azimuthDegrees: 90,
+      target: { eastingM: 100, northingM: 20, rlM: 100 },
+      targetRadiusM: 3,
+      projectionLengthM: 75,
+    });
+    expect(projection.projectionLengthM).toBe(75);
+    expect(projection.projectedEndpoint.eastingM).toBeCloseTo(75, 5);
+    expect(projection.endpointDistanceToTargetM).toBeCloseTo(
+      Math.hypot(25, 20),
+      5,
+    );
+    expect(projection.projectedPath.at(-1)).toEqual(
+      projection.projectedEndpoint,
+    );
+  });
+
+  it("turns signed next-survey changes into simple driller actions", () => {
+    expect(
+      resolveNextSurveyActions({
+        currentDipDegrees: -62.4,
+        targetDipDegrees: -62.1,
+        dipChangeDegrees: 0.3,
+        azimuthChangeDegrees: -1.4,
+        deadbandDegrees: 0.2,
+      }),
+    ).toMatchObject({
+      verticalAction: "LIFT",
+      horizontalAction: "LEFT",
+      dipAdjustmentDegrees: 0.3,
+      azimuthAdjustmentDegrees: 1.4,
+      azimuthStable: true,
+    });
+  });
+
+  it("uses HOLD deadband and suppresses unstable near-vertical swing", () => {
+    expect(
+      resolveNextSurveyActions({
+        currentDipDegrees: -86,
+        targetDipDegrees: -86.1,
+        dipChangeDegrees: -0.1,
+        azimuthChangeDegrees: 12,
+        deadbandDegrees: 0.2,
+      }),
+    ).toMatchObject({
+      verticalAction: "HOLD",
+      horizontalAction: "UNAVAILABLE",
+      azimuthStable: false,
+    });
   });
 });
 

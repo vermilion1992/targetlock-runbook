@@ -164,6 +164,14 @@ describe("LocalReportMetadataRepository", () => {
     const list = await repo.listReports("DDH041");
     expect(list).toHaveLength(2);
     expect(list.map((item) => item.version).sort()).toEqual([1, 2]);
+    await expect(
+      repo.getReport("report-op-1", "DDH041"),
+    ).resolves.not.toBeNull();
+    await expect(
+      repo.getReport("report-op-1", "DDH042"),
+    ).resolves.toBeNull();
+    await expect(repo.getSnapshot("snap-1", "DDH041")).resolves.not.toBeNull();
+    await expect(repo.getSnapshot("snap-1", "DDH042")).resolves.toBeNull();
 
     const again = await repo.beginGeneration({
       operationId: "op-1",

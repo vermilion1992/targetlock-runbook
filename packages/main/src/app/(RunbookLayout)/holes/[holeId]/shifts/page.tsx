@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { ShiftHistory } from "@/components/shifts/shift-history";
-import { targetLockStage2Seed } from "@/infrastructure/seed";
+import { isRoutableHoleId } from "@/infrastructure/seed";
 
 export default async function ShiftsPage({
   params,
@@ -9,6 +9,6 @@ export default async function ShiftsPage({
   params: Promise<{ holeId: string }>;
 }) {
   const { holeId } = await params;
-  if (holeId !== targetLockStage2Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return <ShiftHistory holeId={holeId} />;
 }

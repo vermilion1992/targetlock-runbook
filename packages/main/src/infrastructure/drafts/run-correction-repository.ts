@@ -338,10 +338,13 @@ export class LocalRunCorrectionRepository implements RunCorrectionRepository {
     snapshot: SavedRunSnapshot,
   ): Promise<SavedRunSnapshot> {
     this.mutationGuard?.assertHoleMutable(holeId);
-    const normalized = withDefaultRunCorrectionFields({
-      ...snapshot,
-      holeId,
-    });
+    if (snapshot.holeId !== holeId) {
+      throw new RunCorrectionRepositoryError(
+        "INVALID",
+        "The run belongs to another hole.",
+      );
+    }
+    const normalized = withDefaultRunCorrectionFields(snapshot);
     const existing = this.readEnvelope(holeId);
     if (existing?.snapshots.some((item) => item.localId === normalized.localId)) {
       return existing.snapshots.find((item) => item.localId === normalized.localId)!;

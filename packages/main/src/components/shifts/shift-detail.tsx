@@ -55,6 +55,7 @@ export function ShiftDetail({
       .then(([shifts, runs, entries, nextAnalytics]) => {
         if (runs.status === "invalid") throw new Error(runs.reason);
         const next = getShiftRunGroups({
+          holeId,
           shifts,
           seedRuns: targetLockStage2Seed.runs,
           localRuns: runs.snapshots,

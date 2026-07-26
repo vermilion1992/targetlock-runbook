@@ -82,7 +82,9 @@ describe("LocalSurveyRepository", () => {
     await repository.create(first);
     await repository.create(second);
     expect(await repository.listByHole("DDH041")).toHaveLength(2);
-    expect((await repository.getById("survey-1"))?.toolNameSnapshot).toBeUndefined();
+    expect(
+      (await repository.getById("survey-1", "DDH041"))?.toolNameSnapshot,
+    ).toBeUndefined();
   });
 
   it("is idempotent and rejects conflicting operation reuse", async () => {
@@ -122,13 +124,21 @@ describe("LocalSurveyRepository", () => {
       correctedAt: "2026-07-21T10:45:00.000Z",
     });
     expect(corrected.azimuthTenths).toBe(1288);
-    expect(await repository.listCorrections(saved.localId)).toMatchObject([
+    expect(
+      await repository.listCorrections(saved.localId, "DDH041"),
+    ).toMatchObject([
       {
         previousValue: 1298,
         correctedValue: 1288,
         reason: "Typing mistake",
       },
     ]);
+    await expect(
+      repository.getById(saved.localId, "DDH042"),
+    ).resolves.toBeNull();
+    await expect(
+      repository.listCorrections(saved.localId, "DDH042"),
+    ).resolves.toEqual([]);
   });
 
   it("isolates holes and hydrates seed data after repository restart", async () => {

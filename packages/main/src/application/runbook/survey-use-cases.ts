@@ -122,6 +122,7 @@ export async function recordSurvey(
     photoId = input.photoId ?? `photo-${input.surveyId}`;
     const savedOriginal = await services.media.saveOriginal({
       operationId: `${input.operationId}-photo`,
+      holeId: input.holeId,
       blob: input.photo,
     });
     if (!(await services.media.verify(savedOriginal.storageKey))) {
@@ -136,6 +137,7 @@ export async function recordSurvey(
       height = preview.height;
       const savedPreview = await services.media.savePreview({
         operationId: `${input.operationId}-photo`,
+        holeId: input.holeId,
         blob: preview.blob,
       });
       if (await services.media.verify(savedPreview.storageKey)) {
@@ -232,7 +234,10 @@ export async function correctSurvey(
   input: CorrectSurveyInput,
   services: SurveyServices,
 ): Promise<Survey> {
-  const previous = await services.surveys.getById(input.surveyId);
+  const previous = await services.surveys.getById(
+    input.surveyId,
+    input.holeId,
+  );
   const survey = await services.surveys.correct(input);
   await services.audits.append(
     auditEntry({

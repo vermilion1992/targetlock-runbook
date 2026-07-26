@@ -502,10 +502,14 @@ describe("LocalComponentRepository", () => {
     });
     expect(updated.manufacturer).toBe("Boart Longyear");
     expect(await repo.listCorrections("bit-out")).toHaveLength(1);
+    await expect(
+      repo.getAssignmentById("assignment-old", "DDH042"),
+    ).resolves.toBeNull();
 
     await expect(
       repo.correctAssignment({
         operationId: "correct-assignment",
+        holeId: "DDH041",
         assignmentId: "assignment-old",
         expectedVersion: 1,
         endDepthDm: decimetres(110),
@@ -517,6 +521,7 @@ describe("LocalComponentRepository", () => {
     await expect(
       repo.correctAssignment({
         operationId: "correct-assignment-valid",
+        holeId: "DDH041",
         assignmentId: "assignment-old",
         expectedVersion: 1,
         endDepthDm: decimetres(90),

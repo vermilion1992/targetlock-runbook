@@ -100,12 +100,15 @@ test("DDH041 AUTO_SMOOTH — KPIs, banners, and view captures", async ({
   await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
   await expect(
     page.getByTestId("trajectory-metric-required-dip"),
-  ).toContainText(/At .+ MD/i);
+  ).toContainText(/REVIEW/i);
   await expect(
     page.getByTestId("trajectory-metric-required-azimuth"),
   ).toBeVisible();
   await expect(page.getByTestId("target-md-review-banner")).toHaveCount(0);
   await expect(page.getByTestId("advanced-path-review-banner")).toHaveCount(0);
+  await expect(
+    page.getByTestId("steering-envelope-review-banner"),
+  ).toBeVisible();
 
   await page.getByTestId("trajectory-more-details-toggle").click();
   await expect(page.getByTestId("target-entry-mode")).toContainText(

@@ -1,7 +1,11 @@
 import { notFound } from "next/navigation";
 
+import { HoleOwnedRecordNotFound } from "@/components/holes/hole-owned-record-not-found";
 import { RunVoidForm } from "@/components/runs/run-void-form";
-import { targetLockStage2Seed } from "@/infrastructure/seed";
+import {
+  isRoutableHoleId,
+  isSeedRunCompatibleWithHole,
+} from "@/infrastructure/seed";
 
 export default async function VoidRunPage({
   params,
@@ -9,6 +13,9 @@ export default async function VoidRunPage({
   params: Promise<{ holeId: string; runId: string }>;
 }) {
   const { holeId, runId } = await params;
-  if (holeId !== targetLockStage2Seed.hole.name) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
+  if (!isSeedRunCompatibleWithHole(holeId, runId)) {
+    return <HoleOwnedRecordNotFound holeId={holeId} />;
+  }
   return <RunVoidForm holeId={holeId} runId={runId} />;
 }

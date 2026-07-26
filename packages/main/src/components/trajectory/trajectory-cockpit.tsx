@@ -1,6 +1,7 @@
 "use client";
 
 import dynamic from "next/dynamic";
+import { PanelsTopLeft, RefreshCcw } from "lucide-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 
@@ -76,13 +77,18 @@ function targetDialogProps(result: MiniTargetLockResult) {
 export function TrajectoryCockpit({
   holeId,
   result,
+  comparison,
   onReload,
 }: {
   holeId: string;
   result: MiniTargetLockResult;
+  comparison?: HoleTrajectoryComparison | null;
   onReload: () => void;
 }) {
-  const model = useMemo(() => buildFieldTrajectoryViewModel(result), [result]);
+  const model = useMemo(
+    () => buildFieldTrajectoryViewModel(result, comparison),
+    [comparison, result],
+  );
   const [targetOpen, setTargetOpen] = useState(false);
   const [collarOpen, setCollarOpen] = useState(false);
   const [useCanvas3d, setUseCanvas3d] = useState(() => !supportsWebGL());
@@ -198,7 +204,7 @@ export function TrajectoryCockpit({
   }
 
   return (
-    <div className="space-y-3" data-testid="trajectory-cockpit">
+    <div className="space-y-5 sm:space-y-6" data-testid="trajectory-cockpit">
       <TrajectoryCockpitHeader
         holeId={holeId}
         result={result}
@@ -208,27 +214,29 @@ export function TrajectoryCockpit({
 
       <TrajectoryMetricStrip result={result} />
 
-      <div className="space-y-3">
+      <section className="space-y-3" aria-label="Trajectory visualisation">
         {!useCanvas3d ? (
-          <div className="space-y-2">
+          <div className="space-y-3">
             <TrajectoryR3FViewer model={model} />
             <div className="flex flex-wrap items-center gap-3">
               <button
                 type="button"
-                className="text-xs font-semibold text-[var(--tl-ink-muted)] underline"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 text-xs font-bold text-[var(--tl-ink)]"
                 onClick={() => setShowPlanSection((value) => !value)}
                 data-testid="trajectory-toggle-plan-section"
               >
+                <PanelsTopLeft aria-hidden className="size-4 text-[var(--tl-primary)]" />
                 {showPlanSection
-                  ? "Hide plan & section"
-                  : "Show plan & section"}
+                  ? "Hide technical canvas"
+                  : "Open technical canvas"}
               </button>
               <button
                 type="button"
-                className="text-xs font-semibold text-[var(--tl-ink-muted)] underline"
+                className="inline-flex min-h-10 items-center gap-2 rounded-[var(--tl-radius-sm)] px-3 text-xs font-bold text-[var(--tl-ink-muted)]"
                 onClick={() => setUseCanvas3d(true)}
               >
-                Use canvas fallback
+                <RefreshCcw aria-hidden className="size-4" />
+                Compatibility view
               </button>
             </div>
           </div>
@@ -237,7 +245,8 @@ export function TrajectoryCockpit({
           <TrajectoryWorkspace
             model={model}
             comparison={
-              {
+              comparison ??
+              ({
                 holeId,
                 planned: null,
                 actual: result.actualTrajectory,
@@ -246,13 +255,13 @@ export function TrajectoryCockpit({
                 sourceVersions: [...result.sourceVersions],
                 blocked: false,
                 toleranceConfigured: false,
-              } satisfies HoleTrajectoryComparison
+              } satisfies HoleTrajectoryComparison)
             }
             selectedSurveyId={selectedSurveyId}
             onSelectSurveyId={setSelectedSurveyId}
           />
         ) : null}
-      </div>
+      </section>
 
       <TrajectoryFieldDetails result={result} holeId={holeId} />
 

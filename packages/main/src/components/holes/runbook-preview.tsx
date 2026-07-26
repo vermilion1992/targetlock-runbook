@@ -18,6 +18,27 @@ import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, formatRecoveryPercentage } from "@/domain";
 import { targetLockStage3Seed } from "@/infrastructure/seed";
 
+export const RUNBOOK_SHIFT_TABLE_HEADERS = [
+  "Run",
+  "Shift",
+  "Rod string",
+  "Stick up",
+  "Hole depth",
+  "Drilled",
+  "Recovered",
+  "Recovery",
+  "Bit",
+] as const;
+
+const RIGHT_ALIGNED_RUNBOOK_HEADERS = new Set([
+  "Rod string",
+  "Stick up",
+  "Hole depth",
+  "Drilled",
+  "Recovered",
+  "Recovery",
+]);
+
 export function RunbookPreview({ holeId }: { holeId: string }) {
   const [groups, setGroups] = useState<readonly ShiftRunGroup[]>([]);
   const [message, setMessage] = useState("Loading shift-grouped runbook…");
@@ -38,6 +59,7 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
         if (local.status === "invalid") throw new Error(local.reason);
         setGroups(
           getShiftRunGroups({
+            holeId,
             shifts,
             seedRuns: targetLockStage3Seed.runs,
             localRuns: local.snapshots,
@@ -78,27 +100,38 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
               </summary>
               <div className="mt-3 space-y-3">
                 {group.runs.map((run) => (
-                  <Link key={run.id} href={runbookRoutes.runDetail(holeId, run.id)} className="block rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 no-underline">
+                  <Link
+                    key={run.id}
+                    href={runbookRoutes.runDetail(holeId, run.id)}
+                    className="block rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 no-underline"
+                    data-testid="shift-run-card"
+                  >
                     <div className="flex items-start justify-between gap-2">
                       <span className="text-xl font-bold">Run {run.runNumber}</span>
                       <span className="flex flex-wrap justify-end gap-2">
+                        {run.shared ? (
+                          <StatusPill tone="info"><Share2 aria-hidden="true" className="size-4" />Shared</StatusPill>
+                        ) : (
+                          <span className="pt-1 text-xs font-bold uppercase text-[var(--tl-ink-muted)]">
+                            {group.shift.shiftType === "DAY" ? "Day" : "Night"}
+                          </span>
+                        )}
                         {run.status === "void" ? (
                           <StatusPill tone="danger">VOID</StatusPill>
                         ) : run.status === "corrected" ? (
                           <StatusPill tone="warning">Corrected</StatusPill>
                         ) : null}
-                        {run.shared ? <StatusPill tone="info"><Share2 aria-hidden="true" className="size-4" />Shared</StatusPill> : null}
                       </span>
                     </div>
-                    <dl className="mt-3 grid grid-cols-2 gap-3 text-sm">
-                      <div><dt className="text-[var(--tl-ink-muted)]">End depth</dt><dd className="font-bold">{formatMetres(run.holeDepthDm)}</dd></div>
-                      <div><dt className="text-[var(--tl-ink-muted)]">Recovery</dt><dd className="font-bold">{formatRecoveryPercentage(run.recoveryPercentage)}</dd></div>
+                    <dl className="mt-3 grid grid-cols-[minmax(0,1fr)_auto] gap-x-4 gap-y-2 text-sm">
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Rod string</dt><dd className="font-bold tl-tabular">{formatMetres(run.rodStringDm)}</dd></div>
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Stick up</dt><dd className="font-bold tl-tabular">{formatMetres(run.measuredStickUpDm)}</dd></div>
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Hole depth</dt><dd className="font-bold tl-tabular">{formatMetres(run.holeDepthDm)}</dd></div>
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Drilled</dt><dd className="font-bold tl-tabular">{formatMetres(run.drilledLengthDm)}</dd></div>
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Recovered</dt><dd className="font-bold tl-tabular">{formatMetres(run.recoveredLengthDm)}</dd></div>
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Recovery</dt><dd className="font-bold tl-tabular">{formatRecoveryPercentage(run.recoveryPercentage)}</dd></div>
+                      <div className="contents"><dt className="text-[var(--tl-ink-muted)]">Bit</dt><dd className="max-w-[13rem] break-all text-right font-bold">{run.activeBitSerialNumberSnapshot ?? "—"}</dd></div>
                     </dl>
-                    <p className="mt-3 text-sm text-[var(--tl-ink-muted)]">
-                      Bit {run.activeBitSerialNumberSnapshot ?? "not recorded"} ·
-                      Reamer{" "}
-                      {run.activeReamerSerialNumberSnapshot ?? "not recorded"}
-                    </p>
                   </Link>
                 ))}
                 {group.shift.handoverNote ? <p className="rounded-[var(--tl-radius-sm)] bg-[var(--tl-surface-raised)] p-3 text-sm">{group.shift.handoverNote}</p> : null}
@@ -119,17 +152,18 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
                 </div>
                 <Link href={runbookRoutes.shiftDetail(holeId, group.shift.localId)} className="min-h-11 shrink-0 font-bold text-[var(--tl-primary)]">Shift detail</Link>
               </header>
-              <div className="overflow-x-auto">
-                <table className="w-full min-w-[54rem] border-collapse text-left">
+              <div className="overflow-x-auto" data-testid="shift-runs-scroll">
+                <table className="w-full min-w-[72rem] border-collapse text-left" data-testid="shift-runs-table">
                   <thead className="text-xs uppercase text-[var(--tl-ink-muted)]">
                     <tr>
-                      <th className="px-4 py-3">Run</th>
-                      <th className="px-4 py-3">Shift</th>
-                      <th className="px-4 py-3 text-right">End depth</th>
-                      <th className="px-4 py-3 text-right">Drilled</th>
-                      <th className="px-4 py-3 text-right">Recovered</th>
-                      <th className="px-4 py-3 text-right">Recovery</th>
-                      <th className="px-4 py-3">Bit / reamer</th>
+                      {RUNBOOK_SHIFT_TABLE_HEADERS.map((header) => (
+                        <th
+                          key={header}
+                          className={`px-4 py-3 ${RIGHT_ALIGNED_RUNBOOK_HEADERS.has(header) ? "text-right" : ""}`}
+                        >
+                          {header}
+                        </th>
+                      ))}
                     </tr>
                   </thead>
                   <tbody>
@@ -146,19 +180,14 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
                           ) : null}
                         </th>
                         <td className="px-4 py-3">{run.shared ? <StatusPill tone="info">Shared</StatusPill> : group.shift.shiftType === "DAY" ? "Day" : "Night"}</td>
+                        <td className="px-4 py-3 text-right">{formatMetres(run.rodStringDm)}</td>
+                        <td className="px-4 py-3 text-right">{formatMetres(run.measuredStickUpDm)}</td>
                         <td className="px-4 py-3 text-right">{formatMetres(run.holeDepthDm)}</td>
                         <td className="px-4 py-3 text-right">{formatMetres(run.drilledLengthDm)}</td>
                         <td className="px-4 py-3 text-right">{formatMetres(run.recoveredLengthDm)}</td>
                         <td className="px-4 py-3 text-right">{formatRecoveryPercentage(run.recoveryPercentage)}</td>
-                        <td className="px-4 py-3 text-sm">
-                          <span className="block">
-                            {run.activeBitSerialNumberSnapshot ?? "Bit not recorded"}
-                          </span>
-                          <span className="block text-[var(--tl-ink-muted)]">
-                            {run.activeReamerSerialNumberSnapshot ??
-                              "Reamer not recorded"}
-                          </span>
-                        </td>
+                        {/* Reamer remains in Run history and reports, but this operational table is intentionally bit-only. */}
+                        <td className="px-4 py-3 text-sm">{run.activeBitSerialNumberSnapshot ?? "—"}</td>
                       </tr>
                     ))}
                   </tbody>

@@ -41,6 +41,11 @@ export interface CreateHoleWithTrajectoryInput {
   readonly collarNorthingM?: number;
   readonly collarRlM?: number;
   readonly preferredSurveyIntervalM?: number;
+  readonly preferredSurveyNorthReference?: NorthReference;
+  readonly calculationNorthReference?: NorthReference;
+  readonly gridRotationDeg?: number;
+  readonly magneticDeclinationDeg?: number;
+  readonly coordinateSystemName?: string;
   readonly target?: CreateHoleTargetInput;
   readonly occurredAt: string;
   readonly projectId?: string;
@@ -185,6 +190,8 @@ export async function createHoleWithTrajectoryDefaults(
       collarDipTenths: input.collarDipTenths,
       collarAzimuthTenths: input.collarAzimuthTenths,
       collarNorthReference: input.collarNorthReference,
+      preferredSurveyNorthReference:
+        input.preferredSurveyNorthReference ?? input.collarNorthReference,
       preferredSurveyIntervalDm,
       occurredAt: input.occurredAt,
     });
@@ -192,8 +199,8 @@ export async function createHoleWithTrajectoryDefaults(
     const reference = await services.trajectory.saveReferenceConfiguration({
       operationId: `${input.operationId}:reference`,
       holeId,
-      gridRotationDeg: 0,
-      magneticDeclinationDeg: 0,
+      gridRotationDeg: input.gridRotationDeg ?? 0,
+      magneticDeclinationDeg: input.magneticDeclinationDeg ?? 0,
       createdByUserId: actorUserId,
       createdByNameSnapshot: actorName,
       occurredAt: input.occurredAt,
@@ -203,11 +210,12 @@ export async function createHoleWithTrajectoryDefaults(
       operationId: `${input.operationId}:coordinates`,
       holeId,
       coordinateMode: "MINE_GRID",
-      coordinateSystemName: "Local Mine Grid",
+      coordinateSystemName:
+        input.coordinateSystemName?.trim() || "Local Mine Grid",
       collarEastingDm,
       collarNorthingDm,
       collarRlDm,
-      calculationNorthReference: "GRID",
+      calculationNorthReference: input.calculationNorthReference ?? "GRID",
       referenceConfigurationId: reference.localId,
       createdByUserId: actorUserId,
       createdByNameSnapshot: actorName,

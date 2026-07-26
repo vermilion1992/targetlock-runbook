@@ -447,6 +447,66 @@ COMPLETED
 Retries with the same operation ID are idempotent. Hydration resumes incomplete
 stages. This is single-browser recovery, not a cross-device transaction.
 
+## Multi-hole ownership and persistence
+
+`Hole.localId` is the canonical hole identifier used by routes, foreign keys,
+repository scopes, and browser-storage keys. Seed holes use IDs such as
+`DDH041`; `name` is display data and must not be used as a foreign key. Current
+seed data does not use the legacy `hole-ddh041` identifier.
+
+| Scope | Records |
+| --- | --- |
+| Hole-owned | Runs and drafts, shifts and handovers, casing, surveys, trays, photo metadata, audits, trajectory settings/selections, BHA setup history, analytics inputs, reports, and completion snapshots |
+| Organisation-shared | Physical component registry, survey-tool registry, crews/users, rigs, report-recipient templates, and lifecycle envelopes that index multiple holes |
+| Project-shared | New-hole trajectory defaults, keyed by `projectId` |
+
+Organisation envelopes may contain records for multiple holes, but every
+hole-owned lookup requires the requested `holeId`. Effective identities are
+composite: `(holeId, localId)`, `(holeId, runNumber)`, and
+`(holeId, trayNumber)`. Component serial uniqueness remains organisation-wide.
+Repeated survey depths are allowed and are disambiguated by survey ID.
+
+Same-hole relationships are validated at repository or application boundaries:
+
+- run → shift and active component assignments;
+- survey/tray → shift and photo metadata;
+- trajectory survey selection → survey;
+- report/snapshot → hole;
+- completion snapshot → runs, shifts, and assignments;
+- stored envelope and nested records → requested hole.
+
+A mismatched envelope is treated as corrupted storage, not silently re-homed.
+Foreign seed runs are rejected by detail/correct/void routes and cannot be
+materialised into another hole. Seed arrays and analytics defaults are filtered
+by canonical `holeId`.
+
+### Browser key namespaces and concurrency
+
+Metadata envelopes use explicit hole, organisation, or project scopes:
+
+```text
+targetlock:prototype:v{version}:hole:{holeId}:{suffix}
+targetlock:prototype:v{version}:organisation:{organisationId}:{suffix}
+targetlock:prototype:v1:project:{projectId}:trajectory-settings
+```
+
+New media and report blobs use scoped IndexedDB keys:
+
+```text
+targetlock:v2:org:{organisationId}:hole:{holeId}:media:{operationId}:{kind}:…
+targetlock:v2:org:{organisationId}:hole:{holeId}:report:{operationId}
+```
+
+Metadata retains the exact blob key, so existing legacy media/report keys remain
+readable. Bundled `bundled:` seed assets are unchanged.
+
+Browser repository operations are serialised through one Web Locks lock across
+tabs on the same origin. A same-tab promise queue provides ordering and is the
+fallback when Web Locks is unavailable. Other tabs receive a
+`BroadcastChannel`/storage notification and show a reload prompt instead of
+silently continuing with stale React state. This does not provide multi-device
+transactions or server authority.
+
 ## Authoritative derivations
 
 ```text
@@ -503,8 +563,7 @@ No barrel-capacity value is stored or inferred.
 
 ## Stage 3 casing and component seed
 
-- The Stage 2-compatible browser scope is `DDH041`; legacy
-  `hole-ddh041` foreign keys are mapped explicitly during bootstrap.
+- The Stage 2-compatible browser scope uses canonical hole ID `DDH041`.
 - PQ and HQ casing strings include immutable install/advance history.
 - Historical and active bits/reamers cover the seeded completed-run intervals.
 - Available bit and reamer records support incoming changes.

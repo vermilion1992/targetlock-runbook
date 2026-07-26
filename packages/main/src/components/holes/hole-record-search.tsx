@@ -228,7 +228,7 @@ export function HoleRecordSearch({ holeId }: { holeId: string }) {
         found.push({
           id: `component-${assignment.localId}`,
           label: `${label} ${serial} · from ${formatMetres(assignment.startDepthDm)}`,
-          href: runbookRoutes.componentDetail(assignment.componentId),
+          href: runbookRoutes.holeComponents(holeId),
           rank: 4,
         });
       }

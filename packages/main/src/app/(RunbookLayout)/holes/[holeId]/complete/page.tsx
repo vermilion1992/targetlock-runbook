@@ -1,7 +1,7 @@
 import { notFound } from "next/navigation";
 
 import { HoleCompletionReview } from "@/components/holes/hole-completion-review";
-import { isStage5HoleId } from "@/infrastructure/seed/stage5-hole-ids";
+import { isRoutableHoleId } from "@/infrastructure/seed/stage5-hole-ids";
 
 export default async function CompleteHolePage({
   params,
@@ -11,7 +11,7 @@ export default async function CompleteHolePage({
   searchParams: Promise<{ notice?: string | string[] }>;
 }) {
   const [{ holeId }, query] = await Promise.all([params, searchParams]);
-  if (!isStage5HoleId(holeId)) notFound();
+  if (!isRoutableHoleId(holeId)) notFound();
   return (
     <HoleCompletionReview
       holeId={holeId}

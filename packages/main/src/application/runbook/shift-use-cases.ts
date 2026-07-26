@@ -176,7 +176,7 @@ export async function getShiftCloseReadiness(
     if (state.draft.envelope.payload.pendingRodEvents.length > 0) {
       mayHandOver.push({
         code: "PENDING_ROD_EVENTS",
-        message: `${state.draft.envelope.payload.pendingRodEvents.length} pending rod event(s) will remain with the run.`,
+        message: `${state.draft.envelope.payload.pendingRodEvents.length} unsaved rod change(s) will remain with the unfinished run.`,
       });
     }
   }

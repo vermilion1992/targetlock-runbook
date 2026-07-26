@@ -22,6 +22,8 @@ import {
   type NorthReference,
   type TargetAttitudeMode,
 } from "@/domain";
+import { targetLockStage5Seed } from "@/infrastructure/seed";
+import { createBrowserTrajectoryProjectDefaultsRepository } from "@/infrastructure/trajectory";
 
 const NORTH_OPTIONS: NorthReference[] = [
   "GRID",
@@ -162,17 +164,34 @@ export function NewHoleForm() {
     setBusy(true);
     setMessage(null);
     try {
+      const projectId = targetLockStage5Seed.project.localId;
+      const projectDefaults =
+        createBrowserTrajectoryProjectDefaultsRepository()?.read(projectId) ??
+        null;
       const result = await createHoleWithTrajectoryDefaults(
         {
           operationId: `create-hole-${holeId.trim()}-${Date.now()}`,
           holeId: holeId.trim(),
+          projectId,
           collarDipTenths: dip.value,
           collarAzimuthTenths: azimuth.value,
           collarNorthReference: collarRef,
           collarEastingM,
           collarNorthingM,
           collarRlM,
-          preferredSurveyIntervalM: 30,
+          preferredSurveyIntervalM:
+            projectDefaults === null
+              ? 30
+              : projectDefaults.preferredSurveyIntervalDm / 10,
+          preferredSurveyNorthReference:
+            projectDefaults?.surveyNorthReference ?? collarRef,
+          calculationNorthReference:
+            projectDefaults?.calculationNorthReference ?? "GRID",
+          gridRotationDeg: projectDefaults?.gridRotationDeg ?? 0,
+          magneticDeclinationDeg:
+            projectDefaults?.magneticDeclinationDeg ?? 0,
+          coordinateSystemName:
+            projectDefaults?.coordinateSystemName ?? "Local Mine Grid",
           target,
           occurredAt: new Date().toISOString(),
         },

@@ -190,6 +190,18 @@ export interface HoleSurveyAnalytics {
   }[];
   readonly mixedNorthReferences: boolean;
   readonly mixedNorthReferenceWarning?: string;
+  readonly records: readonly {
+    readonly surveyId: string;
+    readonly depthDm: Decimetres;
+    readonly dipTenths: number;
+    readonly azimuthTenths: number;
+    readonly northReference: NorthReference;
+    readonly toolName?: string;
+    readonly toolSerialNumber?: string;
+    readonly recordedAt: string;
+    readonly corrected: boolean;
+    readonly hasPhotograph: boolean;
+  }[];
 }
 
 export interface HoleTrayAnalytics {
@@ -221,6 +233,20 @@ export interface HoleCompletenessCategory {
 
 export interface HoleCompletenessAnalytics {
   readonly categories: readonly HoleCompletenessCategory[];
+}
+
+export interface HoleBarrelAnalytics {
+  readonly currentSerialNumber?: string;
+  readonly changeCount: number;
+  readonly changes: readonly {
+    readonly setupId: string;
+    readonly effectiveAt: string;
+    readonly previousSerialNumber: string;
+    readonly serialNumber: string;
+    readonly bottomHoleAssemblyLengthDm: Decimetres;
+    readonly reason: string;
+    readonly recordedByName: string;
+  }[];
 }
 
 export interface HoleDrillerOperationalRow {
@@ -303,6 +329,7 @@ export interface HoleAnalytics {
   readonly surveys: HoleSurveyAnalytics;
   readonly trays: HoleTrayAnalytics;
   readonly completeness: HoleCompletenessAnalytics;
+  readonly barrels: HoleBarrelAnalytics;
   readonly charts: HoleChartDatasets;
   readonly drillerOperational: readonly HoleDrillerOperationalRow[];
 }
@@ -329,6 +356,14 @@ export interface CalculateHoleAnalyticsInput {
   readonly bhaConfigurationChanges?: number;
   readonly constantStickUpChanges?: number;
   readonly correctedRodEventCount?: number;
+  readonly bhaSetups?: readonly {
+    readonly localId: string;
+    readonly effectiveAt: string;
+    readonly bottomHoleAssemblyLengthDm: Decimetres;
+    readonly barrelSerialNumber?: string;
+    readonly reason: string;
+    readonly recordedByNameSnapshot: string;
+  }[];
   /** Precomputed per-shift analytics when available (avoids double work). */
   readonly shiftAnalyticsById?: ReadonlyMap<string, ShiftAnalytics>;
 }
@@ -821,6 +856,60 @@ function buildSurveyAnalytics(
     mixedNorthReferenceWarning: mixedNorthReferences
       ? MIXED_NORTH_REFERENCE_WARNING
       : undefined,
+    records: [...input.surveys]
+      .sort(
+        (left, right) =>
+          Number(left.depthDm) - Number(right.depthDm) ||
+          left.recordedAt.localeCompare(right.recordedAt),
+      )
+      .map((survey) => ({
+        surveyId: survey.localId,
+        depthDm: survey.depthDm,
+        dipTenths: survey.dipTenths,
+        azimuthTenths: survey.azimuthTenths,
+        northReference: survey.northReference,
+        toolName: survey.toolNameSnapshot,
+        toolSerialNumber: survey.toolSerialSnapshot,
+        recordedAt: survey.recordedAt,
+        corrected: (input.correctedSurveyIds ?? new Set()).has(survey.localId),
+        hasPhotograph: survey.photoId !== undefined,
+      })),
+  };
+}
+
+function buildBarrelAnalytics(
+  input: CalculateHoleAnalyticsInput,
+): HoleBarrelAnalytics {
+  const ordered = [...(input.bhaSetups ?? [])].sort((left, right) =>
+    left.effectiveAt.localeCompare(right.effectiveAt),
+  );
+  const changes: HoleBarrelAnalytics["changes"][number][] = [];
+  let previousSerialNumber: string | undefined;
+
+  for (const setup of ordered) {
+    const serialNumber = setup.barrelSerialNumber?.trim();
+    if (!serialNumber) continue;
+    if (
+      previousSerialNumber !== undefined &&
+      serialNumber !== previousSerialNumber
+    ) {
+      changes.push({
+        setupId: setup.localId,
+        effectiveAt: setup.effectiveAt,
+        previousSerialNumber,
+        serialNumber,
+        bottomHoleAssemblyLengthDm: setup.bottomHoleAssemblyLengthDm,
+        reason: setup.reason,
+        recordedByName: setup.recordedByNameSnapshot,
+      });
+    }
+    previousSerialNumber = serialNumber;
+  }
+
+  return {
+    currentSerialNumber: previousSerialNumber,
+    changeCount: changes.length,
+    changes,
   };
 }
 
@@ -1298,6 +1387,7 @@ export function calculateHoleAnalytics(
     trays,
     components,
   );
+  const barrels = buildBarrelAnalytics(enrichedInput);
   const charts = buildCharts(enrichedInput, shifts, components, completed);
   const drillerOperational = buildDrillerOperational(
     enrichedInput,
@@ -1316,6 +1406,7 @@ export function calculateHoleAnalytics(
     surveys,
     trays,
     completeness,
+    barrels,
     charts,
     drillerOperational,
   };
