@@ -1,7 +1,7 @@
 "use client";
 
 import type { ReactNode } from "react";
-import { useEffect, useState, useSyncExternalStore } from "react";
+import { Suspense, useCallback, useEffect, useState, useSyncExternalStore } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 
@@ -36,16 +36,35 @@ interface RunbookShellProps {
   children: ReactNode;
 }
 
-export function RunbookShell({ children }: RunbookShellProps) {
-  const pathname = usePathname();
+function HoleIdFromSearchParams({
+  pathname,
+  onResolved,
+}: {
+  pathname: string | null;
+  onResolved: (holeId: string) => void;
+}) {
   const searchParams = useSearchParams();
   const requestedHoleId = searchParams.get("holeId")?.trim();
-  const holeId =
-    pathname?.startsWith("/components") &&
-    requestedHoleId !== undefined &&
-    isRoutableHoleId(requestedHoleId)
-      ? requestedHoleId
-      : holeIdFromPathname(pathname);
+
+  useEffect(() => {
+    const resolved =
+      pathname?.startsWith("/components") &&
+      requestedHoleId !== undefined &&
+      isRoutableHoleId(requestedHoleId)
+        ? requestedHoleId
+        : holeIdFromPathname(pathname);
+    onResolved(resolved);
+  }, [pathname, requestedHoleId, onResolved]);
+
+  return null;
+}
+
+export function RunbookShell({ children }: RunbookShellProps) {
+  const pathname = usePathname();
+  const [holeId, setHoleId] = useState(() => holeIdFromPathname(pathname));
+  const handleHoleIdResolved = useCallback((resolved: string) => {
+    setHoleId(resolved);
+  }, []);
   const [railExpanded, setRailExpanded] = useState(false);
   const [externalChange, setExternalChange] = useState(false);
   const browserOnline = useSyncExternalStore(
@@ -74,6 +93,12 @@ export function RunbookShell({ children }: RunbookShellProps) {
 
   return (
     <div className="target-lock">
+      <Suspense fallback={null}>
+        <HoleIdFromSearchParams
+          pathname={pathname}
+          onResolved={handleHoleIdResolved}
+        />
+      </Suspense>
       <StaleServiceWorkerCleanup />
       <a
         href="#main-content"
