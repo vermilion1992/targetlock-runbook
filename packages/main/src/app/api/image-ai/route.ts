@@ -2,6 +2,19 @@ import { NextResponse } from 'next/server'
 
 import { GoogleGenAI, Modality } from '@google/genai'
 
+type GeneratedImageResponse = {
+  candidates?: Array<{
+    content?: {
+      parts?: Array<{
+        inlineData?: {
+          data?: string
+          contentType?: string
+        }
+      }>
+    }
+  }>
+}
+
 const imageData = [
   '/images/image-ai/flower1.jpg',
   '/images/image-ai/flower2.jpg',
@@ -38,7 +51,7 @@ export async function POST(req: Request) {
     }
 
     return NextResponse.json({
-      images: imageData,
+      images: nextImages,
       isMock: true,
     })
   }
@@ -55,11 +68,10 @@ export async function POST(req: Request) {
 
     const generatedImages: string[] = []
 
-    // Type assertion for Google GenAI response
-    const candidates = (response as any).candidates
+    const candidates = (response as GeneratedImageResponse).candidates
     if (candidates && candidates[0]?.content?.parts) {
       for (const part of candidates[0].content.parts) {
-        if (part.inlineData) {
+        if (part.inlineData?.data) {
           const imageData = part.inlineData.data
           const mimeType = part.inlineData.contentType || 'image/png'
 

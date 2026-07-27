@@ -7,6 +7,7 @@ import { useEffect, useId, useState, type FormEvent } from "react";
 
 import {
   createBrowserRunbookServices,
+  deriveDrillingReadiness,
   getCurrentHoleState,
   startRunbookShift,
   type CurrentHoleState,
@@ -19,7 +20,13 @@ import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import { decimetres, formatMetres, type ShiftType } from "@/domain";
+import {
+  decimetres,
+  formatMetres,
+  type HoleStatus,
+  type ShiftType,
+} from "@/domain";
+import { useOperatorSession } from "@/components/session";
 
 interface DrillerOption {
   readonly id: string;
@@ -40,20 +47,34 @@ function localId(prefix: string): string {
 
 export function StartShiftForm({
   holeId,
-  rigId,
   drillers,
 }: {
   holeId: string;
-  rigId: string;
   drillers: readonly DrillerOption[];
 }) {
   const router = useRouter();
+  const { session } = useOperatorSession();
+  const availableDrillers =
+    session?.operator.role === "DRILLER" &&
+    !drillers.some(({ id }) => id === session.operator.localId)
+      ? [
+          {
+            id: session.operator.localId,
+            name: session.operator.displayName,
+          },
+          ...drillers,
+        ]
+      : drillers;
   const errorId = useId();
   const [shiftType, setShiftType] = useState<ShiftType>("DAY");
   const [shiftDate, setShiftDate] = useState(localDateValue);
-  const [drillerId, setDrillerId] = useState(drillers[0]?.id ?? "");
+  const [drillerId, setDrillerId] = useState(
+    availableDrillers[0]?.id ?? "",
+  );
   const [crew, setCrew] = useState("");
+  const [rigId, setRigId] = useState("");
   const [state, setState] = useState<CurrentHoleState | null>(null);
+  const [holeStatus, setHoleStatus] = useState<HoleStatus | null>();
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -70,8 +91,19 @@ export function StartShiftForm({
       });
       return;
     }
-    void getCurrentHoleState(holeId, services.currentState)
-      .then(setState)
+    void Promise.all([
+      getCurrentHoleState(holeId, services.currentState),
+      services.completion.getStatus(holeId),
+      services.completion.getHole(holeId),
+    ])
+      .then(([nextState, nextStatus, hole]) => {
+        if (hole === null) {
+          throw new Error(`Hole ${holeId} was not found.`);
+        }
+        setState(nextState);
+        setHoleStatus(nextStatus);
+        setRigId(hole.rigId);
+      })
       .catch((error: unknown) =>
         setMessage(
           error instanceof Error ? error.message : "Hole state could not be loaded.",
@@ -83,7 +115,7 @@ export function StartShiftForm({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
-    const selected = drillers.find(({ id }) => id === drillerId);
+    const selected = availableDrillers.find(({ id }) => id === drillerId);
     if (selected === undefined) {
       setMessage("Select a primary driller.");
       return;
@@ -129,6 +161,17 @@ export function StartShiftForm({
   };
 
   const blockedShift = state?.activeShift ?? state?.pendingHandover ?? null;
+  const readiness =
+    state === null || holeStatus === undefined
+      ? null
+      : deriveDrillingReadiness({
+          holeStatus,
+          bhaSetup: state.bhaSetup,
+        });
+  const lifecycleBlocked =
+    readiness?.blockers.some(
+      ({ code }) => code === "HOLE_STATUS_NOT_OPERATIONAL",
+    ) ?? false;
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -187,6 +230,38 @@ export function StartShiftForm({
             Open active shift
           </Link>
         </SectionPanel>
+      ) : lifecycleBlocked && readiness ? (
+        <SectionPanel
+          title="Hole is not available for shift start"
+          description="Return to the overview and resolve the hole lifecycle before starting operational work."
+        >
+          <p className="text-sm font-semibold text-[var(--tl-ink)]">
+            {readiness.blockers[0]?.message}
+          </p>
+          <Link
+            href={parentHref}
+            className="mt-5 inline-flex min-h-12 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-5 font-bold text-white no-underline"
+          >
+            Return to overview
+          </Link>
+        </SectionPanel>
+      ) : readiness && !readiness.ready ? (
+        <SectionPanel
+          title="BHA setup required before the first shift"
+          description="Record the initial full BHA length and constant stick-up before drilling begins."
+        >
+          <ul className="space-y-2 text-sm font-semibold text-[var(--tl-ink)]">
+            {readiness.blockers.map((blocker) => (
+              <li key={blocker.code}>• {blocker.message}</li>
+            ))}
+          </ul>
+          <Link
+            href={runbookRoutes.updateBha(holeId)}
+            className="mt-5 inline-flex min-h-12 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-5 font-bold text-white no-underline"
+          >
+            Update BHA
+          </Link>
+        </SectionPanel>
       ) : (
         <form
           onSubmit={submit}
@@ -230,7 +305,7 @@ export function StartShiftForm({
                   onChange={(event) => setDrillerId(event.target.value)}
                   className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-base"
                 >
-                  {drillers.map((driller) => (
+                  {availableDrillers.map((driller) => (
                     <option key={driller.id} value={driller.id}>{driller.name}</option>
                   ))}
                 </select>
@@ -286,7 +361,13 @@ export function StartShiftForm({
             )}
           </SectionPanel>
 
-          <FieldActionButton type="submit" fieldSize="major" fullWidth busy={saving} disabled={loading || state === null}>
+          <FieldActionButton
+            type="submit"
+            fieldSize="major"
+            fullWidth
+            busy={saving}
+            disabled={loading || state === null || !rigId}
+          >
             <Play aria-hidden="true" className="size-5" />
             Start shift
           </FieldActionButton>

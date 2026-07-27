@@ -11,7 +11,7 @@ export default function HoleNotFound() {
       description="The requested hole or hole-owned record could not be found."
       action={
         <FieldActionButton asChild>
-          <Link href="/holes/new">Create or select a hole</Link>
+          <Link href="/start">Choose or create a hole</Link>
         </FieldActionButton>
       }
     />

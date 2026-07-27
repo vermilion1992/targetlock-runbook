@@ -2,7 +2,7 @@
 
 Status date: 2026-07-26
 Scope: local pilot of Stages 1–6 in `packages/main` + V2 report reliability +
-Run corrections/voiding + multi-hole isolation P0–P2
+Run corrections/voiding + project/hole library and multi-hole isolation P0–P2
 
 ## Acceptable local-pilot limitations
 
@@ -31,9 +31,11 @@ Run corrections/voiding + multi-hole isolation P0–P2
   not synchronised or backed up by Railway.
 - **Open PDF depends on the browser.** Popup blockers may force a download
   fallback. Object URLs are temporary and revoked after open.
-- **No authentication.** Operator identity is seed/local snapshot based. An
-  optional Railway HTTP Basic pilot-access gate may protect the public URL; it
-  is not user-account authentication.
+- **Local sign-in is not authentication.** Operator profiles and the active
+  session live in browser storage to attribute records and restore the recent
+  hole. There are no credentials, server identity checks, permissions or
+  cross-device accounts. An optional Railway HTTP Basic pilot-access gate may
+  protect the public URL; it is not user-account authentication.
 - **No cloud database.** There is no server persistence or audit-grade store.
 - **No multi-device sync.** Two devices can diverge silently.
 - **No cross-device locking.** Lock enforcement is local to this browser.
@@ -51,8 +53,13 @@ Run corrections/voiding + multi-hole isolation P0–P2
   zoom still need manual device review.
 - **Barrel capacity deferred.** Core-barrel capacity remains optional/unset.
 - **TargetLock IQ integration deferred.** No hardware telemetry or IQ sync.
-- **Inherited demo routes remain in the Next.js app.** They are outside
-  TargetLock navigation but are not fully removed from the package build.
+- **Inherited demo modules remain in the package build.** The production request proxy
+  returns 404 for inherited pages and APIs by default. They are reachable only
+  when a deployment explicitly sets `ENABLE_TEMPLATE_DEMOS=true`; full source
+  and dependency removal remains deferred.
+- **Project and rig directory is browser-local.** New projects can be created
+  with an initial rig on this browser, but editing, archiving, additional-rig
+  management and cross-device organisation administration remain deferred.
 - **Survey photos** do not use the tray staged-recovery envelope.
 - **Boundary-run recovered metres** are estimates when recovery is aggregate.
 
@@ -69,7 +76,8 @@ These must be solved before production or multi-device deployment:
 - Cloud media and report storage under organisation/hole namespaces with
   retention and deletion policies
 - Real SMTP or transactional email if delivery is required
-- Removal or hard isolation of inherited demo routes and unused template deps
+- Removal of inherited demo modules and unused template dependencies from the
+  production build (runtime routes are already isolated by default)
 - Production dependency advisory review beyond the local pilot scope
 - Physical-device accessibility sign-off
 

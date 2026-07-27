@@ -3,7 +3,12 @@ import { expect, test, type Page } from "@playwright/test";
 async function resetBrowserState(page: Page) {
   await page.goto("/holes/DDH041/current");
   await page.evaluate(async () => {
+    const sessionKey = "targetlock:prototype:v1:operator-session";
+    const operatorSession = window.localStorage.getItem(sessionKey);
     window.localStorage.clear();
+    if (operatorSession) {
+      window.localStorage.setItem(sessionKey, operatorSession);
+    }
     if ("indexedDB" in window && typeof indexedDB.databases === "function") {
       const databases = await indexedDB.databases();
       await Promise.all(
@@ -92,7 +97,7 @@ test("reopens a completed hole and restores mutable messaging", async ({
   await page.getByRole("button", { name: "Reopen hole" }).click();
 
   await expect(
-    page.getByRole("heading", { name: "Final hole review" }),
+    page.getByRole("heading", { name: "DDH038 overview" }),
   ).toBeVisible({ timeout: 15_000 });
   await expect(
     page.getByText("Hole reopened to Active", { exact: false }),

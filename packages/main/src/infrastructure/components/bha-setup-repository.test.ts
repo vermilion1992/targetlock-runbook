@@ -25,6 +25,7 @@ const input = {
   operationId: "bha-change-1",
   holeId: "DDH099",
   effectiveAt: "2026-07-26T12:00:00.000Z",
+  effectiveDepthDm: decimetres(1_245),
   bottomHoleAssemblyLengthDm: decimetres(85),
   constantStickUpDm: decimetres(10),
   bitStyle: "Impregnated",
@@ -49,6 +50,7 @@ describe("LocalBottomHoleAssemblySetupRepository", () => {
     const saved = await repository.save(input);
 
     expect(saved.baseRodStringLengthDm).toBe(75);
+    expect(saved.effectiveDepthDm).toBe(1_245);
     expect(saved.barrelSerialNumber).toBe("BARREL-099");
     expect(saved.bitStyle).toBe("Impregnated");
     expect(saved.frontReamerStyle).toBe("STANDARD");
@@ -84,5 +86,35 @@ describe("LocalBottomHoleAssemblySetupRepository", () => {
         constantStickUpDm: decimetres(90),
       }),
     ).rejects.toThrow("cannot exceed");
+  });
+
+  it("defaults effective depth for version-one history written before depth capture", async () => {
+    const storage = new MemoryStorage();
+    storage.setItem(
+      "targetlock:prototype:v1:hole:DDH099:bha-setups",
+      JSON.stringify({
+        version: 1,
+        holeId: "DDH099",
+        setups: [
+          {
+            localId: "legacy-setup",
+            holeId: "DDH099",
+            effectiveAt: "2026-07-20T06:00:00.000Z",
+            bottomHoleAssemblyLengthDm: 43,
+            constantStickUpDm: 18,
+            baseRodStringLengthDm: 25,
+            reason: "Imported legacy setup",
+            recordedByUserId: "seed",
+            recordedByNameSnapshot: "Imported configuration",
+          },
+        ],
+      }),
+    );
+    const repository = new LocalBottomHoleAssemblySetupRepository(storage);
+
+    await expect(repository.getCurrent("DDH099")).resolves.toMatchObject({
+      localId: "legacy-setup",
+      effectiveDepthDm: 0,
+    });
   });
 });

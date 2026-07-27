@@ -104,11 +104,7 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
         services,
       );
       setIsDirty(false);
-      router.push(
-        holeId === "DDH041"
-          ? `${runbookRoutes.currentHole(holeId)}?notice=hole-reopened`
-          : `${runbookRoutes.completeHole(holeId)}?notice=hole-reopened`,
-      );
+      router.push(`${runbookRoutes.currentHole(holeId)}?notice=hole-reopened`);
     } catch (error) {
       setMessage(
         error instanceof Error ? error.message : "The hole could not be reopened.",

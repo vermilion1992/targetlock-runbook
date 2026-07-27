@@ -7,6 +7,7 @@ import {
   Clock3,
   Compass,
   Cylinder,
+  FolderKanban,
   History,
   RotateCcw,
   Settings,
@@ -212,10 +213,10 @@ export function MorePreview({ holeId }: { holeId: string }) {
     },
     {
       id: "new-hole",
-      label: "New Hole",
-      description: "Create a hole with collar direction and optional coordinates.",
-      icon: CircleDot,
-      href: runbookRoutes.newHole(),
+      label: "Project and hole library",
+      description: "Change project or hole, review status, or create a draft hole.",
+      icon: FolderKanban,
+      href: "/projects",
     },
     {
       id: "settings",

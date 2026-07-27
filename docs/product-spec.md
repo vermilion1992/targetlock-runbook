@@ -12,32 +12,56 @@ run-overlap usage statistics; Stage 4 adds simplified manual survey records and
 completed-tray photography; Stage 5 adds final-hole completion review, lock,
 reopen, and immutable completion snapshots; Stage 6 adds local Report Centre
 PDF/Excel/CSV generation, IndexedDB report storage, share/download, and email
-draft preparation without SMTP delivery. Authentication and synchronisation
-remain later work.
+draft preparation without SMTP delivery. A device-local operator sign-in now
+attributes pilot records and restores recent-hole context; secure account
+authentication, authorisation and synchronisation remain later work.
 
 ## Users and core workflow
 
 The primary user is a driller or supervisor recording a drilling run at the rig.
 
-1. Open the current hole and confirm the BHA, CSU, rod length, and previous completed depth.
-2. Record any rod additions and the current measured stick-up. Stage 1 domain
+1. Sign in as the operator using this field device. The Start page offers the
+   last valid hole, another existing hole, a project-scoped new hole, or a new
+   project. Hole and project selections are confirmed before context changes.
+2. Create or select the project and its operating rig, then select the required
+   hole from the project-owned register.
+3. Create a draft hole with a required Hole ID, collar dip, collar azimuth and
+   north reference. Collar Easting/Northing/RL and target details may be added
+   during creation or later.
+4. Before the first shift or Run, record the initial full BHA length and
+   constant stick-up (CSU). TargetLock derives base R/S as `BHA − CSU`; missing
+   or invalid setup blocks operational work with one direct setup action.
+   Optional component details may be deferred. Later BHA/CSU changes require a
+   reason and are retained at their effective depth on the timeline.
+5. Start or accept the shift that owns new work. Open the current hole and
+   confirm BHA, CSU, rod length, and previous completed depth.
+6. Record any rod additions and the current measured stick-up. Stage 1 domain
    history also represents removals; the full remove/correct UI remains later
    work.
-3. Review the calculated current rod string (R/S), hole depth, and drilled length.
-4. Correct validation errors, add an optional operational note, and complete the run.
-5. Resume an unfinished local draft in the same browser.
-6. Record casing lifecycle events and bit/reamer changes at exact depths. Runs
-   retain the component assignments that owned them when they started.
-7. Record a manual survey station, optionally with a result photograph, and
+7. Review calculated current rod string (R/S), hole depth and drilled length,
+   correct validation errors, add an optional note, and complete the Run.
+8. Resume an unfinished local draft in the same browser.
+9. Record casing lifecycle events and bit/reamer or BHA/CSU changes at exact
+   effective depths. Configuration changes append history and future Runs use
+   the latest setup; completed Runs retain their original snapshots. Runs
+   retain the component assignments that owned them when they started. Initial
+   hole direction and later collar setup updates are also shown on the
+   operational timeline.
+10. Record a manual survey station, optionally with a result photograph, and
    review survey history without converting references or calculating a
    trajectory.
-8. Photograph a completed core tray, retain its labelled depth range, and
+11. Photograph a completed core tray, retain its labelled depth range, and
    derive related completed runs without changing or splitting those runs.
-9. Begin final-hole completion review when drilling is finished, resolve the
+12. Close or hand over the Shift. Begin final-hole completion review when
+   drilling is finished, resolve the
    checklist, acknowledge advisories, and lock the hole as completed or
    abandoned; reopen only with an explicit reason.
 
-The interface must clearly distinguish editable observations from calculated values and retain the context needed for a shift handover.
+Readiness is derived from repository state rather than stored as another manual
+status. Setup and optional detail editing remain available while only actions
+that would create invalid operational records are blocked. The interface must
+clearly distinguish editable observations from calculated values and retain the
+context needed for a Shift handover.
 
 V2 end-of-Shift analytics summarise metres completed, Runs, weighted recovery,
 rod activity, and operational counts on Shift close, handover, Shift detail,

@@ -14,7 +14,12 @@ async function expectNoHorizontalOverflow(page: Page) {
 
 test.beforeEach(async ({ page }) => {
   await page.goto("/holes/DDH041/current");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    const key = "targetlock:prototype:v1:operator-session";
+    const session = window.localStorage.getItem(key);
+    window.localStorage.clear();
+    if (session) window.localStorage.setItem(key, session);
+  });
   await page.reload();
 });
 

@@ -1,8 +1,47 @@
 # TargetLock Implementation Status
 
-Status date: 2026-07-24
+Status date: 2026-07-28
 Target: `packages/main` only
-Stage: V2 Implementation 6 — Interactive 3D Trajectory and Report Graphics
+Stage: Professional foundation hardening — Operator Start, Project and Hole Library
+
+## Professional foundation hardening — Project and Hole Library
+
+The application now opens through a polished device-local `/sign-in` and
+phone-first `/start` decision page. Start derives the safest next action for the
+operator's last valid hole, confirms existing-hole context, and requires an
+explicit project selection before new-hole onboarding. Operator profiles,
+roles and recent-hole state remain browser-local and are not security
+credentials.
+
+`/projects` remains the full organisation directory, where projects lead to a
+project-owned hole register. Every listed hole opens through its canonical
+`/holes/[holeId]` runbook; the runbook header provides a stable change-hole
+escape path. New holes are created under `/projects/[projectId]/holes/new` with
+an explicit project, project-owned rig, hole size, planned depth and collar
+direction, then open on Current Hole for readiness work. Legacy `/holes/new`
+redirects to the current pilot project.
+
+Unknown syntactically valid hole URLs no longer render seed-derived "ghost"
+records: a storage-backed route boundary verifies the hole before rendering
+runbook children. Reserved route words cannot be created as hole IDs. Completion
+and report context now resolves the persisted hole's project and rig rather
+than substituting the original seed identities.
+
+Project creation persists the project and its first rig as one coordinated,
+idempotent browser operation. New holes remain `DRAFT` until a valid BHA length
+and CSU are recorded and the first shift starts. Shift and run use cases enforce
+the same derived readiness rule as their direct pages. Initial setup stays
+short on phones; optional component fields are collapsed, while later BHA/CSU
+changes require a reason and appear at their effective depth on the timeline.
+Initial collar direction and later hole-setup updates also append depth-aware
+timeline audit entries. Signed-in operator snapshots now attribute project/hole
+onboarding, BHA changes and trajectory setup; shift ownership still requires an
+explicit primary driller.
+
+Gemini credentials are server-only. The production request proxy blocks inherited
+template pages and APIs by default while preserving TargetLock routes, health
+checks and required assets; `ENABLE_TEMPLATE_DEMOS=true` is an explicit
+deployment opt-in. The optional pilot Basic access gate remains independent.
 
 ## V2 Implementation 6 — Interactive 3D Trajectory and Report Graphics
 
@@ -137,6 +176,15 @@ completion/lock/reopen, Report Centre/Activity, Timeline, Search, Statistics
 
 Run from `packages/main`:
 
+- [x] 2026-07-28 professional foundation and route-gap audit: 456 unit tests,
+  safe post-sign-in deep links, component registry/detail routes, recoverable
+  project-hole setup, reserved-route rejection, and expanded scoped
+  typecheck, expanded lint, and Next.js production build
+- [x] Production browser smoke: Sign In → Start → confirmed project-scoped
+  new-hole flow → BHA setup → Shift; recent-hole resume and sign-out; unknown
+  hole recovery; inherited dashboard/API 404 policy
+- [x] GitHub Actions quality workflow for install, typecheck, lint, unit tests,
+  and production build
 - [x] `npm run test` — unit tests including trajectory engine, view-model
   coordinate fidelity, and PDF trajectory graphics
 - [x] `npm run test:e2e` — `e2e/reports.spec.ts` V2 workflows 1–5 plus share/email
@@ -162,9 +210,10 @@ Run from `packages/main`:
 
 ## Still deferred
 
-See `docs/known-limitations.md`. Highlights: no auth, no sync, no cloud media,
-no SMTP delivery, barrel capacity unset, TargetLock IQ deferred, inherited demo
-routes outside TargetLock nav remain in the package.
+See `docs/known-limitations.md`. Highlights: no account auth, no sync, no cloud
+media, no SMTP delivery, barrel capacity unset, TargetLock IQ deferred, and
+inherited template modules remain in the package but are disabled in production
+unless explicitly enabled.
 
 ## Baseline constraints
 

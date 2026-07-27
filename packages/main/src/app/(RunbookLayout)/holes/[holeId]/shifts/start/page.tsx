@@ -17,7 +17,6 @@ export default async function StartShiftPage({
   return (
     <StartShiftForm
       holeId={holeId}
-      rigId={targetLockStage2Seed.rig.localId}
       drillers={targetLockStage2Seed.users
         .filter((user) => user.role === "driller" && user.active)
         .map((user) => ({ id: user.localId, name: user.displayName }))}

@@ -21,10 +21,7 @@ import {
 } from "@/components/holes/stage-page-header";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
-import {
-  DEFAULT_HOLE_ID,
-  runbookRoutes,
-} from "@/components/navigation/runbook-routes";
+import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres } from "@/domain";
 
 type StatusFilter = "ALL" | "COMPLETED" | "ABANDONED";
@@ -74,10 +71,10 @@ export function CompletedHolesList() {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 5 · completed holes"
+        eyebrow="Hole history"
         title="Completed and abandoned holes"
         description="Immutable completion snapshots with final depth, reason, and lock-aware actions."
-        backTarget={namedBackTarget(runbookRoutes.more(DEFAULT_HOLE_ID), "More")}
+        backTarget={namedBackTarget("/projects", "Project library")}
         action={
           <StatusPill tone="neutral">{filtered.length} shown</StatusPill>
         }
@@ -165,22 +162,20 @@ export function CompletedHolesList() {
                 </td>
                 <td className="px-3 py-4">
                   <div className="flex flex-wrap gap-3">
-                    {entry.hole.name === "DDH041" ? (
-                      <Link
-                        href={runbookRoutes.currentHole(entry.hole.name)}
-                        className="font-bold text-[var(--tl-primary)]"
-                      >
-                        Dashboard
-                      </Link>
-                    ) : null}
                     <Link
-                      href={runbookRoutes.completeHole(entry.hole.name)}
+                      href={runbookRoutes.currentHole(entry.hole.localId)}
+                      className="font-bold text-[var(--tl-primary)]"
+                    >
+                      Dashboard
+                    </Link>
+                    <Link
+                      href={runbookRoutes.completeHole(entry.hole.localId)}
                       className="font-bold text-[var(--tl-primary)]"
                     >
                       Snapshot
                     </Link>
                     <Link
-                      href={runbookRoutes.reopenHole(entry.hole.name)}
+                      href={runbookRoutes.reopenHole(entry.hole.localId)}
                       className="font-bold text-[var(--tl-primary)]"
                     >
                       Reopen
@@ -231,22 +226,20 @@ function CompletedHoleCard({ entry }: { entry: CompletedHoleIndexEntry }) {
         {completionReasonLabel(entry.completion.snapshot.reason)}
       </p>
       <div className="mt-4 flex flex-wrap gap-3">
-        {entry.hole.name === "DDH041" ? (
-          <Link
-            href={runbookRoutes.currentHole(entry.hole.name)}
-            className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-          >
-            Dashboard
-          </Link>
-        ) : null}
         <Link
-          href={runbookRoutes.completeHole(entry.hole.name)}
+          href={runbookRoutes.currentHole(entry.hole.localId)}
+          className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
+        >
+          Dashboard
+        </Link>
+        <Link
+          href={runbookRoutes.completeHole(entry.hole.localId)}
           className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
         >
           Snapshot
         </Link>
         <Link
-          href={runbookRoutes.reopenHole(entry.hole.name)}
+          href={runbookRoutes.reopenHole(entry.hole.localId)}
           className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
         >
           Reopen

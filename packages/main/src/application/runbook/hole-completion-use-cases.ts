@@ -10,7 +10,6 @@ import {
   evaluateHoleCompletion,
   findPreviousTray,
   formatCasingSummary,
-  normalizeHoleStatus,
   SIX_METRE_ROD_LENGTH,
   THREE_METRE_ROD_LENGTH,
   type AuditEntry,
@@ -56,6 +55,7 @@ import type {
   ReopenHoleResult,
 } from "@/infrastructure/completion";
 import type { SavedRunSnapshot } from "@/infrastructure/drafts";
+import type { ProjectDirectoryRepository } from "@/infrastructure/projects";
 import type { TargetLockStage1Seed } from "@/infrastructure/seed";
 import type {
   CloseFinalShiftInput,
@@ -83,6 +83,7 @@ export interface CompletionPendingOperationQueries {
 export interface HoleCompletionContextDependencies {
   readonly currentState: CurrentHoleStateDependencies;
   readonly completion: CompletionRepository;
+  readonly projects?: ProjectDirectoryRepository;
   readonly pendingOperations?: CompletionPendingOperationQueries;
 }
 
@@ -400,7 +401,7 @@ export async function getHoleCompletionContext(
     dependencies.currentState,
   );
   const seedRunsForHole =
-    seed.hole.name === holeId
+    seed.hole.localId === holeId
       ? seed.runs.filter(
           ({ status }) => status !== "in_progress" && status !== "void",
         )
@@ -410,10 +411,7 @@ export async function getHoleCompletionContext(
     currentState.completedLocalRuns.filter(({ status }) => status !== "void"),
     seed,
   ).filter(({ status }) => status !== "in_progress" && status !== "void");
-  const draftRun =
-    seed.hole.name === holeId
-      ? unfinishedDraftRun(holeId, currentState, seed)
-      : null;
+  const draftRun = unfinishedDraftRun(holeId, currentState, seed);
   const runs = draftRun === null ? completedRuns : [...completedRuns, draftRun];
   const finalRun =
     [...completedRuns].sort(
@@ -422,11 +420,29 @@ export async function getHoleCompletionContext(
         left.completedAt!.localeCompare(right.completedAt!),
     ).at(-1) ?? null;
   const rodConfiguration =
-    seed.hole.name === holeId
+    seed.hole.localId === holeId
       ? latestRodConfiguration(seed.rodStringConfigurations)
-      : null;
+      : currentState.bhaSetup === null
+        ? null
+        : {
+            localId: currentState.bhaSetup.localId,
+            serverId: null,
+            syncStatus: "local-only" as const,
+            createdAt: currentState.bhaSetup.effectiveAt,
+            updatedAt: currentState.bhaSetup.effectiveAt,
+            deviceId: DEVICE_ID,
+            version: 1,
+            holeId,
+            effectiveAt: currentState.bhaSetup.effectiveAt,
+            bottomHoleAssemblyLength:
+              currentState.bhaSetup.bottomHoleAssemblyLengthDm,
+            constantStickUp: currentState.bhaSetup.constantStickUpDm,
+            baseRodStringLength:
+              currentState.bhaSetup.baseRodStringLengthDm,
+            reason: currentState.bhaSetup.reason,
+          };
   const rodEvents =
-    seed.hole.name === holeId
+    seed.hole.localId === holeId
       ? mergeRodEvents(seed, currentState.completedLocalRuns)
       : localRodEvents(currentState.completedLocalRuns, 0);
 
@@ -462,6 +478,33 @@ export async function getHoleCompletionContext(
   const components = allComponents.filter(({ localId }) =>
     assignedComponentIds.has(localId),
   );
+  if (lifecycle === null) {
+    throw new CompletionApplicationError(
+      "NOT_FOUND",
+      `Hole ${holeId} was not found.`,
+    );
+  }
+  const hole = lifecycle.hole;
+  const [project, rig] = await Promise.all([
+    dependencies.projects?.getProject(hole.projectId) ?? Promise.resolve(null),
+    dependencies.projects?.getRig(hole.rigId) ?? Promise.resolve(null),
+  ]);
+  const projectName =
+    project?.name ??
+    (hole.projectId === seed.project.localId
+      ? seed.project.name
+      : hole.projectId);
+  const rigName =
+    rig?.name ?? (hole.rigId === seed.rig.localId ? seed.rig.name : hole.rigId);
+  const withDirectorySnapshots = (run: Run): Run => ({
+    ...run,
+    holeNameSnapshot: hole.name,
+    rigNameSnapshot: rigName,
+  });
+  const contextualCompletedRuns = completedRuns.map(withDirectorySnapshots);
+  const contextualRuns = runs.map(withDirectorySnapshots);
+  const contextualFinalRun =
+    finalRun === null ? null : withDirectorySnapshots(finalRun);
   const rodEventInputs = rodEvents.map(({ action, rodLength }) => ({
     action,
     rodLength,
@@ -490,22 +533,17 @@ export async function getHoleCompletionContext(
           configuration: rodConfiguration,
           events: rodEvents,
         };
-  const fallbackHole: CanonicalHole = {
-    ...seed.hole,
-    localId: holeId,
-    status: normalizeHoleStatus(seed.hole.status),
-  };
   return {
     holeId,
-    hole: lifecycle?.hole ?? fallbackHole,
-    projectId: seed.project.localId,
-    projectName: seed.project.name,
-    rigId: seed.rig.localId,
-    rigName: seed.rig.name,
+    hole,
+    projectId: hole.projectId,
+    projectName,
+    rigId: hole.rigId,
+    rigName,
     currentState,
-    runs,
-    completedRuns,
-    finalRun,
+    runs: contextualRuns,
+    completedRuns: contextualCompletedRuns,
+    finalRun: contextualFinalRun,
     rodConfiguration,
     rodEvents,
     rodProjection,

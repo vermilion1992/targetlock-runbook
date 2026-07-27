@@ -5,6 +5,7 @@ import { useEffect, useState } from "react";
 
 import {
   createBrowserRunbookServices,
+  getCurrentHoleState,
   getTrajectorySetup,
   saveActualTrajectoryConfiguration,
   saveCoordinateConfiguration,
@@ -18,6 +19,7 @@ import {
   parseMetreInput,
   type NorthReference,
 } from "@/domain";
+import { useOperatorSession } from "@/components/session";
 
 const NORTH_OPTIONS: NorthReference[] = [
   "GRID",
@@ -27,6 +29,7 @@ const NORTH_OPTIONS: NorthReference[] = [
 ];
 
 export function TrajectorySetupForm({ holeId }: { holeId: string }) {
+  const { session } = useOperatorSession();
   const [collarDip, setCollarDip] = useState("-60.0");
   const [collarAzimuth, setCollarAzimuth] = useState("128.0");
   const [collarRef, setCollarRef] = useState<NorthReference>("GRID");
@@ -108,6 +111,7 @@ export function TrajectorySetupForm({ holeId }: { holeId: string }) {
         throw new Error("Collar dip or azimuth is invalid.");
       }
       const occurredAt = new Date().toISOString();
+      const operationId = `hole-setup-${Date.now()}`;
       let collarEastingDm: number | undefined;
       let collarNorthingDm: number | undefined;
       let collarRlDm: number | undefined;
@@ -126,7 +130,7 @@ export function TrajectorySetupForm({ holeId }: { holeId: string }) {
       }
       await saveCoordinateConfiguration(
         {
-          operationId: `coord-setup-${Date.now()}`,
+          operationId: `${operationId}:coordinates`,
           holeId,
           coordinateMode,
           coordinateSystemName:
@@ -135,27 +139,29 @@ export function TrajectorySetupForm({ holeId }: { holeId: string }) {
           collarNorthingDm,
           collarRlDm,
           calculationNorthReference: calcRef,
-          createdByUserId: "user-local",
-          createdByNameSnapshot: "Local operator",
+          createdByUserId: session?.operator.localId ?? "local-operator",
+          createdByNameSnapshot:
+            session?.operator.displayName ?? "Local operator",
           occurredAt,
         },
         services,
       );
       await saveReferenceConfiguration(
         {
-          operationId: `ref-setup-${Date.now()}`,
+          operationId: `${operationId}:reference`,
           holeId,
           gridRotationDeg: Number(gridRotation),
           magneticDeclinationDeg: Number(declination),
-          createdByUserId: "user-local",
-          createdByNameSnapshot: "Local operator",
+          createdByUserId: session?.operator.localId ?? "local-operator",
+          createdByNameSnapshot:
+            session?.operator.displayName ?? "Local operator",
           occurredAt,
         },
         services,
       );
       await saveActualTrajectoryConfiguration(
         {
-          operationId: `actual-setup-${Date.now()}`,
+          operationId: `${operationId}:actual`,
           holeId,
           collarDipTenths: dip.value,
           collarAzimuthTenths: az.value,
@@ -164,6 +170,32 @@ export function TrajectorySetupForm({ holeId }: { holeId: string }) {
         },
         services,
       );
+      const state = await getCurrentHoleState(holeId, services.currentState);
+      await services.audits.append({
+        localId: `${operationId}:audit`,
+        serverId: null,
+        syncStatus: "local-only",
+        createdAt: occurredAt,
+        updatedAt: occurredAt,
+        deviceId: "local-runbook-device",
+        version: 1,
+        holeId,
+        entityType: "hole",
+        entityId: holeId,
+        action: "hole_setup_updated",
+        userId: session?.operator.localId ?? "local-operator",
+        userNameSnapshot:
+          session?.operator.displayName ?? "Local operator",
+        timestamp: occurredAt,
+        depthDm: state.currentDepthDm,
+        metadata: {
+          collarDipTenths: dip.value,
+          collarAzimuthTenths: az.value,
+          collarNorthReference: collarRef,
+          coordinateMode,
+          collarCoordinatesRecorded: coordinateMode === "MINE_GRID",
+        },
+      });
       setMessage("Actual Survey trajectory setup saved.");
     } catch (error) {
       setMessage(

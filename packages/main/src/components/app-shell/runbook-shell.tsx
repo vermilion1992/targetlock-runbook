@@ -3,6 +3,7 @@
 import type { ReactNode } from "react";
 import { useEffect, useState, useSyncExternalStore } from "react";
 import { PanelLeftClose, PanelLeftOpen } from "lucide-react";
+import Link from "next/link";
 import { usePathname, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
@@ -11,12 +12,10 @@ import { TargetLockBrand } from "@/components/app-shell/target-lock-brand";
 import { ThemeModeControl } from "@/components/app-shell/theme-mode-control";
 import { ConnectivityBadge } from "@/components/field/status-pill";
 import { RunbookNavigation } from "@/components/navigation/runbook-navigation";
-import {
-  holeIdFromPathname,
-  runbookRoutes,
-} from "@/components/navigation/runbook-routes";
+import { holeIdFromPathname } from "@/components/navigation/runbook-routes";
 import { subscribeToExternalRunbookStorageChanges } from "@/infrastructure/drafts";
 import { isRoutableHoleId } from "@/infrastructure/seed";
+import { OperatorMenu } from "@/components/session";
 
 function subscribeToConnectivity(onStoreChange: () => void): () => void {
   window.addEventListener("online", onStoreChange);
@@ -82,25 +81,30 @@ export function RunbookShell({ children }: RunbookShellProps) {
         Skip to main content
       </a>
       <header className="tl-safe-top sticky top-0 z-40 flex min-h-[var(--tl-header-height)] items-center gap-1.5 border-b border-[var(--tl-border)] bg-[var(--tl-surface)] px-2 shadow-[var(--tl-shadow-sm)] sm:gap-3 sm:px-4">
-        <TargetLockBrand href={runbookRoutes.currentHole(holeId)} />
+        <TargetLockBrand
+          href="/start"
+          ariaLabel="TargetLock field start"
+        />
 
-        <div
-          className="min-w-0 flex-1 border-l border-[var(--tl-border)] pl-2 sm:pl-3"
+        <Link
+          href="/start"
+          className="min-w-0 flex-1 border-l border-[var(--tl-border)] pl-2 text-[var(--tl-ink)] no-underline sm:pl-3"
           aria-label={`Current hole ${holeId}`}
         >
           <span className="hidden text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)] sm:block">
-            Current hole
+            Current hole · change
           </span>
           <strong className="tl-tabular block truncate text-sm font-bold leading-tight text-[var(--tl-ink)] sm:text-base">
             {holeId}
           </strong>
-        </div>
+        </Link>
 
         <ConnectivityBadge
           mode={browserOnline ? "local" : "offline"}
           compactOnPhone
         />
         <ThemeModeControl />
+        <OperatorMenu compact />
       </header>
 
       {externalChange ? (

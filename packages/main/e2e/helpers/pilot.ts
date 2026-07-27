@@ -8,7 +8,12 @@ const tinyPng = Buffer.from(
 export async function resetPilotBrowserState(page: Page) {
   await page.goto("/holes/DDH041/current");
   await page.evaluate(async () => {
+    const sessionKey = "targetlock:prototype:v1:operator-session";
+    const operatorSession = window.localStorage.getItem(sessionKey);
     window.localStorage.clear();
+    if (operatorSession) {
+      window.localStorage.setItem(sessionKey, operatorSession);
+    }
     if ("indexedDB" in window && typeof indexedDB.databases === "function") {
       const databases = await indexedDB.databases();
       await Promise.all(

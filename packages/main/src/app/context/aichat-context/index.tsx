@@ -2,7 +2,6 @@
 import React, {
   createContext,
   useState,
-  useEffect,
   ReactNode,
   SetStateAction,
   Dispatch,
@@ -40,19 +39,18 @@ export const ChatAIProvider = ({ children }: { children: ReactNode }) => {
   const [error, setError] = useState("");
   const [typing, setTyping] = useState(false);
   const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
-  const { data, error: swrError, mutate } = useSWR("/api/chat-ai", getFetcher);
-
-  // On fetch success
-  useEffect(() => {
-    if (data?.data) {
-      setChatList(data.data);
-      setLoading(false);
-    }
-    if (swrError) {
+  useSWR("/api/chat-ai", getFetcher, {
+    onSuccess: (data) => {
+      if (data?.data) {
+        setChatList(data.data);
+        setLoading(false);
+      }
+    },
+    onError: () => {
       setError("Failed to fetch chat.");
       setLoading(false);
-    }
-  }, [data, swrError]);
+    },
+  });
 
   //for save  history
 
@@ -106,8 +104,10 @@ export const ChatAIProvider = ({ children }: { children: ReactNode }) => {
         saveSession(userMsg.text, aiReply.text);
       }
     } catch (err: unknown) {
-      setError("Failed to send message");
-      console.error(err);
+      setError(
+        err instanceof Error ? err.message : "Failed to send message.",
+      );
+      console.error("Chat message request failed.");
     } finally {
       setTyping(false);
     }

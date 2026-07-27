@@ -1,0 +1,55 @@
+name: TargetLock quality
+
+on:
+  pull_request:
+    paths:
+      - "packages/main/**"
+      - "docs/**"
+      - ".github/workflows/targetlock-quality.yml"
+  push:
+    branches:
+      - main
+      - master
+    paths:
+      - "packages/main/**"
+      - "docs/**"
+      - ".github/workflows/targetlock-quality.yml"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: targetlock-quality-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: packages/main
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/main/package-lock.json
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Typecheck
+        run: npm run typecheck
+
+      - name: Lint TargetLock
+        run: npm run lint
+
+      - name: Run unit tests
+        run: npm run test
+
+      - name: Build production application
+        run: npm run build

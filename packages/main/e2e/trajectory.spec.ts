@@ -137,6 +137,7 @@ test("Workflow 7 — New Hole with target entry direction", async ({ page }) => 
   await expect(page.getByTestId("new-hole-form")).toBeVisible({
     timeout: 30_000,
   });
+  await page.locator("summary").filter({ hasText: "Optional setup" }).click();
   await page.getByTestId("new-hole-id").fill(holeId);
   await page.getByLabel("Collar dip (°)").fill("-60.0");
   await page.getByLabel("Collar azimuth (°)").fill("128.0");
@@ -151,9 +152,13 @@ test("Workflow 7 — New Hole with target entry direction", async ({ page }) => 
   await page.getByTestId("new-hole-entry-dip").fill("-74.0");
   await page.getByTestId("new-hole-entry-azimuth").fill("145.0");
   await page.getByTestId("new-hole-submit").click();
-  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/trajectory`), {
+  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/current`), {
     timeout: 30_000,
   });
+  await expect(
+    page.getByRole("heading", { name: `${holeId} overview` }),
+  ).toBeVisible();
+  await page.goto(`/holes/${holeId}/trajectory`);
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
 });
 

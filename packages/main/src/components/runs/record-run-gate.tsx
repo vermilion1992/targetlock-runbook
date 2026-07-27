@@ -6,8 +6,10 @@ import { useEffect, useState } from "react";
 
 import {
   createBrowserRunbookServices,
+  deriveDrillingReadiness,
   getCurrentHoleState,
   type CurrentHoleState,
+  type DrillingReadiness,
 } from "@/application/runbook";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
@@ -21,6 +23,7 @@ export function RecordRunGate({
   initialRodLength?: 3 | 6;
 }) {
   const [state, setState] = useState<CurrentHoleState | null>(null);
+  const [readiness, setReadiness] = useState<DrillingReadiness | null>(null);
   const [message, setMessage] = useState("Checking the active shift…");
 
   useEffect(() => {
@@ -31,9 +34,18 @@ export function RecordRunGate({
       );
       return;
     }
-    void getCurrentHoleState(holeId, services.currentState)
-      .then((next) => {
+    void Promise.all([
+      getCurrentHoleState(holeId, services.currentState),
+      services.completion.getStatus(holeId),
+    ])
+      .then(([next, holeStatus]) => {
         setState(next);
+        setReadiness(
+          deriveDrillingReadiness({
+            holeStatus,
+            bhaSetup: next.bhaSetup,
+          }),
+        );
         setMessage("");
       })
       .catch((error: unknown) =>
@@ -41,7 +53,40 @@ export function RecordRunGate({
       );
   }, [holeId]);
 
-  if (state === null) return <p role="status">{message}</p>;
+  if (state === null || readiness === null) return <p role="status">{message}</p>;
+  if (!readiness.ready) {
+    return (
+      <div className="space-y-5">
+        <StagePageHeader
+          eyebrow="Drilling readiness"
+          title="BHA setup required"
+          description="This hole cannot record a run until its initial drilling measurements are valid."
+        />
+        <div
+          role="alert"
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] p-4"
+        >
+          <div className="flex gap-3">
+            <AlertTriangle aria-hidden="true" className="size-5 shrink-0" />
+            <div>
+              <p className="font-bold">Complete drilling setup first.</p>
+              <ul className="mt-2 space-y-1 text-sm font-semibold">
+                {readiness.blockers.map((blocker) => (
+                  <li key={blocker.code}>• {blocker.message}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+        </div>
+        <Link
+          href={runbookRoutes.updateBha(holeId)}
+          className="inline-flex min-h-14 items-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-5 font-bold text-white no-underline"
+        >
+          Update BHA
+        </Link>
+      </div>
+    );
+  }
   if (state.activeShift === null) {
     const pending = state.pendingHandover;
     return (

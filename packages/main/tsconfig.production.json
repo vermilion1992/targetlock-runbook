@@ -3,6 +3,10 @@
   "include": [
     "next-env.d.ts",
     "types",
+    "src/app/(LibraryLayout)/**/*.ts",
+    "src/app/(LibraryLayout)/**/*.tsx",
+    "src/app/(PublicLayout)/**/*.ts",
+    "src/app/(PublicLayout)/**/*.tsx",
     "src/app/(RunbookLayout)/**/*.ts",
     "src/app/(RunbookLayout)/**/*.tsx",
     "src/app/api/**/*.ts",
@@ -26,6 +30,8 @@
     "src/components/media/**/*.tsx",
     "src/components/navigation/**/*.ts",
     "src/components/navigation/**/*.tsx",
+    "src/components/projects/**/*.ts",
+    "src/components/projects/**/*.tsx",
     "src/components/reports/**/*.ts",
     "src/components/reports/**/*.tsx",
     "src/components/runs/**/*.ts",
@@ -42,7 +48,7 @@
     "src/infrastructure/**/*.ts",
     "src/infrastructure/**/*.tsx",
     "src/lib/**/*.ts",
-    "src/middleware.ts",
+    "src/proxy.ts",
     "e2e/**/*.ts",
     "playwright.config.ts",
     "vitest.config.ts"

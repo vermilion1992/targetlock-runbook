@@ -1,29 +1,25 @@
-'use client'
-import Image from 'next/image'
-import React from 'react'
+import Link from "next/link";
 
-import { Button } from '@/components/ui/button'
-import Link from 'next/link'
-import Lottie from 'lottie-react'
-import error404page from '@/../public/animation/error404page.json'
-
-const Error = () => {
+export default function NotFoundPage() {
   return (
-    <>
-      <div className='h-screen flex items-center justify-center bg-white dark:bg-dark'>
-        <div className='text-center'>
-          <Lottie animationData={error404page} loop={true} />
-          <h1 className='text-ld text-4xl mb-6'>Opps!!!</h1>
-          <h6 className='text-xl text-ld'>
-            This page you are looking for could not be found.
-          </h6>
-          <Button asChild className='mt-6 mx-auto'>
-            <Link href='/'>Go Back to Home</Link>
-          </Button>
-        </div>
+    <main className="target-lock grid min-h-dvh place-items-center bg-[var(--tl-app-bg)] p-5 text-[var(--tl-ink)]">
+      <div className="w-full max-w-lg rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-6 text-center shadow-[var(--tl-shadow-md)]">
+        <p className="text-sm font-bold uppercase tracking-[0.12em] text-[var(--tl-primary)]">
+          TargetLock · 404
+        </p>
+        <h1 className="mt-2 text-3xl font-extrabold tracking-[-0.035em]">
+          Page not found
+        </h1>
+        <p className="mt-3 text-sm leading-6 text-[var(--tl-ink-muted)]">
+          This address is not part of the available field workspace.
+        </p>
+        <Link
+          href="/"
+          className="mt-6 inline-flex min-h-12 items-center justify-center rounded-md bg-[var(--tl-primary)] px-5 font-bold text-white no-underline"
+        >
+          Open TargetLock
+        </Link>
       </div>
-    </>
-  )
+    </main>
+  );
 }
-
-export default Error

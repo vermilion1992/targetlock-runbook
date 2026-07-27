@@ -3,13 +3,17 @@ import Link from "next/link";
 
 interface TargetLockBrandProps {
   href: string;
+  ariaLabel?: string;
 }
 
-export function TargetLockBrand({ href }: TargetLockBrandProps) {
+export function TargetLockBrand({
+  href,
+  ariaLabel = "TargetLock home",
+}: TargetLockBrandProps) {
   return (
     <Link
       href={href}
-      aria-label="TargetLock current hole"
+      aria-label={ariaLabel}
       className="flex min-w-11 shrink-0 items-center gap-2 rounded-lg text-[var(--tl-ink)] no-underline"
     >
       <Image

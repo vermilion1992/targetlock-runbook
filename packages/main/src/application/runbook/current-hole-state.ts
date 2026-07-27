@@ -110,7 +110,7 @@ export async function getCurrentHoleState(
     trays,
     trajectory,
   } = dependencies;
-  const isPrimarySeedHole = seed.hole.name === holeId;
+  const isPrimarySeedHole = seed.hole.localId === holeId;
 
   const completedResult = runs.readCompletedRuns(holeId);
   if (completedResult.status === "invalid") {

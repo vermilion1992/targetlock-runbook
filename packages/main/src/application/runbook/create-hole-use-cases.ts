@@ -1,12 +1,20 @@
-import type { NorthReference, TargetAttitudeMode } from "@/domain";
+import type {
+  AuditEntry,
+  HoleSize,
+  NorthReference,
+  TargetAttitudeMode,
+} from "@/domain";
+import type { AuditRepository } from "@/infrastructure/audit";
 import type {
   CanonicalHole,
   CompletionRepository,
   CreateHoleInput,
 } from "@/infrastructure/completion";
+import type { ProjectDirectoryRepository } from "@/infrastructure/projects";
 import type { TrajectoryRepository } from "@/infrastructure/trajectory";
 import {
   DEFAULT_TARGET_DIAMETER_M,
+  decimetres,
   diameterMToRadiusDm,
   metresToDecimetres,
   validateHoleTargetAttitude,
@@ -34,6 +42,8 @@ export interface CreateHoleWithTrajectoryInput {
   readonly operationId: string;
   readonly holeId: string;
   readonly name?: string;
+  readonly holeSize?: HoleSize;
+  readonly plannedDepthM?: number;
   readonly collarDipTenths: number;
   readonly collarAzimuthTenths: number;
   readonly collarNorthReference: NorthReference;
@@ -57,6 +67,8 @@ export interface CreateHoleWithTrajectoryInput {
 export interface CreateHoleServices {
   readonly completion: CompletionRepository;
   readonly trajectory: TrajectoryRepository;
+  readonly projects?: ProjectDirectoryRepository;
+  readonly audits?: Pick<AuditRepository, "append">;
 }
 
 export interface CreateHoleWithTrajectoryResult {
@@ -93,11 +105,31 @@ export async function createHoleWithTrajectoryDefaults(
   if (!holeId) {
     throw new Error("Hole ID is required.");
   }
+  const plannedDepthM =
+    input.plannedDepthM ?? targetLockStage5Seed.hole.plannedDepth / 10;
+  if (!Number.isFinite(plannedDepthM) || plannedDepthM <= 0) {
+    throw new Error("Planned depth must be greater than zero.");
+  }
+  if (input.collarNorthReference === "NOT_SPECIFIED") {
+    throw new Error("Choose the north reference used by the collar azimuth.");
+  }
 
   const name = (input.name ?? holeId).trim();
   const projectId =
     input.projectId ?? targetLockStage5Seed.project.localId;
   const rigId = input.rigId ?? targetLockStage5Seed.rig.localId;
+  if (services.projects) {
+    const [project, rig] = await Promise.all([
+      services.projects.getProject(projectId),
+      services.projects.getRig(rigId),
+    ]);
+    if (!project) {
+      throw new Error("The selected project is not available.");
+    }
+    if (!rig || rig.projectId !== project.localId) {
+      throw new Error("The selected rig does not belong to this project.");
+    }
+  }
   const actorUserId = input.createdByUserId ?? DEFAULT_ACTOR.userId;
   const actorName = input.createdByNameSnapshot ?? DEFAULT_ACTOR.nameSnapshot;
 
@@ -139,11 +171,6 @@ export async function createHoleWithTrajectoryDefaults(
     if (attitudeError) throw new Error(attitudeError);
   }
 
-  const existing = await services.completion.getHole(holeId);
-  if (existing) {
-    throw new Error(`Hole ID ${holeId} already exists.`);
-  }
-
   const collarEastingDm = toOptionalCollarDm(input.collarEastingM);
   const collarNorthingDm = toOptionalCollarDm(input.collarNorthingM);
   const collarRlDm = toOptionalCollarDm(input.collarRlM);
@@ -158,12 +185,12 @@ export async function createHoleWithTrajectoryDefaults(
     name,
     projectId,
     rigId,
+    holeSize: input.holeSize ?? targetLockStage5Seed.hole.holeSize,
+    plannedDepthDm: Number(metresToDecimetres(plannedDepthM)),
     createdAt: input.occurredAt,
-    collarEasting:
-      input.collarEastingM === undefined ? 0 : input.collarEastingM,
-    collarNorthing:
-      input.collarNorthingM === undefined ? 0 : input.collarNorthingM,
-    collarElevation: input.collarRlM === undefined ? 0 : input.collarRlM,
+    collarEasting: input.collarEastingM,
+    collarNorthing: input.collarNorthingM,
+    collarElevation: input.collarRlM,
   };
 
   let hole: CanonicalHole;
@@ -257,6 +284,33 @@ export async function createHoleWithTrajectoryDefaults(
         occurredAt: input.occurredAt,
       });
       hasTarget = true;
+    }
+
+    if (services.audits) {
+      await services.audits.append({
+        localId: `${input.operationId}:hole-setup`,
+        serverId: null,
+        syncStatus: "local-only",
+        createdAt: input.occurredAt,
+        updatedAt: input.occurredAt,
+        deviceId: "local-runbook-device",
+        version: 1,
+        holeId,
+        entityType: "hole",
+        entityId: holeId,
+        action: "hole_setup_created",
+        userId: actorUserId,
+        userNameSnapshot: actorName,
+        timestamp: input.occurredAt,
+        depthDm: decimetres(0),
+        metadata: {
+          collarDipTenths: input.collarDipTenths,
+          collarAzimuthTenths: input.collarAzimuthTenths,
+          collarNorthReference: input.collarNorthReference,
+          collarCoordinatesRecorded: hasCollarCoordinates,
+          targetRecorded: hasTarget,
+        },
+      } satisfies AuditEntry);
     }
 
     return { hole, hasCollarCoordinates, hasTarget };

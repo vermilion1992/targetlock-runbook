@@ -7,13 +7,31 @@ import {
   parseBasicAuthorizationHeader,
   readPilotAccessConfig,
 } from "@/lib/pilot-access";
+import { getTemplateSurfaceDecision } from "@/lib/template-surface-policy";
 
 /**
- * Optional Railway pilot access gate.
- * Not a user-account system. Disabled unless PILOT_ACCESS_ENABLED=true.
+ * Production request boundary for the template surface and optional pilot gate.
+ * The Basic gate is deployment protection, not a user-account system.
  */
-export function middleware(request: NextRequest) {
+export function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
+
+  if (pathname === "/holes") {
+    const destination = request.nextUrl.clone();
+    destination.pathname = "/projects";
+    destination.search = "";
+    return NextResponse.redirect(destination);
+  }
+
+  if (getTemplateSurfaceDecision(pathname) === "not-found") {
+    return new NextResponse("Not Found", {
+      status: 404,
+      headers: {
+        "Cache-Control": "no-store",
+        "Content-Type": "text/plain; charset=utf-8",
+      },
+    });
+  }
 
   if (isPilotAccessPublicPath(pathname)) {
     return NextResponse.next();

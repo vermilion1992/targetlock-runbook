@@ -70,9 +70,9 @@ const holeSchema = z
     plannedDepth: depthSchema,
     currentDepth: depthSchema,
     status: persistedStatusSchema,
-    collarEasting: z.number().finite(),
-    collarNorthing: z.number().finite(),
-    collarElevation: z.number().finite(),
+    collarEasting: z.number().finite().optional(),
+    collarNorthing: z.number().finite().optional(),
+    collarElevation: z.number().finite().optional(),
   })
   .strict();
 
@@ -513,6 +513,10 @@ export interface CompletionRepository {
   getHole(holeId: string): Promise<CanonicalHole | null>;
   listHoles(): Promise<readonly CanonicalHole[]>;
   createHole(input: CreateHoleInput): Promise<CanonicalHole>;
+  activateDraftHole(
+    holeId: string,
+    activatedAt: string,
+  ): Promise<CanonicalHole>;
   getCurrentReview(holeId: string): Promise<HoleCompletionReview | null>;
   getLatestCompletion(holeId: string): Promise<HoleCompletionRecord | null>;
   getCompletionHistory(
@@ -1048,10 +1052,12 @@ export class LocalCompletionRepository implements CompletionRepository {
   async createHole(input: CreateHoleInput): Promise<CanonicalHole> {
     const holeId = input.holeId.trim();
     const name = input.name.trim();
-    if (!holeId || !name) {
+    const projectId = input.projectId.trim();
+    const rigId = input.rigId.trim();
+    if (!holeId || !name || !projectId || !rigId) {
       throw new CompletionRepositoryError(
         "VALIDATION_FAILED",
-        "Hole ID and name are required.",
+        "Hole ID, name, project and rig are required.",
       );
     }
     if (!/^[A-Za-z0-9][A-Za-z0-9._-]{0,63}$/.test(holeId)) {
@@ -1060,13 +1066,33 @@ export class LocalCompletionRepository implements CompletionRepository {
         "Hole ID must be 1–64 characters: letters, numbers, '.', '_' or '-'.",
       );
     }
+    if (["new", "completed"].includes(holeId.toLocaleLowerCase("en-AU"))) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        `Hole ID "${holeId}" is reserved by the application.`,
+      );
+    }
+    if (
+      input.plannedDepthDm !== undefined &&
+      (!Number.isFinite(input.plannedDepthDm) || input.plannedDepthDm <= 0)
+    ) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        "Planned depth must be greater than zero.",
+      );
+    }
 
     let envelope = this.read();
     const fingerprint = canonicalJson({
       holeId,
       name,
-      projectId: input.projectId,
-      rigId: input.rigId,
+      projectId,
+      rigId,
+      holeSize: input.holeSize ?? "HQ",
+      plannedDepthDm: input.plannedDepthDm ?? 7_500,
+      collarEasting: input.collarEasting,
+      collarNorthing: input.collarNorthing,
+      collarElevation: input.collarElevation,
     });
     const prior = this.operation(
       envelope,
@@ -1087,14 +1113,7 @@ export class LocalCompletionRepository implements CompletionRepository {
       return asHole(existing);
     }
 
-    if (
-      envelope.holes.some(
-        (candidate) =>
-          candidate.localId === holeId ||
-          candidate.name.toLocaleLowerCase("en-AU") ===
-            name.toLocaleLowerCase("en-AU"),
-      )
-    ) {
+    if (envelope.holes.some((candidate) => candidate.localId === holeId)) {
       throw new CompletionRepositoryError(
         "VALIDATION_FAILED",
         `Hole ${holeId} already exists.`,
@@ -1109,16 +1128,16 @@ export class LocalCompletionRepository implements CompletionRepository {
       updatedAt: input.createdAt,
       deviceId: DEVICE_ID,
       version: 1,
-      projectId: input.projectId,
-      rigId: input.rigId,
+      projectId,
+      rigId,
       name,
       holeSize: input.holeSize ?? "HQ",
       plannedDepth: input.plannedDepthDm ?? 7_500,
       currentDepth: 0,
-      status: "ACTIVE",
-      collarEasting: input.collarEasting ?? 0,
-      collarNorthing: input.collarNorthing ?? 0,
-      collarElevation: input.collarElevation ?? 0,
+      status: "DRAFT",
+      collarEasting: input.collarEasting,
+      collarNorthing: input.collarNorthing,
+      collarElevation: input.collarElevation,
     });
     if (!parsed.success) {
       throw new CompletionRepositoryError(
@@ -1146,6 +1165,55 @@ export class LocalCompletionRepository implements CompletionRepository {
     };
     this.write(envelope);
     return asHole(parsed.data);
+  }
+
+  async activateDraftHole(
+    holeId: string,
+    activatedAt: string,
+  ): Promise<CanonicalHole> {
+    const normalizedHoleId = holeId.trim();
+    const parsedActivatedAt = isoTimestampSchema.safeParse(activatedAt);
+    if (!normalizedHoleId || !parsedActivatedAt.success) {
+      throw new CompletionRepositoryError(
+        "VALIDATION_FAILED",
+        "A valid hole ID and activation time are required.",
+      );
+    }
+
+    const envelope = this.read();
+    const existing = envelope.holes.find(
+      (candidate) => candidate.localId === normalizedHoleId,
+    );
+    if (existing === undefined) {
+      throw new CompletionRepositoryError(
+        "NOT_FOUND",
+        `Hole ${normalizedHoleId} was not found.`,
+      );
+    }
+    const status = normalizeHoleStatus(existing.status);
+    if (status === "ACTIVE") return asHole(existing);
+    if (status !== "DRAFT") {
+      throw new CompletionRepositoryError(
+        "INVALID_STATE",
+        `Hole ${normalizedHoleId} cannot be activated from ${status}.`,
+      );
+    }
+
+    const updated = holeSchema.parse({
+      ...existing,
+      status: "ACTIVE",
+      updatedAt: parsedActivatedAt.data,
+      version: existing.version + 1,
+    });
+    this.write({
+      ...envelope,
+      revision: envelope.revision + 1,
+      updatedAt: parsedActivatedAt.data,
+      holes: envelope.holes.map((candidate) =>
+        candidate.localId === normalizedHoleId ? updated : candidate,
+      ),
+    });
+    return asHole(updated);
   }
 
   async getCurrentReview(
@@ -2237,7 +2305,12 @@ export class HoleMutationGuard implements HoleMutationGuardPort {
 
   assertHoleMutable(holeId: string): void {
     const snapshot = this.completion.getHoleMutationSnapshot(holeId);
-    if (snapshot === null) return;
+    if (snapshot === null) {
+      throw new CompletionRepositoryError(
+        "NOT_FOUND",
+        `Hole ${holeId} was not found.`,
+      );
+    }
     assertHoleUnlocked(
       holeId,
       snapshot.status,

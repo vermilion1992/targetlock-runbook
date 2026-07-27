@@ -42,7 +42,12 @@ async function installReportFailureHook(page: Page) {
 async function reset(page: Page) {
   await page.goto("/holes/DDH041/current");
   await page.evaluate(async () => {
+    const sessionKey = "targetlock:prototype:v1:operator-session";
+    const operatorSession = window.localStorage.getItem(sessionKey);
     window.localStorage.clear();
+    if (operatorSession) {
+      window.localStorage.setItem(sessionKey, operatorSession);
+    }
     window.sessionStorage.clear();
     await new Promise<void>((resolve) => {
       const request = indexedDB.deleteDatabase("targetlock-runbook-reports-v1");

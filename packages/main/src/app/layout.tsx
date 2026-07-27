@@ -7,6 +7,7 @@ import NextTopLoader from "nextjs-toploader";
 import { Toaster } from "../components/ui/toaster";
 import { CustomizerContextProvider } from "./context/customizer-context";
 import { ThemeProvider } from "@/components/ThemeProvider";
+import { OperatorSessionProvider } from "@/components/session";
 
 const dmSans = DM_Sans({
   subsets: ["latin"],
@@ -48,7 +49,9 @@ export default function RootLayout({
           enableSystem
           disableTransitionOnChange
         >
-          <CustomizerContextProvider>{children}</CustomizerContextProvider>
+          <OperatorSessionProvider>
+            <CustomizerContextProvider>{children}</CustomizerContextProvider>
+          </OperatorSessionProvider>
           <Toaster />
         </ThemeProvider>
       </body>

@@ -1,12 +1,21 @@
 export const DEFAULT_HOLE_ID = "DDH041";
+const RESERVED_HOLE_SEGMENTS = new Set(["new", "completed"]);
 
 function usableHoleId(holeId: string | null | undefined): string {
   const value = holeId?.trim();
-  return value ? value.slice(0, 64) : DEFAULT_HOLE_ID;
+  if (!value || RESERVED_HOLE_SEGMENTS.has(value.toLocaleLowerCase("en-AU"))) {
+    return DEFAULT_HOLE_ID;
+  }
+  return value.slice(0, 64);
 }
 
 function holeBase(holeId: string): string {
   return `/holes/${encodeURIComponent(usableHoleId(holeId))}`;
+}
+
+function componentContextQuery(holeId: string | undefined): string {
+  const value = holeId?.trim();
+  return value ? `?holeId=${encodeURIComponent(usableHoleId(value))}` : "";
 }
 
 export interface SurveySettingsRouteOptions {
@@ -49,6 +58,10 @@ export const runbookRoutes = {
     `${holeBase(holeId)}/casing/${encodeURIComponent(casingId)}/advance`,
   correctCasing: (holeId: string, casingId: string) =>
     `${holeBase(holeId)}/casing/${encodeURIComponent(casingId)}/correct`,
+  componentRegistry: (holeId?: string) =>
+    `/components${componentContextQuery(holeId)}`,
+  componentDetail: (componentId: string, holeId?: string) =>
+    `/components/${encodeURIComponent(componentId)}${componentContextQuery(holeId)}`,
   holeComponents: (holeId: string) => `${holeBase(holeId)}/components`,
   updateBha: (holeId: string) => `${holeBase(holeId)}/components/bha`,
   changeBit: (holeId: string) =>

@@ -23,6 +23,7 @@ const setupSchema = z.object({
   localId: z.string().min(1),
   holeId: z.string().min(1),
   effectiveAt: z.string().datetime(),
+  effectiveDepthDm: z.number().int().nonnegative().default(0),
   bottomHoleAssemblyLengthDm: z.number().int().positive(),
   constantStickUpDm: z.number().int().nonnegative(),
   baseRodStringLengthDm: z.number().int().nonnegative(),
@@ -51,6 +52,7 @@ export interface BottomHoleAssemblySetup {
   readonly localId: string;
   readonly holeId: string;
   readonly effectiveAt: string;
+  readonly effectiveDepthDm: Decimetres;
   readonly bottomHoleAssemblyLengthDm: Decimetres;
   readonly constantStickUpDm: Decimetres;
   readonly baseRodStringLengthDm: Decimetres;
@@ -73,6 +75,7 @@ export interface SaveBottomHoleAssemblySetupInput {
   readonly operationId: string;
   readonly holeId: string;
   readonly effectiveAt: string;
+  readonly effectiveDepthDm: Decimetres;
   readonly bottomHoleAssemblyLengthDm: Decimetres;
   readonly constantStickUpDm: Decimetres;
   readonly bitStyle?: string;
@@ -110,6 +113,7 @@ function optionalTrimmed(value: string | undefined): string | undefined {
 function asSetup(value: z.infer<typeof setupSchema>): BottomHoleAssemblySetup {
   return {
     ...value,
+    effectiveDepthDm: decimetres(value.effectiveDepthDm),
     bottomHoleAssemblyLengthDm: decimetres(
       value.bottomHoleAssemblyLengthDm,
     ),
@@ -125,6 +129,7 @@ function seedSetup(
     localId: configuration.localId,
     holeId: configuration.holeId,
     effectiveAt: configuration.effectiveAt,
+    effectiveDepthDm: 0,
     bottomHoleAssemblyLengthDm: Number(
       configuration.bottomHoleAssemblyLength,
     ),
@@ -202,6 +207,7 @@ export class LocalBottomHoleAssemblySetupRepository
       localId: input.operationId,
       holeId: input.holeId,
       effectiveAt: input.effectiveAt,
+      effectiveDepthDm: Number(input.effectiveDepthDm),
       bottomHoleAssemblyLengthDm: Number(input.bottomHoleAssemblyLengthDm),
       constantStickUpDm: Number(input.constantStickUpDm),
       baseRodStringLengthDm: Number(baseRodStringLengthDm),

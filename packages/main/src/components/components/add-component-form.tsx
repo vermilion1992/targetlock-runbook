@@ -74,7 +74,7 @@ function FieldLabel({
 
 export function AddComponentForm({
   initialType = "BIT",
-  holeId = targetLockStage3Seed.hole.name,
+  holeId = targetLockStage3Seed.hole.localId,
   returnTo,
 }: {
   initialType?: ComponentType;

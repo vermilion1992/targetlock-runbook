@@ -1,5 +1,9 @@
-import { NewHoleForm } from "@/components/holes/new-hole-form";
+import { redirect } from "next/navigation";
+
+import { targetLockStage5Seed } from "@/infrastructure/seed";
 
 export default function NewHolePage() {
-  return <NewHoleForm />;
+  redirect(
+    `/projects/${encodeURIComponent(targetLockStage5Seed.project.localId)}/holes/new`,
+  );
 }

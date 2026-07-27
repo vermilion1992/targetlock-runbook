@@ -11,6 +11,7 @@ import {
 import type { LocalStorageAdapter } from "@/infrastructure/drafts";
 import {
   CompletionRepositoryError,
+  HoleMutationGuard,
   LocalCompletionRepository,
   completionStorageKey,
   type CompletionRepositorySeed,
@@ -272,6 +273,147 @@ async function finishHole(
 }
 
 describe("LocalCompletionRepository", () => {
+  it("creates a project-owned draft hole with explicit design values", async () => {
+    const repository = new LocalCompletionRepository(
+      new MemoryStorage(),
+      ORGANISATION_ID,
+      { holes: [] },
+    );
+
+    const created = await repository.createHole({
+      operationId: "create-ddh050",
+      holeId: "DDH050",
+      name: "DDH050",
+      projectId: "project-briggs",
+      rigId: "rig-10",
+      holeSize: "NQ",
+      plannedDepthDm: 8_250,
+      collarEasting: 100,
+      collarNorthing: 200,
+      collarElevation: 300,
+      createdAt: STARTED_AT,
+    });
+
+    expect(created).toMatchObject({
+      localId: "DDH050",
+      projectId: "project-briggs",
+      rigId: "rig-10",
+      holeSize: "NQ",
+      plannedDepth: 8_250,
+      status: "DRAFT",
+    });
+  });
+
+  it("rejects mutations for holes outside the completion registry", () => {
+    const repository = new LocalCompletionRepository(
+      new MemoryStorage(),
+      ORGANISATION_ID,
+      { holes: [] },
+    );
+    const guard = new HoleMutationGuard(repository);
+
+    let thrown: unknown;
+    try {
+      guard.assertHoleMutable("UNKNOWN");
+    } catch (error) {
+      thrown = error;
+    }
+    expect(thrown).toBeInstanceOf(CompletionRepositoryError);
+    expect(thrown).toMatchObject({
+      code: "NOT_FOUND",
+      message: "Hole UNKNOWN was not found.",
+    });
+  });
+
+  it("activates a draft hole idempotently when drilling starts", async () => {
+    const repository = new LocalCompletionRepository(
+      new MemoryStorage(),
+      ORGANISATION_ID,
+      { holes: [hole("DDH050", "DDH050", "DRAFT")] },
+    );
+
+    const activated = await repository.activateDraftHole(
+      "DDH050",
+      COMPLETED_AT,
+    );
+    const repeated = await repository.activateDraftHole(
+      "DDH050",
+      COMPLETED_AT,
+    );
+
+    expect(activated).toMatchObject({
+      localId: "DDH050",
+      status: "ACTIVE",
+      updatedAt: COMPLETED_AT,
+      version: 2,
+    });
+    expect(repeated).toEqual(activated);
+  });
+
+  it("uses local ID, not display name, as the unique hole identity", async () => {
+    const repository = new LocalCompletionRepository(
+      new MemoryStorage(),
+      ORGANISATION_ID,
+      { holes: [hole("DDH050", "North target")] },
+    );
+
+    await expect(
+      repository.createHole({
+        operationId: "create-ddh051-same-label",
+        holeId: "DDH051",
+        name: "North target",
+        projectId: "project-briggs",
+        rigId: "rig-10",
+        createdAt: STARTED_AT,
+      }),
+    ).resolves.toMatchObject({
+      localId: "DDH051",
+      name: "North target",
+    });
+  });
+
+  it("preserves missing collar coordinates instead of inventing zero values", async () => {
+    const repository = new LocalCompletionRepository(
+      new MemoryStorage(),
+      ORGANISATION_ID,
+      { holes: [] },
+    );
+
+    const created = await repository.createHole({
+      operationId: "create-ddh051",
+      holeId: "DDH051",
+      name: "DDH051",
+      projectId: "project-briggs",
+      rigId: "rig-10",
+      createdAt: STARTED_AT,
+    });
+
+    expect(created.collarEasting).toBeUndefined();
+    expect(created.collarNorthing).toBeUndefined();
+    expect(created.collarElevation).toBeUndefined();
+  });
+
+  it("rejects static route names as hole identities", async () => {
+    const repository = new LocalCompletionRepository(
+      new MemoryStorage(),
+      ORGANISATION_ID,
+      { holes: [] },
+    );
+
+    await expect(
+      repository.createHole({
+        operationId: "create-reserved",
+        holeId: "completed",
+        name: "completed",
+        projectId: "project-briggs",
+        rigId: "rig-10",
+        createdAt: STARTED_AT,
+      }),
+    ).rejects.toMatchObject({
+      code: "VALIDATION_FAILED",
+    });
+  });
+
   it("normalizes only supported legacy statuses and remains read-only until write", async () => {
     const storage = new MemoryStorage();
     const repository = new LocalCompletionRepository(

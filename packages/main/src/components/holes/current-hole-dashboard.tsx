@@ -17,6 +17,7 @@ import { useEffect, useState } from "react";
 
 import {
   createBrowserRunbookServices,
+  deriveDrillingReadiness,
   getCurrentHoleState,
   getHoleAnalytics,
   loadShiftAnalytics,
@@ -86,6 +87,11 @@ export function CurrentHoleDashboard({
   const [trajectory, setTrajectory] = useState<HoleTrajectoryComparison | null>(
     null,
   );
+  const [directoryContext, setDirectoryContext] = useState<{
+    readonly projectCode: string;
+    readonly projectName: string;
+    readonly rigName: string;
+  } | null>(null);
   const [warning, setWarning] = useState<string | null>(null);
 
   useEffect(() => {
@@ -105,6 +111,23 @@ export function CurrentHoleDashboard({
       .then(async ([nextState, nextLifecycle]) => {
         setState(nextState);
         setLifecycle(nextLifecycle);
+        if (nextLifecycle) {
+          const [project, rig] = await Promise.all([
+            services.projects.getProject(nextLifecycle.hole.projectId),
+            services.projects.getRig(nextLifecycle.hole.rigId),
+          ]);
+          setDirectoryContext(
+            project && rig
+              ? {
+                  projectCode: project.code,
+                  projectName: project.name,
+                  rigName: rig.name,
+                }
+              : null,
+          );
+        } else {
+          setDirectoryContext(null);
+        }
         const active = nextState.activeShift;
         if (active && services.shiftAnalytics) {
           const analytics = await loadShiftAnalytics(
@@ -147,19 +170,33 @@ export function CurrentHoleDashboard({
       );
   }, [holeId]);
 
-  const isSeedHole = holeId === seed.hole.name;
+  const isSeedHole = holeId === seed.hole.localId;
   const holeStatus = lifecycle
     ? normalizeHoleStatus(lifecycle.status)
-    : normalizeHoleStatus(isSeedHole ? seed.hole.status : "ACTIVE");
+    : normalizeHoleStatus(isSeedHole ? seed.hole.status : "DRAFT");
   const holeLocked =
     holeStatus === "COMPLETED" ||
     holeStatus === "ABANDONED" ||
     holeStatus === "ARCHIVED";
+  const lifecycleBlocked =
+    !holeLocked && holeStatus !== "DRAFT" && holeStatus !== "ACTIVE";
   const wasReopened = (lifecycle?.reopenHistory.length ?? 0) > 0 && !holeLocked;
 
   const activeShift = state?.activeShift ?? null;
   const pending = state?.pendingHandover ?? null;
   const loadingState = state === null && warning === null;
+  const drillingReadiness =
+    state === null
+      ? null
+      : deriveDrillingReadiness({
+          holeStatus,
+          bhaSetup: state.bhaSetup,
+        });
+  const setupRequired =
+    !holeLocked &&
+    !lifecycleBlocked &&
+    drillingReadiness !== null &&
+    !drillingReadiness.ready;
   const localRuns = state?.completedLocalRuns ?? [];
   const localRunIds = new Set(localRuns.map(({ localId }) => localId));
   const localRunNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
@@ -179,21 +216,28 @@ export function CurrentHoleDashboard({
       decimetres(recoveredLengthDm),
     ),
   );
-  const recovery = calculateRecoveryPercentage(totalDrilled, totalRecovered);
+  const recovery =
+    totalDrilled > 0
+      ? calculateRecoveryPercentage(totalDrilled, totalRecovered)
+      : null;
 
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
         eyebrow={
-          isSeedHole
-            ? `${seed.project.code} · ${seed.rig.name}`
-            : "Local operational hole"
+          directoryContext
+            ? `${directoryContext.projectCode} · ${directoryContext.rigName}`
+            : isSeedHole
+              ? `${seed.project.code} · ${seed.rig.name}`
+              : "Local operational hole"
         }
         title={`${holeId} overview`}
         description={
-          isSeedHole
-            ? `${seed.project.name} · ${seed.hole.holeSize} · planned ${formatMetres(seed.hole.plannedDepth)}`
-            : "Run, shift, Survey, tray, and trajectory state stored independently for this hole."
+          lifecycle
+            ? `${directoryContext?.projectName ?? "Project"} · ${lifecycle.hole.holeSize} · planned ${formatMetres(lifecycle.hole.plannedDepth)}`
+            : isSeedHole
+              ? `${seed.project.name} · ${seed.hole.holeSize} · planned ${formatMetres(seed.hole.plannedDepth)}`
+              : "Run, shift, survey, tray and trajectory state for this hole."
         }
         action={
           loadingState ? (
@@ -202,6 +246,16 @@ export function CurrentHoleDashboard({
             <StatusPill tone={holeStatus === "ABANDONED" ? "danger" : "success"}>
               <CheckCircle2 aria-hidden="true" className="size-3.5" />
               {holeStatusLabel(holeStatus)}
+            </StatusPill>
+          ) : lifecycleBlocked ? (
+            <StatusPill tone="warning">
+              <AlertTriangle aria-hidden="true" className="size-3.5" />
+              {holeStatusLabel(holeStatus)}
+            </StatusPill>
+          ) : setupRequired ? (
+            <StatusPill tone="warning">
+              <AlertTriangle aria-hidden="true" className="size-3.5" />
+              Setup required
             </StatusPill>
           ) : activeShift ? (
             <StatusPill tone="success">
@@ -331,6 +385,44 @@ export function CurrentHoleDashboard({
         </aside>
       ) : null}
 
+      {setupRequired ? (
+        <section
+          aria-labelledby="drilling-setup-required-heading"
+          data-testid="drilling-setup-required"
+          className="rounded-[var(--tl-radius-lg)] border-2 border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5"
+        >
+          <div className="flex items-start gap-3">
+            <AlertTriangle
+              aria-hidden="true"
+              className="mt-0.5 size-6 shrink-0 text-[var(--tl-warning)]"
+            />
+            <div>
+              <h2
+                id="drilling-setup-required-heading"
+                className="text-xl font-bold text-[var(--tl-ink)]"
+              >
+                Drilling setup required
+              </h2>
+              <p className="mt-1 text-sm font-semibold text-[var(--tl-ink)]">
+                Record the initial BHA measurements before starting the first
+                shift or recording a run.
+              </p>
+              <ul className="mt-3 space-y-1 text-sm text-[var(--tl-ink)]">
+                {drillingReadiness.blockers.map((blocker) => (
+                  <li key={blocker.code}>• {blocker.message}</li>
+                ))}
+              </ul>
+            </div>
+          </div>
+          <Link
+            href={runbookRoutes.updateBha(holeId)}
+            className={`${cardActionPrimary} mt-5 min-h-12 w-full sm:w-auto`}
+          >
+            Update BHA — next action
+          </Link>
+        </section>
+      ) : null}
+
       <section
         aria-labelledby="shift-heading"
         className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5"
@@ -399,6 +491,28 @@ export function CurrentHoleDashboard({
               Review handover
             </Link>
           </div>
+        ) : lifecycleBlocked ? (
+          <div>
+            <h2 id="shift-heading" className="text-lg font-bold text-[var(--tl-ink)]">
+              Shift start unavailable
+            </h2>
+            <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+              Hole status {holeStatusLabel(holeStatus)} must be resolved before
+              drilling work can continue.
+            </p>
+          </div>
+        ) : setupRequired ? (
+          <div>
+            <div>
+              <h2 id="shift-heading" className="text-lg font-bold text-[var(--tl-ink)]">
+                Shift locked until setup is complete
+              </h2>
+              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
+                Use the next action above to record BHA length and constant
+                stick-up.
+              </p>
+            </div>
+          </div>
         ) : (
           <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
             <div>
@@ -436,6 +550,15 @@ export function CurrentHoleDashboard({
               </span>
               <MoveRight aria-hidden="true" className="size-5" />
             </Link>
+          ) : lifecycleBlocked ? (
+            <div
+              aria-disabled="true"
+              aria-describedby="run-disabled-reason"
+              className="flex min-h-16 items-center gap-3 rounded-[var(--tl-radius-md)] border-2 border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-5 py-4 text-base font-bold text-[var(--tl-ink-muted)]"
+            >
+              <Drill aria-hidden="true" className="size-6" />
+              RECORD NEXT RUN — HOLE NOT OPERATIONAL
+            </div>
           ) : activeShift ? (
             <Link
               href={runbookRoutes.recordRun(holeId)}
@@ -444,6 +567,15 @@ export function CurrentHoleDashboard({
               <span className="flex items-center gap-3"><Drill aria-hidden="true" className="size-6" />RECORD NEXT RUN</span>
               <MoveRight aria-hidden="true" className="size-5" />
             </Link>
+          ) : setupRequired ? (
+            <div
+              aria-disabled="true"
+              aria-describedby="run-disabled-reason"
+              className="flex min-h-16 items-center gap-3 rounded-[var(--tl-radius-md)] border-2 border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-5 py-4 text-base font-bold text-[var(--tl-ink-muted)]"
+            >
+              <Drill aria-hidden="true" className="size-6" />
+              RECORD NEXT RUN — LOCKED
+            </div>
           ) : (
             <Link
               href={pending ? runbookRoutes.handover(holeId) : runbookRoutes.startShift(holeId)}
@@ -470,9 +602,13 @@ export function CurrentHoleDashboard({
             </Link>
           )}
         </div>
-        {!holeLocked && !activeShift ? (
+        {!holeLocked && (!activeShift || lifecycleBlocked) ? (
           <p id="run-disabled-reason" className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-            Run entry redirects to the required shift workflow.
+            {lifecycleBlocked
+              ? `Hole status ${holeStatusLabel(holeStatus)} does not allow drilling operations.`
+              : setupRequired
+              ? drillingReadiness.blockers.map(({ message }) => message).join(" ")
+              : "Start or accept a shift before recording the next run."}
           </p>
         ) : null}
         {!holeLocked ? (
@@ -494,7 +630,10 @@ export function CurrentHoleDashboard({
           <MetricDisplay label="Rod number" value={state?.currentRodNumber ?? "—"} emphasis="strong" />
           <MetricDisplay label="Current R/S" value={state ? formatMetres(state.currentRodStringDm) : "—"} />
           <MetricDisplay label="Measured stick-up" value={state?.measuredStickUpDm === undefined ? "Not entered" : formatMetres(state.measuredStickUpDm)} />
-          <MetricDisplay label="Overall recovery" value={formatRecoveryPercentage(recovery)} />
+          <MetricDisplay
+            label="Overall recovery"
+            value={recovery === null ? "—" : formatRecoveryPercentage(recovery)}
+          />
           <MetricDisplay label="Current tray" value={state?.currentTrayNumber ?? "—"} />
         </div>
       </section>

@@ -7,6 +7,7 @@ import { useEffect, useState } from "react";
 import {
   createBrowserRunbookServices,
   getOperationalTimelineEntries,
+  mapBottomHoleAssemblyTimelineEntries,
 } from "@/application/runbook";
 import { StatusPill } from "@/components/field/status-pill";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
@@ -37,6 +38,7 @@ type TimelineCategory =
   | "Tray"
   | "Casing"
   | "Component"
+  | "BHA"
   | "Shift"
   | "Hole";
 
@@ -57,6 +59,7 @@ function categoryTone(
   if (category === "Survey") return "info";
   if (category === "Tray") return "success";
   if (category === "Casing") return "warning";
+  if (category === "BHA") return "warning";
   if (category === "Shift") return "info";
   if (category === "Hole") return "warning";
   return "neutral";
@@ -89,7 +92,7 @@ function runTimelineEntries(
   const localIds = new Set(localRuns.map(({ localId }) => localId));
   const localNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
   const seedEntries: TimelineEntry[] = (
-    holeId === seed.hole.name ? seed.runs : []
+    holeId === seed.hole.localId ? seed.runs : []
   )
     .filter(
       (run) => !localIds.has(run.localId) && !localNumbers.has(run.runNumber),
@@ -155,6 +158,36 @@ function stageAuditTimelineEntries(
   const entries: TimelineEntry[] = [];
   for (const audit of audits) {
     if (audit.depthDm === undefined) continue;
+    if (
+      audit.action === "hole_setup_created" ||
+      audit.action === "hole_setup_updated"
+    ) {
+      const dip =
+        typeof audit.metadata.collarDipTenths === "number"
+          ? `${(audit.metadata.collarDipTenths / 10).toFixed(1)}°`
+          : "not recorded";
+      const azimuth =
+        typeof audit.metadata.collarAzimuthTenths === "number"
+          ? `${(audit.metadata.collarAzimuthTenths / 10).toFixed(1)}°`
+          : "not recorded";
+      const northReference =
+        typeof audit.metadata.collarNorthReference === "string"
+          ? ` ${audit.metadata.collarNorthReference}`
+          : "";
+      entries.push({
+        id: audit.localId,
+        category: "Hole",
+        depth: audit.depthDm,
+        occurredAt: audit.timestamp,
+        title:
+          audit.action === "hole_setup_created"
+            ? "Initial hole setup recorded"
+            : "Hole setup updated",
+        detail: `Dip ${dip} · azimuth ${azimuth}${northReference} · ${audit.userNameSnapshot}`,
+        href: runbookRoutes.surveySettings(holeId),
+      });
+      continue;
+    }
     if (
       audit.action === "hole_completed_timeline" ||
       audit.action === "hole_abandoned_timeline" ||
@@ -338,7 +371,8 @@ export function TimelinePreview({
       services.surveys.listByHole(holeId),
       services.trays.listByHole(holeId),
       Promise.resolve(services.runs.readCompletedRuns(holeId)),
-    ]).then(async ([audits, casingStrings, assignments, components, surveys, trays, completedRuns]) => {
+      services.bhaSetups.listByHole(holeId),
+    ]).then(async ([audits, casingStrings, assignments, components, surveys, trays, completedRuns, bhaSetups]) => {
       const localRuns =
         completedRuns.status === "invalid" ? [] : completedRuns.snapshots;
       const casingEvents = (
@@ -378,6 +412,15 @@ export function TimelinePreview({
           ...componentTimelineEntries(holeId, assignments, components),
           ...surveyTimelineEntries(holeId, surveys),
           ...trayTimelineEntries(holeId, trays),
+          ...mapBottomHoleAssemblyTimelineEntries(bhaSetups).map((entry) => ({
+            id: entry.id,
+            category: entry.category,
+            depth: entry.depthDm,
+            occurredAt: entry.occurredAt,
+            title: entry.title,
+            detail: entry.detail,
+            href: runbookRoutes.updateBha(holeId),
+          })),
           ...stageAuditTimelineEntries(holeId, audits),
         ].map((entry) => [entry.id, entry] as const),
       );
@@ -393,7 +436,7 @@ export function TimelinePreview({
       <StagePageHeader
         eyebrow="Operational timeline"
         title={`${holeId} depth timeline`}
-        description="Runs, shift events, surveys, trays, casing, components, and hole lifecycle events shown at their recorded depth position."
+        description="Runs, shifts, BHA changes, surveys, trays, casing, components, and hole lifecycle events shown at their recorded depth position."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
         action={
           <StatusPill tone="info">

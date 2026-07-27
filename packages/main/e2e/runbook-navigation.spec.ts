@@ -42,7 +42,12 @@ const moreTools: ReadonlyArray<{
 async function resetBrowserState(page: Page) {
   await page.goto(`/holes/${HOLE}/current`, { waitUntil: "domcontentloaded" });
   await page.evaluate(async () => {
+    const sessionKey = "targetlock:prototype:v1:operator-session";
+    const operatorSession = window.localStorage.getItem(sessionKey);
     window.localStorage.clear();
+    if (operatorSession) {
+      window.localStorage.setItem(sessionKey, operatorSession);
+    }
     if ("indexedDB" in window && typeof indexedDB.databases === "function") {
       const databases = await indexedDB.databases();
       await Promise.all(

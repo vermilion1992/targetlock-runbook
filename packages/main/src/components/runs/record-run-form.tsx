@@ -36,7 +36,6 @@ import {
   calculateRodNumber,
   decimetres,
   decimetresToMetres,
-  formatMetres,
   formatRecoveryPercentage,
   parseMetreInput,
   SIX_METRE_ROD_LENGTH,
@@ -724,25 +723,15 @@ export function RecordRunForm({
   const displayedValues = derived.ok ? derived.values : null;
   const recoveryWarning =
     displayedValues !== null && displayedValues.recoveryPercentage > 100;
-  const varianceLabel =
-    displayedValues === null
-      ? "Enter valid measurements"
-      : displayedValues.variance.kind === "exact"
-        ? "Exact recovery"
-        : `${displayedValues.variance.kind === "gain" ? "Core gain" : "Core loss"} ${formatMetres(displayedValues.variance.amount)}`;
-  const threeMetreRods = pendingEvents.filter(
-    ({ rodLengthDm }) => rodLengthDm === 30,
-  ).length;
-  const sixMetreRods = pendingEvents.length - threeMetreRods;
-  const rodChangeSummary =
-    pendingEvents.length === 0
-      ? "No rods added this run"
-      : [
-          threeMetreRods > 0 ? `${threeMetreRods} × 3.0 m` : null,
-          sixMetreRods > 0 ? `${sixMetreRods} × 6.0 m` : null,
-        ]
-          .filter(Boolean)
-          .join(" · ");
+  const startRodStringDm = decimetres(context.currentRodStringDm);
+  const liveRodStringDm =
+    displayedPosition?.rodString ?? startRodStringDm;
+  const rodDeltaDm = Number(liveRodStringDm) - Number(startRodStringDm);
+  const rodDeltaMetres = (rodDeltaDm / 10).toFixed(1);
+  const rodDeltaLabel =
+    rodDeltaDm === 0
+      ? "+0.0 m"
+      : `${rodDeltaDm > 0 ? "+" : "−"}${Math.abs(Number(rodDeltaMetres)).toFixed(1)} m`;
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -796,38 +785,35 @@ export function RecordRunForm({
       <form className="space-y-5 sm:space-y-6" onSubmit={handleSubmit(onSubmit)}>
         <SectionPanel
           title="Run measurements"
-          description="Enter stick-up to see drilled metres. Recovery defaults to drilled and can be adjusted."
+          description="Adjust the rod string, then enter measured stick-up and recovered core."
         >
-          <section
-            aria-labelledby="rod-change-heading"
-            className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-4"
-          >
-            <div className="flex flex-wrap items-start justify-between gap-3">
+          <section aria-label="Rod string controls" className="space-y-3">
+            <div className="flex flex-wrap items-end justify-between gap-3">
               <div>
-                <h3 id="rod-change-heading" className="font-bold text-[var(--tl-ink)]">
-                  Rod string
-                </h3>
-                <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-                  {rodChangeSummary}
+                <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+                  Current R/S
+                </p>
+                <p
+                  className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[var(--tl-ink)]"
+                  aria-live="polite"
+                >
+                  {metreNumber(liveRodStringDm)} m
                 </p>
               </div>
-              <div className="grid grid-cols-2 gap-2 text-right text-sm">
-                <span className="text-[var(--tl-ink-muted)]">Rod number</span>
-                <strong>{displayedPosition?.rodNumber ?? context.rodNumber}</strong>
-                <span className="text-[var(--tl-ink-muted)]">Current R/S</span>
-                <strong>
-                  {metreNumber(
-                    displayedPosition?.rodString ??
-                      decimetres(context.currentRodStringDm),
-                  )}{" "}
-                  m
-                </strong>
-              </div>
+              <p
+                aria-live="polite"
+                className={`text-sm font-bold ${
+                  rodDeltaDm > 0
+                    ? "text-[var(--tl-primary)]"
+                    : rodDeltaDm < 0
+                      ? "text-[var(--tl-warning)]"
+                      : "text-[var(--tl-ink-muted)]"
+                }`}
+              >
+                {rodDeltaLabel}
+              </p>
             </div>
-            <p className="mt-2 text-xs text-[var(--tl-ink-muted)]">
-              Bottom-hole assembly and constant stick-up are already included in R/S.
-            </p>
-            <div className="mt-4 grid gap-2 sm:grid-cols-3">
+            <div className="grid gap-2 sm:grid-cols-3">
               <button
                 type="button"
                 onClick={() => addRod(30)}
@@ -872,7 +858,6 @@ export function RecordRunForm({
                   min={0}
                   required
                   error={errors.stickUpMetres?.message}
-                  helpText="Depth = current R/S minus this measured stick-up."
                   className="h-16 text-2xl"
                 />
               )}
@@ -895,11 +880,6 @@ export function RecordRunForm({
                   min={0}
                   required
                   error={errors.recoveredMetres?.message}
-                  helpText={
-                    recoveredOverridden
-                      ? "Manually adjusted. Values above drilled are allowed as measured core gain."
-                      : "Automatically matches drilled metres until you adjust it."
-                  }
                   className="h-16 text-2xl"
                 />
               )}
@@ -937,14 +917,12 @@ export function RecordRunForm({
             </div>
           ) : null}
 
-          <div className="mt-5 grid grid-cols-2 gap-3 lg:grid-cols-4">
+          <div className="mt-5 grid grid-cols-3 gap-3">
             <MetricDisplay
               label="Depth"
               value={displayedPosition ? metreNumber(displayedPosition.holeDepth) : "—"}
               unit={displayedPosition ? "m" : undefined}
-              supportingText={`Previous ${formatMetres(decimetres(context.previousCompletedDepthDm))}`}
               emphasis="strong"
-              className="col-span-2 lg:col-span-1"
             />
             <MetricDisplay
               label="Drilled"
@@ -965,10 +943,6 @@ export function RecordRunForm({
                     )
                   : "—"
               }
-            />
-            <MetricDisplay
-              label="Loss / gain"
-              value={varianceLabel}
             />
           </div>
 
@@ -999,47 +973,46 @@ export function RecordRunForm({
           title="Comment"
           description="Add optional field context that should remain with this run."
         >
-          <div>
-            <label
-              htmlFor="run-comment"
-              className="mb-2 block text-sm font-bold text-[var(--tl-ink)]"
-            >
-              Comment
-            </label>
-            <Controller
-              name="comment"
-              control={control}
-              render={({ field }) => (
-                <Textarea
-                  {...field}
-                  id="run-comment"
-                  rows={4}
-                  maxLength={500}
-                  aria-invalid={Boolean(errors.comment)}
-                  aria-describedby={
-                    errors.comment ? "run-comment-error" : "run-comment-help"
-                  }
-                  placeholder="For example: competent core, minor natural breaks near run end."
-                  className="min-h-28 border-[var(--tl-border-strong)] bg-[var(--tl-surface)] text-base text-[var(--tl-ink)]"
-                />
-              )}
-            />
-            {errors.comment ? (
-              <p
-                id="run-comment-error"
-                className="mt-1 text-sm font-semibold text-[var(--tl-danger)]"
-              >
-                {errors.comment.message}
-              </p>
-            ) : (
-              <p
-                id="run-comment-help"
-                className="mt-1 text-sm text-[var(--tl-ink-muted)]"
-              >
-                Optional · up to 500 characters.
-              </p>
+          <label
+            htmlFor="run-comment"
+            className="mb-2 block text-sm font-bold text-[var(--tl-ink)]"
+          >
+            Run comment
+          </label>
+          <Controller
+            name="comment"
+            control={control}
+            render={({ field }) => (
+              <Textarea
+                {...field}
+                id="run-comment"
+                rows={4}
+                maxLength={500}
+                aria-invalid={Boolean(errors.comment)}
+                aria-describedby={
+                  errors.comment
+                    ? "run-comment-help run-comment-error"
+                    : "run-comment-help"
+                }
+                placeholder="Optional notes for this run"
+                className="min-h-28 border-[var(--tl-border-strong)] bg-[var(--tl-surface)] text-base text-[var(--tl-ink)]"
+              />
             )}
-          </div>
+          />
+          <p
+            id="run-comment-help"
+            className="mt-1 text-sm text-[var(--tl-ink-muted)]"
+          >
+            Optional · up to 500 characters.
+          </p>
+          {errors.comment ? (
+            <p
+              id="run-comment-error"
+              className="mt-1 text-sm font-semibold text-[var(--tl-danger)]"
+            >
+              {errors.comment.message}
+            </p>
+          ) : null}
         </SectionPanel>
 
         {saveStatus ? (

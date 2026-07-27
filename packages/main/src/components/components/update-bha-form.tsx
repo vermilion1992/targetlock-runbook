@@ -2,11 +2,11 @@
 
 import { Save } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { useEffect, useMemo, useRef, useState, type FormEvent } from "react";
 
 import {
   createBrowserRunbookServices,
-  getCurrentHoleState,
+  recordBottomHoleAssemblySetup,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetreInput } from "@/components/field/metre-input";
@@ -32,6 +32,7 @@ import {
   type Decimetres,
   type ReamerStyle,
 } from "@/domain";
+import { useOperatorSession } from "@/components/session";
 
 function metreInput(value: Decimetres): string {
   return decimetresToMetres(value).toFixed(1);
@@ -63,6 +64,11 @@ function FieldLabel({
 
 export function UpdateBhaForm({ holeId }: { holeId: string }) {
   const router = useRouter();
+  const { session } = useOperatorSession();
+  const identity = useRef({
+    operationId: operationId(),
+    effectiveAt: new Date().toISOString(),
+  });
   const [assemblyLength, setAssemblyLength] = useState("");
   const [constantStickUp, setConstantStickUp] = useState("");
   const [bitStyle, setBitStyle] = useState("");
@@ -81,11 +87,8 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
   const [message, setMessage] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [loading, setLoading] = useState(true);
+  const [hasExistingSetup, setHasExistingSetup] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
-  const [actor, setActor] = useState({
-    id: "local-operator",
-    name: "Local operator",
-  });
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
   const parentHref = runbookRoutes.currentHole(holeId);
 
@@ -100,12 +103,10 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
         }
         return;
       }
-      const [setup, state] = await Promise.all([
-        services.bhaSetups.getCurrent(holeId),
-        getCurrentHoleState(holeId, services.currentState),
-      ]);
+      const setup = await services.bhaSetups.getCurrent(holeId);
       if (!active) return;
       if (setup) {
+        setHasExistingSetup(true);
         setAssemblyLength(metreInput(setup.bottomHoleAssemblyLengthDm));
         setConstantStickUp(metreInput(setup.constantStickUpDm));
         setBitStyle(setup.bitStyle ?? "");
@@ -116,12 +117,6 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
         setBarrelSerial(setup.barrelSerialNumber ?? "");
         setRearReamerStyle(setup.rearReamerStyle ?? "");
         setRearReamerSerial(setup.rearReamerSerialNumber ?? "");
-      }
-      if (state.activeShift) {
-        setActor({
-          id: state.activeShift.primaryDrillerId,
-          name: state.activeShift.primaryDrillerNameSnapshot,
-        });
       }
       setLoading(false);
     };
@@ -160,7 +155,7 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
       );
       return;
     }
-    if (!reason.trim()) {
+    if (hasExistingSetup && !reason.trim()) {
       setMessage("Add a reason for the configuration change.");
       return;
     }
@@ -172,24 +167,30 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
     setSaving(true);
     setMessage(null);
     try {
-      await services.bhaSetups.save({
-        operationId: operationId(),
-        holeId,
-        effectiveAt: new Date().toISOString(),
-        bottomHoleAssemblyLengthDm: parsedAssembly.value,
-        constantStickUpDm: parsedStickUp.value,
-        bitStyle,
-        bitSerialNumber: bitSerial,
-        frontReamerStyle: frontReamerStyle || undefined,
-        frontReamerSerialNumber: frontReamerSerial,
-        barrelStyle: barrelStyle || undefined,
-        barrelSerialNumber: barrelSerial,
-        rearReamerStyle: rearReamerStyle || undefined,
-        rearReamerSerialNumber: rearReamerSerial,
-        reason: reason.trim(),
-        recordedByUserId: actor.id,
-        recordedByNameSnapshot: actor.name,
-      });
+      await recordBottomHoleAssemblySetup(
+        {
+          operationId: identity.current.operationId,
+          holeId,
+          effectiveAt: identity.current.effectiveAt,
+          bottomHoleAssemblyLengthDm: parsedAssembly.value,
+          constantStickUpDm: parsedStickUp.value,
+          bitStyle,
+          bitSerialNumber: bitSerial,
+          frontReamerStyle: frontReamerStyle || undefined,
+          frontReamerSerialNumber: frontReamerSerial,
+          barrelStyle: barrelStyle || undefined,
+          barrelSerialNumber: barrelSerial,
+          rearReamerStyle: rearReamerStyle || undefined,
+          rearReamerSerialNumber: rearReamerSerial,
+          reason: hasExistingSetup
+            ? reason.trim()
+            : "Initial drilling setup",
+          recordedByUserId: session?.operator.localId ?? "local-operator",
+          recordedByNameSnapshot:
+            session?.operator.displayName ?? "Local operator",
+        },
+        services,
+      );
       setIsDirty(false);
       router.push(`${parentHref}?notice=bha-updated`);
     } catch (cause) {
@@ -206,8 +207,12 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
         eyebrow="Bottom hole assembly"
-        title="Update BHA"
-        description="Record the active barrel setup: bit, front reamer, barrel, and rear reamer, plus full BHA size and constant stick-up."
+        title={hasExistingSetup ? "Update BHA" : "Initial BHA setup"}
+        description={
+          hasExistingSetup
+            ? "Update the BHA measurements or optional component details. This change will be retained in the hole timeline."
+            : "Enter the full BHA length and constant stick-up required before drilling. Component details can be added later."
+        }
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
@@ -224,11 +229,11 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
       >
         <SectionPanel
           title="Assembly measurements"
-          description="Base R/S = full BHA size − constant stick-up."
+          description="Base R/S = full BHA length − constant stick-up."
         >
           <div className="grid gap-4 md:grid-cols-3">
             <MetreInput
-              label="Full BHA size"
+              label="Full BHA length"
               value={assemblyLength}
               onValueChange={(value) => {
                 setAssemblyLength(value);
@@ -258,10 +263,17 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
           </div>
         </SectionPanel>
 
-        <SectionPanel
-          title="Active barrel setup"
-          description="Styles and serial numbers for the current BHA. Enter values directly — no inventory pick required."
+        <details
+          className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] shadow-[var(--tl-shadow-sm)]"
         >
+          <summary className="min-h-12 cursor-pointer px-4 py-3 font-bold text-[var(--tl-ink)] sm:px-5">
+            Optional component details
+          </summary>
+          <div className="border-t border-[var(--tl-border)] p-4 sm:p-5">
+            <p className="mb-5 text-sm text-[var(--tl-ink-muted)]">
+              Add bit, reamer and barrel styles or serial numbers now, or return
+              later.
+            </p>
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel htmlFor="bit-style">Bit style / type</FieldLabel>
@@ -395,22 +407,25 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
               />
             </div>
           </div>
-        </SectionPanel>
+          </div>
+        </details>
 
-        <label className="block space-y-1 text-sm">
-          <span className="font-semibold">
-            Reason for measurement or configuration change
-            <span className="ml-1 text-[var(--tl-danger)]">*</span>
-          </span>
-          <input
-            value={reason}
-            onChange={(event) => setReason(event.target.value)}
-            required
-            className="min-h-11 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-3"
-            placeholder="Required when saving"
-            disabled={loading}
-          />
-        </label>
+        {hasExistingSetup ? (
+          <label className="block space-y-1 text-sm">
+            <span className="font-semibold">
+              Reason for change
+              <span className="ml-1 text-[var(--tl-danger)]">*</span>
+            </span>
+            <input
+              value={reason}
+              onChange={(event) => setReason(event.target.value)}
+              required
+              className="min-h-11 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-3"
+              placeholder="Why is this setup changing?"
+              disabled={loading}
+            />
+          </label>
+        ) : null}
 
         <FieldActionButton
           type="submit"
@@ -420,7 +435,7 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
           fullWidth
         >
           <Save aria-hidden="true" className="size-5" />
-          Save BHA
+          {hasExistingSetup ? "Save BHA changes" : "Save initial setup"}
         </FieldActionButton>
       </form>
 

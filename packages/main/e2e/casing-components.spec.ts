@@ -2,7 +2,12 @@ import { expect, test, type Page } from "@playwright/test";
 
 async function reset(page: Page) {
   await page.goto("/holes/DDH041/current");
-  await page.evaluate(() => window.localStorage.clear());
+  await page.evaluate(() => {
+    const key = "targetlock:prototype:v1:operator-session";
+    const session = window.localStorage.getItem(key);
+    window.localStorage.clear();
+    if (session) window.localStorage.setItem(key, session);
+  });
   await page.reload();
 }
 
@@ -229,6 +234,37 @@ test("saves a confirmed within-run bit change and keeps immutable run disclosure
   await expect(page.getByText("PQ to 18.0 m; HQ to 42.0 m")).toBeVisible();
   await page.reload();
   await expect(changeRecord).toContainText("Bit changed at 697.0 m");
+});
+
+test("opens the organisation component registry and assignment detail", async ({
+  page,
+}) => {
+  await page.goto("/components?holeId=DDH041");
+  await expect(
+    page.getByRole("heading", { name: "Component Registry" }),
+  ).toBeVisible();
+  await page.getByRole("link", { name: /BIT-HQ-002193/ }).click();
+  await expect(page).toHaveURL(
+    "/components/component-bit-002193?holeId=DDH041",
+  );
+  await expect(
+    page.getByRole("heading", { name: "BIT-HQ-002193" }),
+  ).toBeVisible();
+  await expect(
+    page.getByRole("heading", { name: "Assignment history" }),
+  ).toBeVisible();
+});
+
+test("rejects reserved hole subpaths and routes the bare index safely", async ({
+  page,
+}) => {
+  await page.goto("/holes/completed/current");
+  await expect(
+    page.getByRole("heading", { name: "Page not found" }),
+  ).toBeVisible();
+
+  await page.goto("/holes");
+  await expect(page).toHaveURL("/projects");
 });
 
 test("Stage 3 routes fit approved widths and expose focus-managed warnings", async ({

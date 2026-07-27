@@ -22,6 +22,10 @@ import {
   createBrowserReportShareAdapter,
 } from "@/infrastructure/reports";
 import {
+  createBrowserProjectDirectoryRepository,
+  type ProjectDirectoryRepository,
+} from "@/infrastructure/projects";
+import {
   ddh041Stage5AuditEntries,
   ddh041Stage2CurrentState,
   ddh041Stage2Shifts,
@@ -67,6 +71,7 @@ export type BrowserRunbookServices = ShiftServices &
   TrayServices &
   HoleCompletionApplicationServices &
   ReportServices & {
+    readonly projects: ProjectDirectoryRepository;
     readonly bhaSetups: NonNullable<
       ReturnType<typeof createBrowserBottomHoleAssemblySetupRepository>
     >;
@@ -82,6 +87,12 @@ export type BrowserRunbookServices = ShiftServices &
   };
 
 export function createBrowserRunbookServices(): BrowserRunbookServices | null {
+  const projectsRaw = createBrowserProjectDirectoryRepository(
+    targetLockStage5Seed.organisation.localId,
+    [targetLockStage5Seed.project],
+    [targetLockStage5Seed.rig],
+  );
+  if (projectsRaw === null) return null;
   const migrationCandidates = targetLockStage5Seed.componentAssignments.flatMap(
     (assignment) => {
       const component = targetLockStage5Seed.components.find(
@@ -111,7 +122,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   const bhaSetupsRaw = createBrowserBottomHoleAssemblySetupRepository(
     targetLockStage5Seed.rodStringConfigurations.map((configuration) => ({
       ...configuration,
-      holeId: targetLockStage5Seed.hole.name,
+      holeId: targetLockStage5Seed.hole.localId,
     })),
     mutationGuard,
   );
@@ -224,6 +235,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   const trays = coordinate(traysRaw);
   const photos = coordinate(photosRaw);
   const reports = coordinate(reportsRaw);
+  const projects = coordinate(projectsRaw);
   const coordinatedMedia = coordinate(media);
   const coordinatedReportFiles = coordinate(reportFiles);
 
@@ -252,6 +264,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   const context = createHoleCompletionContextSource({
     currentState,
     completion,
+    projects,
     pendingOperations: {
       countPendingMediaOperations: async (holeId) =>
         (await trays.listPendingOperations(holeId)).length,
@@ -317,6 +330,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   });
 
   return {
+    projects,
     runs,
     shifts,
     audits,

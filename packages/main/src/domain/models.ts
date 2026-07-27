@@ -108,9 +108,9 @@ export interface Hole extends SyncMetadata {
   readonly plannedDepth: Decimetres;
   readonly currentDepth: Decimetres;
   readonly status: PersistedHoleStatus;
-  readonly collarEasting: number;
-  readonly collarNorthing: number;
-  readonly collarElevation: number;
+  readonly collarEasting?: number;
+  readonly collarNorthing?: number;
+  readonly collarElevation?: number;
 }
 
 export interface HoleConfiguration extends SyncMetadata {

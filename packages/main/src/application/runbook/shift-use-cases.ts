@@ -6,6 +6,7 @@ import {
   type ShiftType,
 } from "@/domain";
 import type { AuditRepository } from "@/infrastructure/audit";
+import type { CompletionRepository } from "@/infrastructure/completion";
 import type { RunRepository } from "@/infrastructure/drafts";
 import type {
   AcceptHandoverInput,
@@ -22,6 +23,10 @@ import {
   buildCloseAnalyticsSnapshot,
   type ShiftAnalyticsQueryServices,
 } from "./shift-analytics-query";
+import {
+  deriveDrillingReadiness,
+  drillingReadinessError,
+} from "./drilling-readiness";
 
 const DEVICE_ID = "local-runbook-device";
 
@@ -30,6 +35,8 @@ export interface ShiftServices {
   readonly shifts: ShiftRepository;
   readonly audits: AuditRepository;
   readonly runs: RunRepository;
+  readonly completion?: Pick<CompletionRepository, "getStatus"> &
+    Partial<Pick<CompletionRepository, "activateDraftHole">>;
   /** Optional: when present, close persists a Shift analytics snapshot. */
   readonly shiftAnalytics?: ShiftAnalyticsQueryServices;
   /** Optional: when present, Hole Statistics and reports load HoleAnalytics. */
@@ -89,6 +96,23 @@ export async function startRunbookShift(
   services: ShiftServices,
 ): Promise<RunbookShift> {
   const state = await getCurrentHoleState(input.holeId, services.currentState);
+  if (
+    services.completion !== undefined ||
+    services.currentState.bhaSetups !== undefined
+  ) {
+    const readiness = deriveDrillingReadiness({
+      holeStatus:
+        (await services.completion?.getStatus(input.holeId)) ?? undefined,
+      bhaSetup: state.bhaSetup,
+    });
+    if (!readiness.ready) {
+      throw drillingReadinessError(readiness, "start a shift");
+    }
+  }
+  await services.completion?.activateDraftHole?.(
+    input.holeId,
+    input.startedAt,
+  );
   const shift = await services.shifts.startShift({
     ...input,
     startingState: {

@@ -225,7 +225,7 @@ export const stage5CompletionSeed: CompletionRepositorySeed = {
   holes: [
     {
       ...targetLockStage4Seed.hole,
-      localId: targetLockStage4Seed.hole.name,
+      localId: targetLockStage4Seed.hole.localId,
       status: "ACTIVE",
     },
     seedHole("DDH038", "COMPLETED", 3_600, COMPLETED_AT),

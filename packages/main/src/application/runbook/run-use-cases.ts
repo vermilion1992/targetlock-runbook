@@ -6,6 +6,7 @@ import {
 } from "@/domain";
 import type { AuditRepository } from "@/infrastructure/audit";
 import type { CasingRepository } from "@/infrastructure/casing";
+import type { CompletionRepository } from "@/infrastructure/completion";
 import type {
   BottomHoleAssemblySetupRepository,
   ComponentAssignmentRepository,
@@ -19,6 +20,10 @@ import {
   type SaveRunResult,
 } from "@/infrastructure/drafts";
 import type { ShiftRepository } from "@/infrastructure/shifts";
+import {
+  deriveDrillingReadiness,
+  drillingReadinessError,
+} from "./drilling-readiness";
 
 const DEVICE_ID = "local-runbook-device";
 
@@ -30,6 +35,7 @@ export interface RunServices {
   readonly componentAssignments?: ComponentAssignmentRepository;
   readonly casing?: CasingRepository;
   readonly bhaSetups?: BottomHoleAssemblySetupRepository;
+  readonly completion?: Pick<CompletionRepository, "getStatus">;
 }
 
 interface Actor {
@@ -80,20 +86,28 @@ export async function startRun(
 ): Promise<RunDraftPayload> {
   const existing = services.runs.readDraft(input.holeId);
   if (existing.status === "invalid") throw new Error(existing.reason);
-  if (existing.status === "valid") return existing.envelope.payload;
 
   const activeShift = await services.shifts.getActiveShift(input.holeId);
   if (activeShift === null) {
     throw new Error("Start a Day Shift or Night Shift before recording runs.");
   }
-  const [activeBit, activeReamer, casingStrings, bhaSetup] = await Promise.all([
-    services.componentAssignments?.getActive(input.holeId, "BIT") ??
-      Promise.resolve(null),
-    services.componentAssignments?.getActive(input.holeId, "REAMER") ??
-      Promise.resolve(null),
-    services.casing?.listByHole(input.holeId) ?? Promise.resolve([]),
-    services.bhaSetups?.getCurrent(input.holeId) ?? Promise.resolve(null),
-  ]);
+  const [activeBit, activeReamer, casingStrings, bhaSetup, holeStatus] =
+    await Promise.all([
+      services.componentAssignments?.getActive(input.holeId, "BIT") ??
+        Promise.resolve(null),
+      services.componentAssignments?.getActive(input.holeId, "REAMER") ??
+        Promise.resolve(null),
+      services.casing?.listByHole(input.holeId) ?? Promise.resolve([]),
+      services.bhaSetups?.getCurrent(input.holeId) ?? Promise.resolve(null),
+      services.completion?.getStatus(input.holeId) ?? Promise.resolve(null),
+    ]);
+  if (services.bhaSetups !== undefined || services.completion !== undefined) {
+    const readiness = deriveDrillingReadiness({ holeStatus, bhaSetup });
+    if (!readiness.ready) {
+      throw drillingReadinessError(readiness, "record a run");
+    }
+  }
+  if (existing.status === "valid") return existing.envelope.payload;
   const [bit, reamer] = await Promise.all([
     activeBit === null || services.components === undefined
       ? Promise.resolve(null)
@@ -203,6 +217,16 @@ export async function completeRun(
   const activeShift = await services.shifts.getActiveShift(values.holeId);
   if (activeShift === null) {
     throw new Error("An active shift is required to complete this run.");
+  }
+  if (services.bhaSetups !== undefined || services.completion !== undefined) {
+    const [bhaSetup, holeStatus] = await Promise.all([
+      services.bhaSetups?.getCurrent(values.holeId) ?? Promise.resolve(null),
+      services.completion?.getStatus(values.holeId) ?? Promise.resolve(null),
+    ]);
+    const readiness = deriveDrillingReadiness({ holeStatus, bhaSetup });
+    if (!readiness.ready) {
+      throw drillingReadinessError(readiness, "record a run");
+    }
   }
   const payload = draft.envelope.payload;
   const snapshot: SavedRunSnapshot = {

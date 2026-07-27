@@ -23,6 +23,7 @@ async function createHoleWithoutCollar(
   await page.getByLabel("Collar azimuth (°)").fill("128.0");
 
   if (options?.withTarget) {
+    await page.locator("summary").filter({ hasText: "Optional setup" }).click();
     await page.getByTestId("new-hole-target-md").fill("650.0");
     await page.getByLabel("Target Easting (m)").fill("382575.0");
     await page.getByLabel("Target Northing (m)").fill("6543246.0");
@@ -33,9 +34,10 @@ async function createHoleWithoutCollar(
   }
 
   await page.getByTestId("new-hole-submit").click();
-  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/trajectory`), {
+  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/current`), {
     timeout: 30_000,
   });
+  await page.goto(`/holes/${holeId}/trajectory`);
 }
 
 test("Railway A — health and key routes load", async ({ page, request }) => {
@@ -69,6 +71,7 @@ test("Railway B — new hole with specified target entry direction", async ({
   await expect(page.getByTestId("new-hole-form")).toBeVisible({
     timeout: 30_000,
   });
+  await page.locator("summary").filter({ hasText: "Optional setup" }).click();
   await page.getByTestId("new-hole-id").fill(holeId);
   await page.getByLabel("Collar dip (°)").fill("-60.0");
   await page.getByLabel("Collar azimuth (°)").fill("128.0");
@@ -86,9 +89,10 @@ test("Railway B — new hole with specified target entry direction", async ({
   await page.getByTestId("new-hole-entry-dip").fill("-74.0");
   await page.getByTestId("new-hole-entry-azimuth").fill("145.0");
   await page.getByTestId("new-hole-submit").click();
-  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/trajectory`), {
+  await expect(page).toHaveURL(new RegExp(`/holes/${holeId}/current`), {
     timeout: 30_000,
   });
+  await page.goto(`/holes/${holeId}/trajectory`);
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
   await expect(page.getByTestId("trajectory-edit-target")).toHaveText(
     /Edit Target/i,

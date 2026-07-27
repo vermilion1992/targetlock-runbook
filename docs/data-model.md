@@ -32,10 +32,34 @@ azimuth difference = min(absolute, 3600 - absolute)
 
 ## Core records
 
+### Local operator session
+
+- A versioned device-local envelope stores operator profiles, one active
+  operator ID, sign-in time, role and each profile's last valid hole ID.
+- Normalized `(displayName, role)` reuses an existing profile instead of
+  creating duplicate local identities.
+- The active profile supplies immutable user ID/name snapshots to project/hole
+  onboarding, BHA setup and trajectory setup audits.
+- This record supports attribution and resume navigation only. It is not a
+  credential, authorisation grant or server-authenticated identity.
+
+### Project and rig directory
+
+- `Project` owns the client/site context and has an organisation-unique code.
+- `Rig` belongs to exactly one project; its serial number is unique within the
+  organisation directory.
+- Local project onboarding creates a Project and its initial Rig as one
+  idempotent operation so a newly created project can immediately own holes.
+- Project and rig display values are never substituted for `projectId` or
+  `rigId` ownership keys on hole records.
+
 ### Hole and rod-string configuration
 
 - `Hole` identifies the project, rig, size, plan, current depth, and lifecycle
   state.
+- Hole ID is required and is the canonical ownership key used by every
+  hole-owned local record. Duplicate IDs are rejected before trajectory or
+  operational records are created.
 - Canonical Stage 5 statuses:
   `DRAFT`, `ACTIVE`, `SUSPENDED`, `COMPLETION_REVIEW`, `COMPLETED`,
   `ABANDONED`, `ARCHIVED`. Legacy lowercase values
@@ -44,9 +68,17 @@ azimuth difference = min(absolute, 3600 - absolute)
 - `COMPLETED`, `ABANDONED`, and `ARCHIVED` are locked statuses.
 - `HoleConfiguration` is effective-dated for plan and orientation changes.
 - `RodStringConfiguration` stores BHA, constant stick-up, and the calculated
-  base R/S as branded decimetres.
+  base R/S as branded decimetres. Configurations are append-only and carry an
+  effective time/depth, actor and reason so timeline history can explain which
+  setup future Runs used.
 
 Base R/S is derived as `BHA - constant stick-up`.
+
+Operational readiness is derived, not persisted: a valid initial
+`RodStringConfiguration` is required before the first Shift or Run. Missing
+optional collar coordinates or target data does not block drilling setup.
+A newly created hole remains `DRAFT` through setup and transitions
+idempotently to `ACTIVE` when its first Shift starts.
 
 ### Rod event
 

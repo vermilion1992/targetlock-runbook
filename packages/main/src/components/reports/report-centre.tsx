@@ -107,12 +107,15 @@ export function ReportCentre({ holeId }: { holeId: string }) {
       setError("Browser storage is unavailable.");
       return;
     }
-    const [list, lifecycle, recipientList, failed] = await Promise.all([
+    const [list, lifecycle, failed] = await Promise.all([
       listGeneratedReports(holeId, services),
       services.completion.getLifecycleState(holeId),
-      services.reports.listRecipients({ holeId, projectId: "project-briggs" }),
       services.reports.listFailedTransactions(holeId),
     ]);
+    const recipientList = await services.reports.listRecipients({
+      holeId,
+      projectId: lifecycle?.hole.projectId,
+    });
     setReports(list);
     setFailedOps(failed);
     setRecipients(recipientList);

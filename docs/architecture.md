@@ -19,13 +19,29 @@ The existing application baseline is:
 
 ## Application shape
 
-TargetLock should live as a feature slice inside `packages/main`, exposed by an App Router route and wrapped in an isolated `RunbookLayout`. The root layout may continue to provide global CSS, fonts, theme, and toast infrastructure, but the feature must not inherit the dashboard navigation or dashboard-specific state.
+TargetLock lives as a feature slice inside `packages/main`. Public device-local
+sign-in uses `PublicLayout`; field start and global project/hole selection use
+`LibraryLayout`; hole-owned work uses `RunbookLayout`. The root layout provides
+global CSS, fonts, theme, toast infrastructure and the local operator-session
+provider, but none of these surfaces inherit dashboard navigation or
+dashboard-specific state.
 
 The implemented feature boundary is:
 
 ```text
 src/
+  app/(PublicLayout)/
+    sign-in/              device-local operator identification
+  app/(LibraryLayout)/
+    start/                 recent-hole and new-work decision page
+    projects/              project index
+    projects/new/          local Project + initial Rig onboarding
+    projects/[projectId]/  project-owned hole register
+    projects/[projectId]/holes/new/
+                           explicit project/rig hole onboarding
+    holes/completed/       completed/abandoned/reopened hole list
   app/(RunbookLayout)/holes/[holeId]/
+    layout.tsx             storage-backed existence boundary
     page.tsx              redirect to Current Hole
     current/               current-hole dashboard
     runs/                  redirect to Record Run
@@ -57,18 +73,17 @@ src/
     trajectory/            trajectory cockpit (+ plan/setup redirects)
     survey-settings/       Survey & Reference Settings (optional returnTo)
     statistics/            hole analytics
-  app/(RunbookLayout)/holes/completed/
-    page.tsx               completed/abandoned/reopened hole list
   app/(RunbookLayout)/components/
     page.tsx               organisation component registry
     new/                   fast component creation
-    [componentId]/         registry correction, assignment history, usage
+    [componentId]/         registry identity, corrections, assignment history
   components/
     app-shell/             isolated shell and theme controls
     casing/                casing history/forms/detail/support
     components/            registry/assignment/change/detail/support
     field/                 shared field controls and states
     holes/                 dashboard, completion review, reopen, locked panel
+    projects/              project index and project-owned hole register
     media/                 camera/file input and local-media rendering
     navigation/            primary rail/bottom nav, runbookRoutes,
                            resolveSafeReturnPath, RunbookPageBackLink,
@@ -90,6 +105,7 @@ src/
     completion/            org-scoped completion envelope, lock, reopen
     drafts/                repository, schema migration, storage adapter
     media/                 IndexedDB blobs, previews, verification
+    projects/              versioned local project/rig directory and onboarding
     reports/               PDF/Excel/CSV adapters, file + metadata repos, share
     shifts/                versioned shift repository and operation recovery
     surveys/               versioned survey/tool metadata repository
@@ -102,8 +118,12 @@ Domain calculations do not depend on React or browser storage.
 
 ## Runbook navigation model
 
-Primary destinations (no in-page Back): Current Hole, Runbook, Trays, Timeline,
-More — shared by desktop rail and phone bottom nav via `RunbookNavigation`.
+`/sign-in` is the public pilot entry and `/start` is the authenticated local
+decision boundary. Start confirms an existing hole before opening it and
+requires project selection before routing to new-hole onboarding. `/projects`
+remains the complete directory. Within a selected hole, primary destinations
+(no in-page Back) are Current Hole, Runbook, Trays, Trajectory and More — shared
+by desktop rail and phone bottom nav via `RunbookNavigation`.
 
 Secondary pages use `StagePageHeader.backTarget` with a named parent. Canonical
 parents for More tools resolve to `/holes/[holeId]/more`. Nested detail pages
@@ -115,10 +135,17 @@ See ADR-047 and `docs/runbook-navigation-matrix.md`.
 
 ## Runtime and data flow
 
-1. The route renders the TargetLock shell and stable seed context.
-2. Client-side form controls collect observations through React state and
+1. The root gateway reads the versioned browser-local operator session, then
+   routes to Sign In or Start. Library and Runbook layouts require an active
+   local operator; this is attribution and navigation continuity, not secure
+   authentication.
+2. The route renders the TargetLock shell and stable seed context.
+3. Client-side form controls collect observations through React state and
    React Hook Form where the existing workflow uses it.
-3. Zod validates input at the boundary and normalises display metres into integer decimetres.
+4. Zod validates input at the boundary and normalises display metres into integer decimetres.
+   Project creation atomically establishes the initial Rig. Hole creation
+   establishes identity/direction while optional collar/target details may be
+   deferred.
 4. Pure domain functions calculate initial/current R/S, hole depth, drilled length, and rod-count consistency.
 5. UI components render editable, calculated, valid, warning, and error states.
 6. A `RunRepository` saves and restores an unfinished draft and idempotent,
@@ -129,66 +156,70 @@ See ADR-047 and `docs/runbook-navigation-matrix.md`.
    completions, unfinished draft/rod events, active/pending shift,
    repository-backed casing strings, active component assignments and usage,
    surveys, trays, and survey-interval state.
-9. Shift use cases capture start/end snapshots and append audit records without
+9. Drilling readiness is derived from current repository state. A valid
+   effective BHA/CSU setup gates the first Shift and Run; optional design data
+   does not. Direct routes render the same blockers as Overview. Starting the
+   first Shift idempotently promotes its ready Hole from `DRAFT` to `ACTIVE`.
+10. Shift use cases capture start/end snapshots and append audit records without
    changing drilling arithmetic. Close freezes `closeAnalyticsSnapshot` from
    shared `calculateShiftAnalytics` (`domain/shift-analytics.ts`), loaded via
    `shift-analytics-query.ts` for close, handover, detail, history, Current
    Hole, and Current-Shift reports.
-10. Hole analytics reuse the same effective-record loaders via
+11. Hole analytics reuse the same effective-record loaders via
     `calculateHoleAnalytics` / `getHoleAnalytics` for Statistics UI,
     completed-Hole teasers, and Full-Hole / Hole Summary
     `ReportDocumentData.holeAnalytics`. Optional `completionId` scopes
     historical completion analytics after reopen.
-11. Casing use cases append immutable events and update the current projection.
+12. Casing use cases append immutable events and update the current projection.
     Component use cases transact an outgoing assignment close and incoming
     assignment open at one exact depth.
-12. The operational timeline reads casing events, component assignments,
+13. The operational timeline reads casing events, component assignments,
     surveys, and trays from their repositories. Audits supply shift events and
     Stage 4 correction/replacement events, preventing create-event duplicates
     after local changes.
-13. Run detail renders start-time component/casing snapshots from the run and
+14. Run detail renders start-time component/casing snapshots from the run and
     reconstructs within-run change disclosure from immutable component-change
     audits rather than mutable current assignment projections.
-14. `LocalSurveyRepository` stores organisation-scoped tool records, hole-
+15. `LocalSurveyRepository` stores organisation-scoped tool records, hole-
     scoped surveys, immutable corrections, and idempotent operation IDs in one
     version-1 localStorage envelope. Survey creation copies the selected tool
     name and serial into the survey.
-15. Survey input parses depth to integer decimetres and angles to integer
+16. Survey input parses depth to integer decimetres and angles to integer
     tenths. Warning assessment uses circular azimuth difference, allows a
     deliberately confirmed repeated depth as a new record, and never performs
     a trajectory or north-reference conversion inside the Survey layer.
     Trajectory comparison is owned by `LocalTrajectoryRepository` plus
     `getHoleTrajectoryComparison` / pure domain desurvey modules.
-15a. Trajectory graphics (Implementation 6) build a presentation view-model
+16a. Trajectory graphics (Implementation 6) build a presentation view-model
     from verified comparison coordinates and render Canvas UI / PDF vector
     panels / PNG exports without recalculating desurvey mathematics.
-16. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
+17. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
     and operation stages in localStorage. `IndexedDbMediaRepository` stores the
     original/preview blobs separately. A tray is activated only after its
     original is saved and verified.
-17. Tray detail derives related completed runs by positive interval overlap
+18. Tray detail derives related completed runs by positive interval overlap
     from seed plus local completions. It does not persist run IDs on the tray,
     split a run, include an in-progress run, or allocate run recovery.
-18. Current Hole merges survey/tray repositories into latest-survey, interval-
+19. Current Hole merges survey/tray repositories into latest-survey, interval-
     reminder, and latest-tray summaries. The timeline reads survey/tray
     records directly and correction/replacement audits separately.
-19. `LocalCompletionRepository` stores organisation-scoped hole statuses,
+20. `LocalCompletionRepository` stores organisation-scoped hole statuses,
     reviews, immutable completion snapshots, reopen history, and staged
     completion transactions in a version-1 Zod envelope. Legacy hole statuses
     normalise before lifecycle decisions.
-20. `evaluateHoleCompletion` produces blocking versus advisory checklist
+21. `evaluateHoleCompletion` produces blocking versus advisory checklist
     results. Authoritative final depth is the deepest finished completed-run
     depth; rod projection must reconcile before lock.
-21. Completion use cases progress
+22. Completion use cases progress
     `REVIEW_CREATED` → `SNAPSHOT_PERSISTED` → `COMPONENTS_CLOSED` →
     `HOLE_LOCKED` → `TIMELINE_APPENDED` → `AUDIT_APPENDED` → `COMPLETED`,
     with hydration recovery for interrupted stages.
-22. `HoleMutationGuard` wraps run/shift/casing/component/survey/tray mutators
+23. `HoleMutationGuard` wraps run/shift/casing/component/survey/tray mutators
     and throws `HoleLockedError` for `COMPLETED` / `ABANDONED` / `ARCHIVED`
     holes. Lock enforcement lives below the UI so route omission cannot bypass
     it. Reopen restores `ACTIVE` and appends reopen history without rewriting
     prior snapshots.
-23. Current Hole reads completion lifecycle for locked/completed dashboard
+24. Current Hole reads completion lifecycle for locked/completed dashboard
     variants. Browser services wire Stage 5 seed, completion repository, and
     the mutation guard.
 
