@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { Suspense } from "react";
 
 import { RunbookShell } from "@/components/app-shell/runbook-shell";
 
@@ -7,5 +8,15 @@ interface RunbookLayoutProps {
 }
 
 export default function RunbookLayout({ children }: RunbookLayoutProps) {
-  return <RunbookShell>{children}</RunbookShell>;
+  return (
+    <Suspense
+      fallback={
+        <main id="main-content" className="target-lock min-h-dvh">
+          {children}
+        </main>
+      }
+    >
+      <RunbookShell>{children}</RunbookShell>
+    </Suspense>
+  );
 }
