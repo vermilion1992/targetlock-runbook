@@ -327,9 +327,9 @@ export function RunDetail({
         description="Start-time serial and casing snapshots stay with this run; within-run changes come from immutable audit records."
       >
         <div className="grid gap-3 sm:grid-cols-2">
-          <MetricDisplay label="Active bit" value={bitSerial ?? "Not recorded"} />
+          <MetricDisplay label="Bit serial" value={bitSerial ?? "Not recorded"} />
           <MetricDisplay
-            label="Active reamer"
+            label="Front reamer serial"
             value={reamerSerial ?? "Not recorded"}
           />
           <MetricDisplay

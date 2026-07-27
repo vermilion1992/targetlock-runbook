@@ -22,7 +22,7 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   // 1. Open active test hole
   await page.goto("/holes/DDH041/current");
   await expect(
-    page.getByRole("heading", { name: "DDH041 current hole" }),
+    page.getByRole("heading", { name: "DDH041 overview" }),
   ).toBeVisible();
   await expect(page.getByRole("heading", { name: "No active shift" })).toBeVisible();
 
@@ -63,7 +63,7 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
     page.getByRole("heading", { name: "Record run 248", exact: true }),
   ).toBeVisible();
   await expect(page.getByText(/Draft saved locally/)).toBeVisible();
-  await page.getByRole("link", { name: "Back to current hole" }).click();
+  await page.getByRole("link", { name: "Back to Overview" }).click();
 
   // 6. Close and hand over to Night Shift
   await page.getByRole("link", { name: "Close shift" }).click();

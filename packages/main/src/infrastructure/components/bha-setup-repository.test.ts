@@ -27,7 +27,14 @@ const input = {
   effectiveAt: "2026-07-26T12:00:00.000Z",
   bottomHoleAssemblyLengthDm: decimetres(85),
   constantStickUpDm: decimetres(10),
+  bitStyle: "Impregnated",
+  bitSerialNumber: "BIT-099",
+  frontReamerStyle: "STANDARD" as const,
+  frontReamerSerialNumber: "FR-099",
+  barrelStyle: "CHROME" as const,
   barrelSerialNumber: "BARREL-099",
+  rearReamerStyle: "OVERSIZE" as const,
+  rearReamerSerialNumber: "RR-099",
   reason: "Measured before drilling",
   recordedByUserId: "user-1",
   recordedByNameSnapshot: "Driller One",
@@ -43,6 +50,10 @@ describe("LocalBottomHoleAssemblySetupRepository", () => {
 
     expect(saved.baseRodStringLengthDm).toBe(75);
     expect(saved.barrelSerialNumber).toBe("BARREL-099");
+    expect(saved.bitStyle).toBe("Impregnated");
+    expect(saved.frontReamerStyle).toBe("STANDARD");
+    expect(saved.rearReamerStyle).toBe("OVERSIZE");
+    expect(saved.barrelStyle).toBe("CHROME");
     await expect(repository.getCurrent("DDH099")).resolves.toEqual(saved);
     await expect(repository.listByHole("DDH100")).resolves.toEqual([]);
   });

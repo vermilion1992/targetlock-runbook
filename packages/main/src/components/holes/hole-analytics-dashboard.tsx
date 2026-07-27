@@ -97,7 +97,7 @@ export function HoleAnalyticsDashboard({ holeId }: { holeId: string }) {
             href={runbookRoutes.currentHole(holeId)}
             className="inline-flex min-h-11 items-center justify-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-4 font-semibold"
           >
-            Current Hole
+            Overview
           </Link>
         }
       />

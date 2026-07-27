@@ -32,7 +32,8 @@ export default async function CurrentHolePage({
         query.notice === "survey-saved" ||
         query.notice === "tray-saved" ||
         query.notice === "hole-completed" ||
-        query.notice === "hole-reopened"
+        query.notice === "hole-reopened" ||
+        query.notice === "bha-updated"
           ? query.notice
           : undefined
       }

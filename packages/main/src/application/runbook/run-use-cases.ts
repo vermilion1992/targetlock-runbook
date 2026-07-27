@@ -7,6 +7,7 @@ import {
 import type { AuditRepository } from "@/infrastructure/audit";
 import type { CasingRepository } from "@/infrastructure/casing";
 import type {
+  BottomHoleAssemblySetupRepository,
   ComponentAssignmentRepository,
   ComponentRepository,
 } from "@/infrastructure/components";
@@ -28,6 +29,7 @@ export interface RunServices {
   readonly components?: ComponentRepository;
   readonly componentAssignments?: ComponentAssignmentRepository;
   readonly casing?: CasingRepository;
+  readonly bhaSetups?: BottomHoleAssemblySetupRepository;
 }
 
 interface Actor {
@@ -84,12 +86,13 @@ export async function startRun(
   if (activeShift === null) {
     throw new Error("Start a Day Shift or Night Shift before recording runs.");
   }
-  const [activeBit, activeReamer, casingStrings] = await Promise.all([
+  const [activeBit, activeReamer, casingStrings, bhaSetup] = await Promise.all([
     services.componentAssignments?.getActive(input.holeId, "BIT") ??
       Promise.resolve(null),
     services.componentAssignments?.getActive(input.holeId, "REAMER") ??
       Promise.resolve(null),
     services.casing?.listByHole(input.holeId) ?? Promise.resolve([]),
+    services.bhaSetups?.getCurrent(input.holeId) ?? Promise.resolve(null),
   ]);
   const [bit, reamer] = await Promise.all([
     activeBit === null || services.components === undefined
@@ -123,8 +126,10 @@ export async function startRun(
     comment: "",
     activeBitAssignmentId: activeBit?.localId ?? null,
     activeReamerAssignmentId: activeReamer?.localId ?? null,
-    activeBitSerialNumberSnapshot: bit?.serialNumber ?? null,
-    activeReamerSerialNumberSnapshot: reamer?.serialNumber ?? null,
+    activeBitSerialNumberSnapshot:
+      bhaSetup?.bitSerialNumber ?? bit?.serialNumber ?? null,
+    activeReamerSerialNumberSnapshot:
+      bhaSetup?.frontReamerSerialNumber ?? reamer?.serialNumber ?? null,
     casingSummarySnapshot: casingSummary,
   };
   const saved = await services.runs.writeDraft(

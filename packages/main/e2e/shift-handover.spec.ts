@@ -50,7 +50,7 @@ test("continues one unfinished run across Day and Night Shift", async ({
   await expect(page.getByRole("heading", { name: "Record run 247" })).toBeVisible();
   await expect(page.getByText(/Draft saved locally/)).toBeVisible();
 
-  await page.getByRole("link", { name: "Back to current hole" }).click();
+  await page.getByRole("link", { name: "Back to Overview" }).click();
   await expect(page.getByRole("heading", { name: /CURRENT SHIFT|Active shift/i })).toBeVisible();
   await page.getByRole("link", { name: "Close shift" }).click();
   await expect(page.getByText("Run 247 is in progress")).toBeVisible();

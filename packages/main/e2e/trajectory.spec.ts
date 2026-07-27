@@ -221,7 +221,7 @@ test("Workflow 9 — Responsive and theme", async ({ page }) => {
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
 });
 
-test("Current Hole shows trajectory section", async ({ page }) => {
+test("Overview shows trajectory section", async ({ page }) => {
   await page.goto("/holes/DDH041/current");
   await expect(page.getByTestId("trajectory-tracking-card")).toBeVisible({
     timeout: 30_000,

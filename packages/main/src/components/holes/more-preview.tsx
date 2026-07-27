@@ -130,7 +130,7 @@ export function MorePreview({ holeId }: { holeId: string }) {
       id: "components",
       label: "Bottom hole assembly",
       description:
-        "Assembly measurements, constant stick-up, serials, bits and reamers.",
+        "Active barrel setup, full BHA size, stick-up, and bit/reamer serials.",
       icon: CircleDot,
       href: runbookRoutes.holeComponents(holeId),
     },

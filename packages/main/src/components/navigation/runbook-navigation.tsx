@@ -18,14 +18,14 @@ import {
 } from "@/components/navigation/runbook-routes";
 
 interface NavigationItem {
-  label: "Current Hole" | "Runbook" | "Trays" | "Trajectory" | "More";
+  label: "Overview" | "Runbook" | "Trays" | "Trajectory" | "More";
   href: (holeId: string) => string;
   icon: LucideIcon;
 }
 
 const navigationItems: readonly NavigationItem[] = [
   {
-    label: "Current Hole",
+    label: "Overview",
     href: runbookRoutes.currentHole,
     icon: LocateFixed,
   },
@@ -61,7 +61,7 @@ export function RunbookNavigation({
       {navigationItems.map((item) => {
         const href = item.href(holeId);
         const runCaptureActive =
-          item.label === "Current Hole" &&
+          item.label === "Overview" &&
           pathname.startsWith(
             `/holes/${encodeURIComponent(holeId)}/runs/`,
           );

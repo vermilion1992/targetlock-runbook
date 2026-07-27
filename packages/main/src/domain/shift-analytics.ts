@@ -250,7 +250,7 @@ export function buildShiftHandoverItems(input: {
     ) {
       items.push({
         code: "ACTIVE_REAMER",
-        message: `Reamer ${input.activeReamerSerial} remains active`,
+        message: `Front reamer ${input.activeReamerSerial} remains active`,
       });
     }
   }
@@ -267,7 +267,7 @@ export function buildShiftHandoverItems(input: {
 
 /**
  * Pure Shift analytics from repository-backed effective records.
- * Shared across close, handover, detail, history, Current Hole, and reports.
+ * Shared across close, handover, detail, history, Overview, and reports.
  */
 export function calculateShiftAnalytics(
   input: CalculateShiftAnalyticsInput,

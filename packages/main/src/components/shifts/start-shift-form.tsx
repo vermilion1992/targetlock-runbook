@@ -261,7 +261,26 @@ export function StartShiftForm({
                 <MetricDisplay label="Stick-up" value={state.measuredStickUpDm === undefined ? "Not entered" : formatMetres(state.measuredStickUpDm)} />
                 <MetricDisplay label="Next run" value={state.nextRunNumber} />
                 <MetricDisplay label="Current tray" value={state.currentTrayNumber ?? "—"} />
-                <MetricDisplay label="Active bit" value={state.activeBitSerialNumber ?? "—"} />
+                <MetricDisplay
+                  label="Bit serial"
+                  value={
+                    state.bhaSetup?.bitSerialNumber ??
+                    state.activeBitSerialNumber ??
+                    "—"
+                  }
+                />
+                <MetricDisplay
+                  label="Front reamer"
+                  value={
+                    state.bhaSetup?.frontReamerSerialNumber ??
+                    state.activeReamerSerialNumber ??
+                    "—"
+                  }
+                />
+                <MetricDisplay
+                  label="Rear reamer"
+                  value={state.bhaSetup?.rearReamerSerialNumber ?? "—"}
+                />
                 <MetricDisplay label="Latest survey" value={state.latestSurveyDepthDm === undefined ? "—" : formatMetres(decimetres(state.latestSurveyDepthDm))} />
               </div>
             )}

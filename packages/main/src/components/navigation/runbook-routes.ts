@@ -50,6 +50,7 @@ export const runbookRoutes = {
   correctCasing: (holeId: string, casingId: string) =>
     `${holeBase(holeId)}/casing/${encodeURIComponent(casingId)}/correct`,
   holeComponents: (holeId: string) => `${holeBase(holeId)}/components`,
+  updateBha: (holeId: string) => `${holeBase(holeId)}/components/bha`,
   changeBit: (holeId: string) =>
     `${holeBase(holeId)}/components/bit/change`,
   changeReamer: (holeId: string) =>

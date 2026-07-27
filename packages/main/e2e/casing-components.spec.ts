@@ -115,15 +115,20 @@ test("changes bit and reamer at exact depth with persistent timeline records", a
 
   await page.reload();
   await expect(page.getByText("REA-HQ-001104", { exact: true }).first()).toBeVisible();
-  await page.goto("/holes/DDH041/current");
+  await page.goto("/holes/DDH041/components");
   const bitCard = page.locator("article").filter({
-    has: page.getByRole("heading", { name: "Active bit", exact: true }),
+    has: page.getByText("Inventory Bit", { exact: true }),
   });
   const reamerCard = page.locator("article").filter({
-    has: page.getByRole("heading", { name: "Active reamer", exact: true }),
+    has: page.getByText("Inventory Reamer", { exact: true }),
   });
   await expect(bitCard).toContainText("BIT-HQ-003007");
   await expect(reamerCard).toContainText("REA-HQ-001104");
+  await page.goto("/holes/DDH041/current");
+  await expect(page.getByTestId("bha-overview-card")).toBeVisible();
+  await expect(
+    page.getByRole("link", { name: "Update BHA", exact: true }),
+  ).toBeVisible();
   await page.goto("/holes/DDH041/timeline");
   await expect(
     page

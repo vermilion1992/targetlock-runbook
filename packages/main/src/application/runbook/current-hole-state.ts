@@ -33,6 +33,7 @@ import type {
   BottomHoleAssemblySetupRepository,
   ComponentAssignmentRepository,
   ComponentRepository,
+  BottomHoleAssemblySetup,
 } from "@/infrastructure/components";
 import type { SurveyRepository } from "@/infrastructure/surveys";
 import type { TrayRepository } from "@/infrastructure/trays";
@@ -68,6 +69,7 @@ export interface CurrentHoleState {
   readonly activeBitUsage?: ComponentUsage;
   readonly activeReamerUsage?: ComponentUsage;
   readonly casingStrings: readonly CasingString[];
+  readonly bhaSetup: BottomHoleAssemblySetup | null;
 }
 
 export interface CurrentHoleStateDependencies {
@@ -315,8 +317,10 @@ export async function getCurrentHoleState(
       surveyRecords,
       preferredSurveyIntervalDm,
     ),
-    activeBitSerialNumber: activeBit?.serialNumber,
-    activeReamerSerialNumber: activeReamer?.serialNumber,
+    activeBitSerialNumber:
+      currentBhaSetup?.bitSerialNumber ?? activeBit?.serialNumber,
+    activeReamerSerialNumber:
+      currentBhaSetup?.frontReamerSerialNumber ?? activeReamer?.serialNumber,
     activeBitAssignment: activeBitAssignment ?? undefined,
     activeReamerAssignment: activeReamerAssignment ?? undefined,
     activeBitUsage:
@@ -328,5 +332,6 @@ export async function getCurrentHoleState(
         ? undefined
         : calculateComponentUsage(activeReamerAssignment, usageRuns),
     casingStrings,
+    bhaSetup: currentBhaSetup ?? null,
   };
 }

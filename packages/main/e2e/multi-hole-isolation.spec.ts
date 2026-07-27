@@ -60,6 +60,6 @@ test("keeps secondary-hole context across casing and global component routes", a
     page.getByRole("heading", { name: "Add Bit serial" }),
   ).toBeVisible();
   await expect(
-    page.getByRole("link", { name: "Current Hole", exact: true }),
+    page.getByRole("link", { name: "Overview", exact: true }),
   ).toHaveAttribute("href", `/holes/${FOREIGN_HOLE}/current`);
 });

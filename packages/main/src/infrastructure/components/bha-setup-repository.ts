@@ -3,7 +3,9 @@ import { z } from "zod";
 import {
   calculateBaseRodString,
   decimetres,
+  type BarrelStyle,
   type Decimetres,
+  type ReamerStyle,
   type RodStringConfiguration,
 } from "@/domain";
 import {
@@ -14,6 +16,9 @@ import type { HoleMutationGuardPort } from "@/infrastructure/completion";
 
 const STORAGE_VERSION = 1 as const;
 
+const barrelStyleSchema = z.enum(["STANDARD", "FLEXI", "CHROME"]);
+const reamerStyleSchema = z.enum(["BLANK", "STANDARD", "OVERSIZE"]);
+
 const setupSchema = z.object({
   localId: z.string().min(1),
   holeId: z.string().min(1),
@@ -21,7 +26,14 @@ const setupSchema = z.object({
   bottomHoleAssemblyLengthDm: z.number().int().positive(),
   constantStickUpDm: z.number().int().nonnegative(),
   baseRodStringLengthDm: z.number().int().nonnegative(),
+  bitStyle: z.string().trim().max(100).optional(),
+  bitSerialNumber: z.string().trim().max(100).optional(),
+  frontReamerStyle: reamerStyleSchema.optional(),
+  frontReamerSerialNumber: z.string().trim().max(100).optional(),
+  barrelStyle: barrelStyleSchema.optional(),
   barrelSerialNumber: z.string().trim().max(100).optional(),
+  rearReamerStyle: reamerStyleSchema.optional(),
+  rearReamerSerialNumber: z.string().trim().max(100).optional(),
   innerTubeSerialNumber: z.string().trim().max(100).optional(),
   overshotSerialNumber: z.string().trim().max(100).optional(),
   reason: z.string().trim().min(1).max(500),
@@ -42,7 +54,14 @@ export interface BottomHoleAssemblySetup {
   readonly bottomHoleAssemblyLengthDm: Decimetres;
   readonly constantStickUpDm: Decimetres;
   readonly baseRodStringLengthDm: Decimetres;
+  readonly bitStyle?: string;
+  readonly bitSerialNumber?: string;
+  readonly frontReamerStyle?: ReamerStyle;
+  readonly frontReamerSerialNumber?: string;
+  readonly barrelStyle?: BarrelStyle;
   readonly barrelSerialNumber?: string;
+  readonly rearReamerStyle?: ReamerStyle;
+  readonly rearReamerSerialNumber?: string;
   readonly innerTubeSerialNumber?: string;
   readonly overshotSerialNumber?: string;
   readonly reason: string;
@@ -56,7 +75,14 @@ export interface SaveBottomHoleAssemblySetupInput {
   readonly effectiveAt: string;
   readonly bottomHoleAssemblyLengthDm: Decimetres;
   readonly constantStickUpDm: Decimetres;
+  readonly bitStyle?: string;
+  readonly bitSerialNumber?: string;
+  readonly frontReamerStyle?: ReamerStyle;
+  readonly frontReamerSerialNumber?: string;
+  readonly barrelStyle?: BarrelStyle;
   readonly barrelSerialNumber?: string;
+  readonly rearReamerStyle?: ReamerStyle;
+  readonly rearReamerSerialNumber?: string;
   readonly innerTubeSerialNumber?: string;
   readonly overshotSerialNumber?: string;
   readonly reason: string;
@@ -74,6 +100,11 @@ export interface BottomHoleAssemblySetupRepository {
 
 function storageKey(holeId: string): string {
   return `targetlock:prototype:v${STORAGE_VERSION}:hole:${encodeURIComponent(holeId)}:bha-setups`;
+}
+
+function optionalTrimmed(value: string | undefined): string | undefined {
+  const trimmed = value?.trim();
+  return trimmed ? trimmed : undefined;
 }
 
 function asSetup(value: z.infer<typeof setupSchema>): BottomHoleAssemblySetup {
@@ -168,16 +199,25 @@ export class LocalBottomHoleAssemblySetupRepository
       input.constantStickUpDm,
     );
     const setup = setupSchema.parse({
-      ...input,
       localId: input.operationId,
-      bottomHoleAssemblyLengthDm: Number(
-        input.bottomHoleAssemblyLengthDm,
-      ),
+      holeId: input.holeId,
+      effectiveAt: input.effectiveAt,
+      bottomHoleAssemblyLengthDm: Number(input.bottomHoleAssemblyLengthDm),
       constantStickUpDm: Number(input.constantStickUpDm),
       baseRodStringLengthDm: Number(baseRodStringLengthDm),
-      barrelSerialNumber: input.barrelSerialNumber?.trim() || undefined,
-      innerTubeSerialNumber: input.innerTubeSerialNumber?.trim() || undefined,
-      overshotSerialNumber: input.overshotSerialNumber?.trim() || undefined,
+      bitStyle: optionalTrimmed(input.bitStyle),
+      bitSerialNumber: optionalTrimmed(input.bitSerialNumber),
+      frontReamerStyle: input.frontReamerStyle,
+      frontReamerSerialNumber: optionalTrimmed(input.frontReamerSerialNumber),
+      barrelStyle: input.barrelStyle,
+      barrelSerialNumber: optionalTrimmed(input.barrelSerialNumber),
+      rearReamerStyle: input.rearReamerStyle,
+      rearReamerSerialNumber: optionalTrimmed(input.rearReamerSerialNumber),
+      innerTubeSerialNumber: optionalTrimmed(input.innerTubeSerialNumber),
+      overshotSerialNumber: optionalTrimmed(input.overshotSerialNumber),
+      reason: input.reason.trim(),
+      recordedByUserId: input.recordedByUserId,
+      recordedByNameSnapshot: input.recordedByNameSnapshot,
     });
     this.storage.setItem(
       storageKey(input.holeId),

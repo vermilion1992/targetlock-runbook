@@ -172,7 +172,7 @@ export function HoleComponentSummary({
       <StagePageHeader
         eyebrow="Stage 3 · downhole setup"
         title={`${holeId} bottom hole assembly`}
-        description="Assembly measurements, constant stick-up, serial numbers, and exact-depth bit and reamer changes."
+        description="Active barrel setup (bit, front reamer, barrel, rear reamer), full BHA size, constant stick-up, and assignment history."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
       />
 
@@ -195,12 +195,16 @@ export function HoleComponentSummary({
       <section aria-labelledby="active-components-heading">
         <div className="mb-3 flex items-center justify-between gap-3">
           <h2 id="active-components-heading" className="text-lg font-bold text-[var(--tl-ink)]">
-            Active components
+            Assignment history tools
           </h2>
           <StatusPill tone={state?.shiftLabel ? "success" : "warning"}>
             {state?.shiftLabel ? "Shift ready" : "No active shift"}
           </StatusPill>
         </div>
+        <p className="mb-3 text-sm text-[var(--tl-ink-muted)]">
+          Depth-exact inventory bit and reamer changes remain available for usage
+          tracking. The active barrel setup above is the operational source of truth.
+        </p>
         <div className="grid gap-4 md:grid-cols-2">
           {(["BIT", "REAMER"] as const).map((type) => {
             const assignment = type === "BIT" ? state?.bit ?? null : state?.reamer ?? null;
@@ -217,7 +221,7 @@ export function HoleComponentSummary({
                     </span>
                     <div>
                       <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-primary)]">
-                        Active {titleCase(type)}
+                        Inventory {titleCase(type)}
                       </p>
                       <h3 className="mt-1 break-all text-lg font-bold text-[var(--tl-ink)]">
                         {statistic?.component.serialNumber ?? "Not assigned"}

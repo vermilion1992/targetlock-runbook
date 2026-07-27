@@ -90,7 +90,7 @@ test("Workflow 2 — Shared Run credited to completing Shift", async ({
   await expect(page.getByRole("heading", { name: "Record run 246" })).toBeVisible();
   await page.getByRole("button", { name: "Add 3.0 m" }).click();
   await page.getByRole("textbox", { name: "Measured stick-up" }).fill("0.1");
-  await page.getByRole("link", { name: "Back to current hole" }).click();
+  await page.getByRole("link", { name: "Back to Overview" }).click();
 
   await page.getByRole("link", { name: "Close shift" }).click();
   await page.getByRole("button", { name: "Close and hand over" }).click();
@@ -198,7 +198,8 @@ test("Workflow 4 — Recovery correction updates recovery not metres", async ({
 
   await page.goto("/holes/DDH041/current");
   const summary = page.getByTestId("current-shift-summary");
-  await expect(summary.getByText("Weighted recovery")).toBeVisible();
+  await expect(summary.getByText("Metres completed")).toBeVisible();
+  await expect(summary.getByText("Runs completed")).toBeVisible();
   if (metresBefore) {
     await expect(summary.getByText(metresBefore)).toBeVisible();
   }

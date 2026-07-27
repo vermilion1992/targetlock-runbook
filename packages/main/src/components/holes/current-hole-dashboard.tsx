@@ -5,7 +5,6 @@ import {
   Camera,
   CheckCircle2,
   Clock3,
-  CircleDot,
   Compass,
   Cylinder,
   Drill,
@@ -29,8 +28,6 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { holeStatusLabel } from "@/components/holes/completion-support";
 import { HoleLockedPanel } from "@/components/holes/hole-locked-panel";
-import { QuickActions } from "@/components/holes/quick-actions";
-import { HoleRecordSearch } from "@/components/holes/hole-record-search";
 import {
   LocalPrototypeNotice,
   StagePageHeader,
@@ -38,6 +35,12 @@ import {
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatOptionalMetres } from "@/components/holes/hole-analytics-format";
 import { formatRecoveryTenths } from "@/components/shifts/shift-analytics-format";
+import { BhaBarrelSetupDisplay } from "@/components/components/bha-barrel-setup-display";
+import {
+  cardActionPrimary,
+  cardActionSecondary,
+  cardActionWarning,
+} from "@/components/field/card-action-styles";
 import {
   addDecimetres,
   calculateRecoveryPercentage,
@@ -52,7 +55,7 @@ import {
 import type { TargetLockStage1Seed } from "@/infrastructure/seed";
 import {
   formatMetresValue,
-  formatVerticalOfPlan,
+  formatSignedMetres,
 } from "@/components/trajectory/trajectory-format";
 
 export function CurrentHoleDashboard({
@@ -69,7 +72,8 @@ export function CurrentHoleDashboard({
     | "survey-saved"
     | "tray-saved"
     | "hole-completed"
-    | "hole-reopened";
+    | "hole-reopened"
+    | "bha-updated";
 }) {
   const [state, setState] = useState<CurrentHoleState | null>(null);
   const [lifecycle, setLifecycle] = useState<HoleLifecycleState | null>(null);
@@ -185,7 +189,7 @@ export function CurrentHoleDashboard({
             ? `${seed.project.code} · ${seed.rig.name}`
             : "Local operational hole"
         }
-        title={`${holeId} current hole`}
+        title={`${holeId} overview`}
         description={
           isSeedHole
             ? `${seed.project.name} · ${seed.hole.holeSize} · planned ${formatMetres(seed.hole.plannedDepth)}`
@@ -235,7 +239,9 @@ export function CurrentHoleDashboard({
                       ? "Hole completed and locked. Drilling mutations are blocked."
                       : notice === "hole-reopened"
                         ? "Hole reopened to Active. Review continuity before recording new work."
-                        : "Tray photograph verified and saved locally."}
+                        : notice === "bha-updated"
+                          ? "Bottom-hole assembly updated. Overview and rod-string base length use the new setup."
+                          : "Tray photograph verified and saved locally."}
           </p>
         </div>
       ) : null}
@@ -340,50 +346,48 @@ export function CurrentHoleDashboard({
           </div>
         ) : activeShift ? (
           <div className="space-y-4" data-testid="current-shift-summary">
-            <div className="flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
-              <div className="flex items-center gap-3">
-                <span className="flex size-11 items-center justify-center rounded-full bg-[var(--tl-success-soft)] text-[var(--tl-success)]">
-                  <UserRound aria-hidden="true" className="size-5" />
-                </span>
-                <div>
-                  <h2 id="shift-heading" className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-                    CURRENT SHIFT
-                  </h2>
-                  <p className="text-lg font-bold text-[var(--tl-ink)]">
-                    {activeShift.shiftType === "DAY" ? "Day Shift" : "Night Shift"} — {activeShift.shiftDate}
-                  </p>
-                  <p className="text-sm text-[var(--tl-ink-muted)]">
-                    Driller: {activeShift.primaryDrillerNameSnapshot}
-                  </p>
-                </div>
-              </div>
-              <div className="flex flex-wrap gap-2">
-                <Link href={runbookRoutes.shiftDetail(holeId, activeShift.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline">
-                  VIEW SHIFT
-                </Link>
-                <Link href={runbookRoutes.closeShift(holeId, activeShift.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-warning)] px-4 font-bold text-[var(--tl-ink)] no-underline">
-                  Close shift
-                </Link>
+            <div className="flex items-center gap-3">
+              <span className="flex size-11 items-center justify-center rounded-full bg-[var(--tl-success-soft)] text-[var(--tl-success)]">
+                <UserRound aria-hidden="true" className="size-5" />
+              </span>
+              <div>
+                <h2 id="shift-heading" className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+                  CURRENT SHIFT
+                </h2>
+                <p className="text-lg font-bold text-[var(--tl-ink)]">
+                  {activeShift.shiftType === "DAY" ? "Day Shift" : "Night Shift"} — {activeShift.shiftDate}
+                </p>
+                <p className="text-sm text-[var(--tl-ink-muted)]">
+                  Driller: {activeShift.primaryDrillerNameSnapshot}
+                </p>
               </div>
             </div>
-            {shiftAnalytics ? (
-              <div className="grid grid-cols-3 gap-3">
-                <MetricDisplay
-                  label="Metres completed"
-                  value={formatMetres(shiftAnalytics.metresCompletedDm)}
-                />
-                <MetricDisplay
-                  label="Runs completed"
-                  value={shiftAnalytics.completedRunCount}
-                />
-                <MetricDisplay
-                  label="Weighted recovery"
-                  value={formatRecoveryTenths(
-                    shiftAnalytics.weightedRecoveryTenths,
-                  )}
-                />
-              </div>
-            ) : null}
+            <div className="grid grid-cols-2 gap-3">
+              {shiftAnalytics ? (
+                <>
+                  <MetricDisplay
+                    label="Metres completed"
+                    value={formatMetres(shiftAnalytics.metresCompletedDm)}
+                  />
+                  <MetricDisplay
+                    label="Runs completed"
+                    value={shiftAnalytics.completedRunCount}
+                  />
+                </>
+              ) : null}
+              <Link
+                href={runbookRoutes.shiftDetail(holeId, activeShift.localId)}
+                className={cardActionSecondary}
+              >
+                View shift
+              </Link>
+              <Link
+                href={runbookRoutes.closeShift(holeId, activeShift.localId)}
+                className={cardActionWarning}
+              >
+                Close shift
+              </Link>
+            </div>
           </div>
         ) : pending ? (
           <div>
@@ -511,18 +515,13 @@ export function CurrentHoleDashboard({
           ) : (
             <p className="mt-3 text-[var(--tl-ink-muted)]">No survey recorded.</p>
           )}
-          {state?.surveyIntervalReminder ? (
-            <p className="mt-3 rounded-[var(--tl-radius-sm)] bg-[var(--tl-surface-raised)] p-3 text-sm font-bold">
-              {state.surveyIntervalReminder.status === "DUE_IN"
-                ? `Next survey due in approximately ${formatMetres(state.surveyIntervalReminder.distanceDm)}`
-                : state.surveyIntervalReminder.status === "EXCEEDED"
-                  ? `Survey interval exceeded by ${formatMetres(state.surveyIntervalReminder.distanceDm)}`
-                  : "Survey is due now"}
-            </p>
-          ) : null}
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={runbookRoutes.addSurvey(holeId)} className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">Add survey</Link>
-            <Link href={runbookRoutes.surveys(holeId)} className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">View history</Link>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Link href={runbookRoutes.addSurvey(holeId)} className={cardActionPrimary}>
+              Add survey
+            </Link>
+            <Link href={runbookRoutes.surveys(holeId)} className={cardActionSecondary}>
+              View history
+            </Link>
           </div>
         </article>
         <article className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5">
@@ -546,9 +545,13 @@ export function CurrentHoleDashboard({
           ) : (
             <p className="mt-3 text-[var(--tl-ink-muted)]">No completed tray recorded.</p>
           )}
-          <div className="mt-4 flex flex-wrap gap-3">
-            <Link href={runbookRoutes.addTray(holeId)} className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">Photograph next tray</Link>
-            <Link href={runbookRoutes.trays(holeId)} className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">View library</Link>
+          <div className="mt-4 grid grid-cols-2 gap-3">
+            <Link href={runbookRoutes.addTray(holeId)} className={cardActionPrimary}>
+              Photograph tray
+            </Link>
+            <Link href={runbookRoutes.trays(holeId)} className={cardActionSecondary}>
+              View library
+            </Link>
           </div>
         </article>
       </section>
@@ -583,7 +586,7 @@ export function CurrentHoleDashboard({
             />
             <MetricDisplay
               label="Vertical deviation from plan"
-              value={formatVerticalOfPlan(
+              value={formatSignedMetres(
                 trajectory.currentTrackingPoint.deltaRlM,
               )}
             />
@@ -601,7 +604,7 @@ export function CurrentHoleDashboard({
           <div className="mt-4">
             <Link
               href={runbookRoutes.trajectory(holeId)}
-              className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
+              className={cardActionPrimary}
             >
               View trajectory
             </Link>
@@ -609,120 +612,59 @@ export function CurrentHoleDashboard({
         </section>
       ) : null}
 
-      <HoleRecordSearch holeId={holeId} />
+      <article className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5">
+        <div className="flex items-center gap-2">
+          <Cylinder aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
+          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+            Casing
+          </h2>
+        </div>
+        {state?.casingStrings.some(({ status }) => status === "ACTIVE") ? (
+          <ul className="mt-3 space-y-1">
+            {state.casingStrings
+              .filter(({ status }) => status === "ACTIVE")
+              .map((casing) => (
+                <li key={casing.localId} className="font-bold text-[var(--tl-ink)]">
+                  {casing.casingSize} to {formatMetres(casing.currentEndDepthDm)}
+                </li>
+              ))}
+          </ul>
+        ) : (
+          <p className="mt-3 font-bold text-[var(--tl-ink)]">No casing recorded</p>
+        )}
+        <div className="mt-4">
+          <Link
+            href={
+              state?.casingStrings.length
+                ? runbookRoutes.casing(holeId)
+                : runbookRoutes.addCasing(holeId)
+            }
+            className={cardActionPrimary}
+          >
+            {state?.casingStrings.length ? "Update casing" : "Add casing"}
+          </Link>
+        </div>
+      </article>
 
-      <QuickActions holeId={holeId} />
-
-      <SectionPanel
-        title="Casing and active components"
-        description="Repository-backed permanent hole records. Changes are saved locally before this view updates."
+      <article
+        className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5"
+        data-testid="bha-overview-card"
       >
-        <div className="grid gap-3 lg:grid-cols-3">
-          <article className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-4">
-            <div className="flex items-center gap-2">
-              <CircleDot aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-                Active bit
-              </h3>
-            </div>
-            <p className="mt-2 break-all text-lg font-bold text-[var(--tl-ink)]">
-              {state?.activeBitSerialNumber ?? "Not assigned"}
-            </p>
-            {state?.activeBitAssignment ? (
-              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-                Active from {formatMetres(state.activeBitAssignment.startDepthDm)}
-                {" · "}
-                {formatMetres(
-                  state.activeBitUsage?.drilledMetresDm ?? decimetres(0),
-                )}{" "}
-                recorded
-              </p>
-            ) : null}
-            <Link
-              href={
-                state?.activeBitAssignment
-                  ? runbookRoutes.changeBit(holeId)
-                  : runbookRoutes.assignComponent(holeId, "bit")
-              }
-              className="mt-3 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-            >
-              {state?.activeBitAssignment ? "Change bit" : "Assign bit"}
-            </Link>
-          </article>
-          <article className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-4">
-            <div className="flex items-center gap-2">
-              <CircleDot aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-                Active reamer
-              </h3>
-            </div>
-            <p className="mt-2 break-all text-lg font-bold text-[var(--tl-ink)]">
-              {state?.activeReamerSerialNumber ?? "Not assigned"}
-            </p>
-            {state?.activeReamerAssignment ? (
-              <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-                Active from{" "}
-                {formatMetres(state.activeReamerAssignment.startDepthDm)}
-                {" · "}
-                {formatMetres(
-                  state.activeReamerUsage?.drilledMetresDm ?? decimetres(0),
-                )}{" "}
-                recorded
-              </p>
-            ) : null}
-            <Link
-              href={
-                state?.activeReamerAssignment
-                  ? runbookRoutes.changeReamer(holeId)
-                  : runbookRoutes.assignComponent(holeId, "reamer")
-              }
-              className="mt-3 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-            >
-              {state?.activeReamerAssignment ? "Change reamer" : "Assign reamer"}
-            </Link>
-          </article>
-          <article className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-4">
-            <div className="flex items-center gap-2">
-              <Cylinder aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
-              <h3 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-                Casing
-              </h3>
-            </div>
-            {state?.casingStrings.length ? (
-              <ul className="mt-2 space-y-1">
-                {state.casingStrings
-                  .filter(({ status }) => status === "ACTIVE")
-                  .map((casing) => (
-                    <li key={casing.localId} className="font-bold text-[var(--tl-ink)]">
-                      {casing.casingSize} to{" "}
-                      {formatMetres(casing.currentEndDepthDm)}
-                    </li>
-                  ))}
-              </ul>
-            ) : (
-              <p className="mt-2 font-bold text-[var(--tl-ink)]">No casing recorded</p>
-            )}
-            <Link
-              href={
-                state?.casingStrings.length
-                  ? runbookRoutes.casing(holeId)
-                  : runbookRoutes.addCasing(holeId)
-              }
-              className="mt-3 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-            >
-              {state?.casingStrings.length ? "Update casing" : "Add casing"}
-            </Link>
-          </article>
+        <div className="flex items-center gap-2">
+          <Drill aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
+          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+            Bottom hole assembly
+          </h2>
         </div>
-        <div className="mt-4 flex flex-wrap gap-4">
-          <Link href={runbookRoutes.holeComponents(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-            <History aria-hidden="true" className="size-5" /> Component history
-          </Link>
-          <Link href={runbookRoutes.casing(holeId)} className="inline-flex min-h-11 items-center gap-2 font-bold text-[var(--tl-primary)]">
-            <History aria-hidden="true" className="size-5" /> Casing history
+        <div className="mt-3">
+          <BhaBarrelSetupDisplay setup={state?.bhaSetup ?? null} />
+        </div>
+        <div className="mt-4">
+          <Link href={runbookRoutes.updateBha(holeId)} className={cardActionPrimary}>
+            Update BHA
           </Link>
         </div>
-      </SectionPanel>
+      </article>
 
       <LocalPrototypeNotice />
     </div>
