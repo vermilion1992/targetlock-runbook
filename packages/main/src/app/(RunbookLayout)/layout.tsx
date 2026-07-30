@@ -5,6 +5,8 @@ import { RunbookShell } from "@/components/app-shell/runbook-shell";
 import { RequireOperatorSession } from "@/components/session";
 import { requirePilotPageSession } from "@/server/pilot/runtime";
 
+export const dynamic = "force-dynamic";
+
 interface RunbookLayoutProps {
   children: ReactNode;
 }

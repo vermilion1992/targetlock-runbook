@@ -4,6 +4,8 @@ import { redirect } from "next/navigation";
 import { NewHoleForm } from "@/components/holes/new-hole-form";
 import { requirePilotPageSession } from "@/server/pilot/runtime";
 
+export const dynamic = "force-dynamic";
+
 export const metadata: Metadata = {
   title: "Create Assigned Hole",
   description: "Create a Draft hole from a client plan for assigned field work.",
