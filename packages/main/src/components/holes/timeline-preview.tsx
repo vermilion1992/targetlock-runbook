@@ -86,13 +86,13 @@ const casingEventTitles: Readonly<Record<CasingEvent["eventType"], string>> = {
 
 function runTimelineEntries(
   holeId: string,
-  seed: TargetLockStage1Seed,
+  seed: TargetLockStage1Seed | null,
   localRuns: readonly SavedRunSnapshot[] = [],
 ): readonly TimelineEntry[] {
   const localIds = new Set(localRuns.map(({ localId }) => localId));
   const localNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
   const seedEntries: TimelineEntry[] = (
-    holeId === seed.hole.localId ? seed.runs : []
+    seed !== null && holeId === seed.hole.localId ? seed.runs : []
   )
     .filter(
       (run) => !localIds.has(run.localId) && !localNumbers.has(run.runNumber),
@@ -353,7 +353,7 @@ export function TimelinePreview({
   seed,
 }: {
   holeId: string;
-  seed: TargetLockStage1Seed;
+  seed: TargetLockStage1Seed | null;
 }) {
   const [entries, setEntries] = useState<readonly TimelineEntry[]>(() =>
     runTimelineEntries(holeId, seed),

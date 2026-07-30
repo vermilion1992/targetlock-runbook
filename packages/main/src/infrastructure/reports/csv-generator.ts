@@ -1,6 +1,8 @@
 import {
   buildCsvDocument,
+  CSV_DATASETS_BY_REPORT,
   decimetresToMetres,
+  type CsvDatasetName,
   type ReportDocumentData,
   type ReportType,
 } from "@/domain";
@@ -9,34 +11,7 @@ function metres(dm: number): number {
   return decimetresToMetres(dm as never);
 }
 
-export type CsvDatasetName =
-  | "runs"
-  | "shifts"
-  | "surveys"
-  | "trays"
-  | "casing"
-  | "components"
-  | "corrections";
-
-export const CSV_DATASETS_BY_REPORT: Readonly<
-  Record<ReportType, readonly CsvDatasetName[]>
-> = {
-  FULL_HOLE_RUNBOOK: [
-    "runs",
-    "shifts",
-    "surveys",
-    "trays",
-    "casing",
-    "components",
-    "corrections",
-  ],
-  CURRENT_SHIFT_RUNBOOK: ["runs", "shifts"],
-  HOLE_SUMMARY: ["runs", "shifts", "corrections"],
-  SURVEY_HISTORY: ["surveys", "corrections"],
-  TRAY_REGISTER: ["trays"],
-  COMPONENT_HISTORY: ["components"],
-  CASING_HISTORY: ["casing"],
-};
+export type { CsvDatasetName } from "@/domain";
 
 export function generateCsvDataset(
   dataset: CsvDatasetName,

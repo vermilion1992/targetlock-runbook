@@ -102,8 +102,13 @@ export interface HoleCompletionContext {
   readonly hole: CanonicalHole;
   readonly projectId: string;
   readonly projectName: string;
+  readonly projectCode?: string;
+  readonly clientName?: string;
+  readonly siteLocation?: string;
+  readonly projectVersion?: number;
   readonly rigId: string;
   readonly rigName: string;
+  readonly rigVersion?: number;
   readonly currentState: CurrentHoleState;
   readonly runs: readonly Run[];
   readonly completedRuns: readonly Run[];
@@ -538,8 +543,13 @@ export async function getHoleCompletionContext(
     hole,
     projectId: hole.projectId,
     projectName,
+    projectCode: project?.code,
+    clientName: project?.clientName,
+    siteLocation: project?.location,
+    projectVersion: project?.version,
     rigId: hole.rigId,
     rigName,
+    rigVersion: rig?.version,
     currentState,
     runs: contextualRuns,
     completedRuns: contextualCompletedRuns,

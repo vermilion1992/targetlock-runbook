@@ -29,7 +29,14 @@ describe("template surface policy", () => {
       "/components",
       "/components/new",
       "/components/component-bit-002193",
+      "/pilot-account",
+      "/pilot-admin",
+      "/pilot-support",
+      "/pilot-terms",
       "/api/health",
+      "/api/readiness",
+      "/api/pilot/session",
+      "/api/pilot/leases/acquire",
     ]) {
       expect(isTargetLockRoute(pathname)).toBe(true);
       expect(getTemplateSurfaceDecision(pathname, production)).toBe("allow");

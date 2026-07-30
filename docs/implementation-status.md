@@ -1,17 +1,123 @@
 # TargetLock Implementation Status
 
-Status date: 2026-07-28
+Status date: 2026-07-29
 Target: `packages/main` only
-Stage: Professional foundation hardening — Operator Start, Project and Hole Library
+Stage: Stage 7C authoritative core recovery + PDF Visual Parity v1
+
+## Stage 7C — Authoritative core workflow and cross-device recovery
+
+- Migrations `0004_stage_7c_core_materialisation.sql` and
+  `0005_stage_7c_review_hardening.sql` extend the existing
+  organisation-scoped project/rig/hole identities and adds normalised BHA,
+  configuration, shift, handover, run, rod-event, correction, aggregate-head
+  and durable change-feed tables. The hardening migration adds server-issued
+  lease-grace timestamps, completion/reopen projections, durable two-phase
+  restore evidence and a database-enforced one-active-shift-per-hole rule.
+- The canonical manifest marks the authoritative subset. Per-operation Zod
+  handlers retain integer-decimetre facts and actor/device/client-time evidence.
+  Receipt, lease/version checks, projection application, revision/head/cursor
+  update and audit execute in one Postgres transaction.
+- Authenticated, organisation-scoped APIs serve the authorised directory,
+  complete versioned hole snapshots, bounded cursor pulls and current conflict
+  details. Readiness now requires the Stage 7C migration.
+- Pilot browsers push the durable outbox before pulling. With no unsynced local
+  work, server snapshots hydrate the established local repository envelopes
+  directly and idempotently without generating new outbox operations.
+- Pilot administration includes a replacement-device restore dry-run,
+  pending-work block, explicit confirmation/reason and a durable, idempotent
+  prepare/commit audit. Recovery runs under the runbook Web Lock, rechecks the
+  outbox before storage commit and keys cursors to the assignment identity.
+  Backup format v2 includes server IDs, aggregate revisions and pull cursor.
+- Drillers are denied outside their registered project/rig assignment.
+  Supervisors and company admins may use a cross-assignment override for
+  recovery/oversight, with `DEVICE_ASSIGNMENT_OVERRIDE` audit evidence.
+  Lease grace is evaluated from the current Postgres lease/version/device and
+  server-issued grace deadlines; client timestamps are retained only as
+  evidence.
+- Start reads only the hydrated organisation directory in pilot mode. The
+  runbook distinguishes Local saved, Journal backed up, Server current and
+  Conflict.
+
+Operational honesty: Postgres is authoritative for the core Project → Rig →
+Hole → BHA → Shift → Run/Rod → Handover projection after acceptance. Media and
+generated report blobs remain local; peripheral modules remain journal-only;
+conflicts require manual supervisor review rather than automatic merge.
+
+## Stage 7B — Operationally honest shadow pilot
+
+- Explicit demo mode alone hydrates DDH041 training data; fresh pilot browsers
+  start with no demo project/hole.
+- Exact server roles flow into client context and report attribution. Setup,
+  component/BHA/trajectory and correction deep links have server route
+  boundaries; typed journal operations repeat the permission check server-side.
+- Pilot administration provides user status/provisioning, temporary-password
+  handling, password change/session revocation, device registration/assignment/
+  removal, lease status/takeover/stale release, diagnostics and support links.
+- Coordinated browser repository mutations use an IndexedDB outbox with
+  pending/sending/accepted/conflict/rejected/failed states and retry/backoff.
+  Validated payload JSON, immutable references, timestamps, expected version,
+  hash and lease evidence persist in `pilot_domain_operations`.
+- The runbook shell exposes Primary writer, Read-only, Offline grace and
+  Conflict states. Online non-owners cannot mutate. Offline grace is bounded
+  and completion/close operations retain a longer, visible emergency window.
+- The metadata backup is versioned/checksummed and has an import dry-run.
+  Storage quota is visible. The export contains a media manifest, not
+  recoverable blobs.
+- Stage 7B originally required migration
+  `0003_stage_7b_revision_and_atomicity.sql`; Stage 7C supersedes readiness with
+  `0005_stage_7c_review_hardening.sql`.
+  Accepted versioned journal operations advance an organisation-scoped,
+  Postgres-backed revision registry transactionally; stale expected versions
+  conflict without claiming materialised domain state. Railway
+  migration execution remains a controlled release command protected by a
+  Postgres advisory lock; it is not run from every replica.
+
+The Stage 7B journal-only limitation still applies to operation types outside
+the Stage 7C core manifest.
+
+## Report modernisation — PDF Visual Parity v1
+
+Full-Hole and Hole Summary PDFs now open with a TargetLock-branded hero using
+repository-backed hole/project/client/site/rig context, lifecycle status,
+recorded collar coordinates and direction, coordinate/grid label, active
+operator attribution, report time/version and an eight-card KPI grid. Two real
+deterministic `pdf-lib` vector graphics—depth progression by Shift and recovery
+by Run depth—consume the existing analytics snapshot arrays. Existing
+trajectory plan/section/3D vectors remain unchanged and continue to use
+verified comparison render paths.
+
+Report generation and subsequent open/download/share/email-draft audits now use
+the active device-local operator rather than a hardcoded seed user. Report
+snapshot and generated-record metadata retain optional ID/name/role snapshots;
+legacy local records remain readable. CSV exports use report-specific defaults,
+show an accessible dataset selector for multi-dataset reports, preserve the
+dataset on Generate New Version, and reject incompatible combinations.
+
+The PDF location panel is an honest offline coordinate/trajectory view, not a
+satellite map. No map key/provider/dependency was added and no mine-grid
+coordinates are sent off-device. The adapter has an optional in-memory static
+image boundary for future work, which still requires project CRS/EPSG or stored
+WGS84, attribution/licensing, privacy controls, fetch/cache policy and offline
+fallback.
 
 ## Professional foundation hardening — Project and Hole Library
 
 The application now opens through a polished device-local `/sign-in` and
-phone-first `/start` decision page. Start derives the safest next action for the
-operator's last valid hole, confirms existing-hole context, and requires an
-explicit project selection before new-hole onboarding. Operator profiles,
-roles and recent-hole state remain browser-local and are not security
-credentials.
+phone-first `/start` decision page. The implemented sequence is Identity →
+Choose/confirm work → Runbook. Start makes the operator's last valid hole
+primary, derives its safest readiness-aware next action, labels other records
+as available on this device, and confirms project/client or site, rig, hole
+identity/lifecycle and operator role before navigation. Signed-out hole deep
+links are preserved through Start instead of bypassing confirmation.
+
+Drillers can choose open local holes and create a Draft from a client-issued
+plan when the registered tablet is assigned to the authoritative project and
+rig. This narrow permission records the plan reference and allows only the
+first BHA/CSU before any Shift or Run; project/rig creation, later setup,
+correction and completion remain privileged. In demo mode, self-selected roles
+remain workflow aids only. In pilot mode, protected layouts resolve the server
+session, operation permissions are rechecked server-side and Driller setup is
+rejected outside the assigned Draft-hole boundary.
 
 `/projects` remains the full organisation directory, where projects lead to a
 project-owned hole register. Every listed hole opens through its canonical
@@ -41,7 +147,8 @@ explicit primary driller.
 Gemini credentials are server-only. The production request proxy blocks inherited
 template pages and APIs by default while preserving TargetLock routes, health
 checks and required assets; `ENABLE_TEMPLATE_DEMOS=true` is an explicit
-deployment opt-in. The optional pilot Basic access gate remains independent.
+deployment opt-in. The legacy Basic gate is limited to demo previews; secure
+pilot mode uses account sessions.
 
 ## V2 Implementation 6 — Interactive 3D Trajectory and Report Graphics
 
@@ -78,8 +185,9 @@ and Hole Summary reports share one pure `calculateHoleAnalytics` result via
 Surveys, Trays, record completeness, and six chart datasets are derived from
 repository-backed effective records (voids excluded; weighted recovery; shared
 Runs credited to the completing Shift). Live UI charts use Recharts; PDF embeds
-analytical tables and chart text summaries (chart images deferred). Excel adds
-Hole / Shift / Run / Component / Survey / Tray / Completeness analytics sheets.
+analytical tables, searchable notes and deterministic vector depth/recovery
+charts. Excel adds Hole / Shift / Run / Component / Survey / Tray /
+Completeness analytics sheets.
 Completion versions remain selectable after reopen. Out of scope: survey
 desurveying / 3D trajectory, payroll, downtime costing, employee rankings,
 component causation claims.
@@ -119,21 +227,23 @@ generated.
 
 ## Final pilot audit result (V1 retained)
 
-The local TargetLock pilot was integration-audited end-to-end. Authoritative
+The local TargetLock workflow was integration-audited end-to-end. Authoritative
 drilling maths remain in `src/domain/rods.ts`. Repository boundaries, hole
 lock enforcement, report honesty, and refresh persistence were verified.
-Material defects found during the audit were fixed. The package is ready for
-supervised field pilot use with the limitations in `docs/known-limitations.md`.
+Material defects found during the audit were fixed. Stage 7A supplies a
+deployable controlled-pilot identity/control-plane foundation, but the package
+must not be described as fully production-ready while domain sync, cloud blobs,
+backup drills, hardware validation, monitoring and conflict UI remain open.
 
-**READY FOR FIELD PILOT**
+**CONTROLLED PILOT FOUNDATION IMPLEMENTED — REMAINING GATES APPLY**
 
 ## Railway deployment preparation
 
 `packages/main` is isolated (own lockfile; no root workspace). Railway Root
 Directory is `/packages/main` with config at `/packages/main/railway.json`,
-healthcheck at `/api/health`, and an optional server-side pilot access gate.
-Railway hosts application code only; browser-local Runs, photos and reports are
-not synchronised. See `docs/railway-deployment.md`.
+readiness check at `/api/readiness`, and Railway PostgreSQL for secure pilot
+control-plane records. Browser-local Runs, photos and reports are not yet
+synchronised. See `docs/railway-deployment.md`.
 
 ## Maths authority
 
@@ -176,6 +286,13 @@ completion/lock/reopen, Report Centre/Activity, Timeline, Search, Statistics
 
 Run from `packages/main`:
 
+- [x] 2026-07-28 Stage 7A: 27 focused pilot/config/proxy tests, 483 total
+  unit tests, scoped lint, production typecheck, Next.js 16.2.12 demo-mode
+  production build, three project/sign-in Playwright smokes and
+  `git diff --check`
+- [x] 2026-07-28 PDF Visual Parity v1: 27 focused report tests, 464 total
+  unit tests, report attribution/CSV browser workflow (8 Playwright tests),
+  scoped lint, production typecheck, production build and `git diff --check`
 - [x] 2026-07-28 professional foundation and route-gap audit: 456 unit tests,
   safe post-sign-in deep links, component registry/detail routes, recoverable
   project-hole setup, reserved-route rejection, and expanded scoped
@@ -210,10 +327,12 @@ Run from `packages/main`:
 
 ## Still deferred
 
-See `docs/known-limitations.md`. Highlights: no account auth, no sync, no cloud
-media, no SMTP delivery, barrel capacity unset, TargetLock IQ deferred, and
-inherited template modules remain in the package but are disabled in production
-unless explicitly enabled.
+See `docs/known-limitations.md`. Stage 7A now supplies secure pilot account,
+device, lease and operation-receipt boundaries, but domain sync, cloud media,
+SMTP delivery, backup drills, physical-device validation and conflict UI remain
+deferred. Barrel capacity is unset, TargetLock IQ is deferred, and inherited
+template modules remain in the package but are disabled in production unless
+explicitly enabled.
 
 ## Baseline constraints
 
@@ -221,3 +340,37 @@ unless explicitly enabled.
 - The seven packages remain standalone; no root workspace is introduced.
 - `docs/index.html` remains untouched.
 - The authoritative external product-plan file must not be modified.
+
+## Stage 7A — controlled pilot foundation
+
+Implemented:
+
+- Railway-compatible PostgreSQL migration for organisations, users,
+  memberships, sessions, project/rig/hole identity references, registered
+  devices, work leases, operation receipts, sync cursors and audit events.
+- One-time company-admin bootstrap plus authenticated user provisioning,
+  disable/revoke, device register/assign/revoke and logout endpoints.
+- Server-assigned `COMPANY_ADMIN`, `SUPERVISOR` and `DRILLER` roles with
+  central permissions. Drillers are denied setup, completion, reopen,
+  correction, provisioning and lease takeover.
+- Secure HttpOnly/SameSite session and device cookies, bcrypt password hashing,
+  HMAC token storage, expiry/revocation, exact-origin CSRF checks, endpoint rate
+  limits, safe errors and security headers.
+- Server route gates for protected Library/Runbook pages and privileged setup,
+  complete, reopen, correction and void segments.
+- Organisation-scoped device/rig context, lease acquire/status/heartbeat/
+  release/takeover APIs and idempotent operation receipts with expected-version
+  conflict status.
+- Public liveness and non-leaking readiness checks; production fail-closed
+  environment validation.
+- Explicit `demo` mode retaining existing seed/E2E/local operator workflows.
+
+Truthful boundary: operational project/hole/run/media/report writes remain in
+localStorage/IndexedDB. The Stage 7A sync endpoint validates context and records
+receipts only; it does not apply existing domain writes. See
+`docs/controlled-pilot-runbook.md`.
+
+Still required before claiming full production-pilot readiness: migrate all
+domain writes into the offline sync queue/application path, cloud media/report
+blobs, restore drills, physical tablet validation, monitoring/alerting and
+field conflict-resolution UI.

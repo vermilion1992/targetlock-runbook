@@ -8,6 +8,7 @@ export interface SaveMediaInput {
 }
 
 export interface SavedMedia {
+  readonly organisationId: string;
   readonly storageKey: string;
   readonly operationId: string;
   readonly holeId: string;
@@ -84,6 +85,7 @@ export class MemoryMediaRepository implements MediaRepository {
         kind,
       );
     const record = {
+      organisationId: this.organisationId,
       storageKey,
       operationId: input.operationId,
       holeId: input.holeId,

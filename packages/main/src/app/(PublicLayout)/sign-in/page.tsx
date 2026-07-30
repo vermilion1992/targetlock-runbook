@@ -11,8 +11,16 @@ export const metadata: Metadata = {
 export default async function SignInPage({
   searchParams,
 }: {
-  searchParams: Promise<{ next?: string | string[] }>;
+  searchParams: Promise<{
+    next?: string | string[];
+    reason?: string | string[];
+  }>;
 }) {
-  const { next } = await searchParams;
-  return <SignInScreen destination={resolveSignInDestination(next)} />;
+  const { next, reason } = await searchParams;
+  return (
+    <SignInScreen
+      destination={resolveSignInDestination(next)}
+      notice={reason === "session-expired" ? "session-expired" : null}
+    />
+  );
 }

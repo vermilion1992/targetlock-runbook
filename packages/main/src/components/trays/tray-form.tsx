@@ -16,6 +16,8 @@ import { PhotoInput } from "@/components/media/photo-input";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveOperationActor } from "@/components/session/operation-actor";
+import { useOperatorSession } from "@/components/session";
 import {
   parseMetreInput,
   suggestTrayValues,
@@ -34,6 +36,7 @@ function optionalDepth(
 
 export function TrayForm({ holeId }: { holeId: string }) {
   const router = useRouter();
+  const { runtimeMode, session, pilot } = useOperatorSession();
   const warningRef = useRef<HTMLDivElement>(null);
   const operationId = useRef<string | null>(null);
   const [trays, setTrays] = useState<readonly Tray[]>([]);
@@ -80,7 +83,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
         );
         setEndDepth((suggestions.endDepthDm / 10).toFixed(1));
         setShiftId(state.activeShift?.localId);
-        if (state.activeShift) {
+        if (runtimeMode === "demo" && state.activeShift) {
           setUser({
             id: state.activeShift.primaryDrillerId,
             name: state.activeShift.primaryDrillerNameSnapshot,
@@ -94,7 +97,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
             : "Tray suggestions could not be loaded.",
         ),
       );
-  }, [holeId]);
+  }, [holeId, runtimeMode]);
 
   async function save(confirmWarnings: boolean): Promise<void> {
     const number = Number(trayNumber);
@@ -136,6 +139,10 @@ export function TrayForm({ holeId }: { holeId: string }) {
     setSaving(true);
     setError(null);
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        ...user,
+        organisationId: "organisation-briggs",
+      });
       await createOperationalTray(
         {
           operationId: operationId.current,
@@ -152,8 +159,8 @@ export function TrayForm({ holeId }: { holeId: string }) {
           originalFilename: photo.name,
           capturedAt: new Date().toISOString(),
           description: `Completed core tray ${number}`,
-          userId: user.id,
-          userNameSnapshot: user.name,
+          userId: actor.id,
+          userNameSnapshot: actor.name,
           currentCompletedDepthDm: currentDepth,
           warningsConfirmed: confirmWarnings,
         },

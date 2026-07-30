@@ -30,7 +30,7 @@ export function isPilotAccessConfigured(config: PilotAccessConfig): boolean {
 
 /** Paths that must remain reachable when the gate is enabled. */
 export function isPilotAccessPublicPath(pathname: string): boolean {
-  if (pathname === "/api/health") {
+  if (pathname === "/api/health" || pathname === "/api/readiness") {
     return true;
   }
 

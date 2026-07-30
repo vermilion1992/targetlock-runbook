@@ -10,6 +10,14 @@ const LEGACY_USER_ID = "legacy-local-user";
 const LEGACY_USER_NAME = "Legacy local operator";
 
 const isoTimestampSchema = z.string().datetime();
+const syncStatusSchema = z.enum([
+  "local-only",
+  "queued",
+  "syncing",
+  "synced",
+  "conflict",
+  "failed",
+]);
 const rodLengthDmSchema = z.union([z.literal(30), z.literal(60)]);
 const rodEventActionSchema = z.union([z.literal("add"), z.literal("remove")]);
 const runStatusSchema = z.enum(["completed", "corrected", "void"]);
@@ -94,7 +102,7 @@ export const runDraftPayloadSchema = z.object({
 const runDraftEnvelopeSchema = z.object({
   version: z.literal(RUN_DRAFT_VERSION),
   holeId: z.string().min(1),
-  syncStatus: z.literal(DRAFT_SYNC_STATUS),
+  syncStatus: syncStatusSchema,
   savedAt: isoTimestampSchema,
   payload: runDraftPayloadSchema,
 });
@@ -111,7 +119,7 @@ export const savedRunOriginalSnapshotSchema = z.object({
   completedByUserId: z.string().min(1),
   completedByNameSnapshot: z.string().min(1),
   holeId: z.string().min(1),
-  syncStatus: z.literal(DRAFT_SYNC_STATUS),
+  syncStatus: syncStatusSchema,
   runNumber: z.number().int().positive(),
   rodNumber: z.number().int().nonnegative(),
   rodStringDm: z.number().int().nonnegative(),
@@ -190,7 +198,7 @@ export const runCorrectionOperationSchema = z.object({
 const savedRunsEnvelopeSchema = z.object({
   version: z.literal(RUN_DRAFT_VERSION),
   holeId: z.string().min(1),
-  syncStatus: z.literal(DRAFT_SYNC_STATUS),
+  syncStatus: syncStatusSchema,
   updatedAt: isoTimestampSchema,
   revision: z.number().int().nonnegative().default(0),
   snapshots: z.array(savedRunSnapshotSchema),

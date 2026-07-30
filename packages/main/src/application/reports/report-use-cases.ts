@@ -1,9 +1,13 @@
 import {
   assertValidReportBlob,
   buildReportFilename,
+  CSV_DATASET_NAMES,
+  CSV_DATASETS_BY_REPORT,
   evaluateReportCurrency,
+  isCsvDatasetCompatible,
   reportMimeType,
   reportTypeLabel,
+  type CsvDatasetName,
   type GeneratedReportRecord,
   type ReportActivityStatus,
   type ReportCurrencyResult,
@@ -11,15 +15,13 @@ import {
   type ReportFormat,
   type ReportGenerationStage,
   type ReportOutboxItem,
+  type ReportOperatorRole,
   type ReportSnapshot,
   type ReportType,
   type SavedReportRecipient,
 } from "@/domain";
 import type { AuditRepository } from "@/infrastructure/audit";
-import {
-  generateCsvBundle,
-  type CsvDatasetName,
-} from "@/infrastructure/reports/csv-generator";
+import { generateCsvBundle } from "@/infrastructure/reports/csv-generator";
 import { generateExcelWorkbook } from "@/infrastructure/reports/excel-generator";
 import { generateReportPdf } from "@/infrastructure/reports/pdf-generator";
 import type { ReportFileRepository } from "@/infrastructure/reports/report-file-repository";
@@ -76,6 +78,7 @@ export interface GenerateReportInput {
   readonly csvDataset?: CsvDatasetName;
   readonly generatedByUserId: string;
   readonly generatedByNameSnapshot: string;
+  readonly generatedByRoleSnapshot?: ReportOperatorRole;
   readonly generatedAt?: string;
   readonly onProgress?: (stage: ReportGenerationProgress) => void;
 }
@@ -142,6 +145,7 @@ async function appendAudit(
     readonly entityId: string;
     readonly userId: string;
     readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
     readonly metadata?: Record<string, string | number | boolean | null>;
   },
 ): Promise<void> {
@@ -163,6 +167,7 @@ async function appendAudit(
     timestamp: now,
     metadata: {
       operationId: input.operationId,
+      ...(input.userRole ? { operatorRole: input.userRole } : {}),
       ...(input.metadata ?? {}),
     },
   });
@@ -186,6 +191,15 @@ async function generateBlob(
     return { blob: await generateExcelWorkbook(snapshot) };
   }
   const datasets = generateCsvBundle(snapshot.reportType, snapshot.documentData);
+  if (
+    csvDataset !== undefined &&
+    !isCsvDatasetCompatible(snapshot.reportType, csvDataset)
+  ) {
+    throw new ReportApplicationError(
+      "UNSUPPORTED",
+      `${csvDataset} is not available for ${reportTypeLabel(snapshot.reportType)} CSV reports.`,
+    );
+  }
   const selected =
     datasets.find((item) => item.dataset === csvDataset) ?? datasets[0];
   if (selected === undefined) {
@@ -214,6 +228,22 @@ export async function generateReport(
   input: GenerateReportInput,
   services: ReportServices,
 ): Promise<GenerateReportResult> {
+  if (
+    input.format === "CSV" &&
+    input.csvDataset !== undefined &&
+    !isCsvDatasetCompatible(input.reportType, input.csvDataset)
+  ) {
+    throw new ReportApplicationError(
+      "UNSUPPORTED",
+      `${input.csvDataset} is not available for ${reportTypeLabel(input.reportType)} CSV reports. Choose ${CSV_DATASETS_BY_REPORT[input.reportType].join(", ")}.`,
+    );
+  }
+  if (input.format !== "CSV" && input.csvDataset !== undefined) {
+    throw new ReportApplicationError(
+      "UNSUPPORTED",
+      "A CSV dataset can only be selected for CSV reports.",
+    );
+  }
   const fingerprint = fingerprintOf(input);
   const begin = await services.reports.beginGeneration({
     operationId: input.operationId,
@@ -247,18 +277,25 @@ export async function generateReport(
 
     if (transaction.stage === "SNAPSHOT_BUILDING" || snapshot === null) {
       notify?.("Building report snapshot…");
+      const version = await services.reports.nextVersion(
+        input.holeId,
+        input.reportType,
+        input.format,
+      );
       const built = await buildReportDocumentData(
         {
           holeId: input.holeId,
           reportType: input.reportType,
           shiftId: input.shiftId,
+          generation: {
+            generatedAt,
+            version,
+            generatedByUserId: input.generatedByUserId,
+            generatedByNameSnapshot: input.generatedByNameSnapshot,
+            generatedByRoleSnapshot: input.generatedByRoleSnapshot,
+          },
         },
         services,
-      );
-      const version = await services.reports.nextVersion(
-        input.holeId,
-        input.reportType,
-        input.format,
       );
       snapshot = {
         id: `snapshot-${input.operationId}`,
@@ -268,6 +305,7 @@ export async function generateReport(
         generatedAt,
         generatedByUserId: input.generatedByUserId,
         generatedByNameSnapshot: input.generatedByNameSnapshot,
+        generatedByRoleSnapshot: input.generatedByRoleSnapshot,
         holeDepthSnapshotDm: built.holeDepthSnapshotDm,
         holeStatusSnapshot: built.holeStatusSnapshot,
         sourceVersions: built.sourceVersions,
@@ -288,6 +326,7 @@ export async function generateReport(
         entityId: snapshot.id,
         userId: input.generatedByUserId,
         userName: input.generatedByNameSnapshot,
+        userRole: input.generatedByRoleSnapshot,
         metadata: {
           reportType: input.reportType,
           format: input.format,
@@ -344,6 +383,7 @@ export async function generateReport(
         entityId: snapshot.id,
         userId: input.generatedByUserId,
         userName: input.generatedByNameSnapshot,
+        userRole: input.generatedByRoleSnapshot,
         metadata: { format: input.format, version: snapshot.version },
       });
     }
@@ -469,8 +509,9 @@ export async function generateReport(
       storageKey,
       sizeBytes: existingFile.size,
       generatedAt: snapshot.generatedAt,
-      generatedByUserId: input.generatedByUserId,
-      generatedByNameSnapshot: input.generatedByNameSnapshot,
+      generatedByUserId: snapshot.generatedByUserId,
+      generatedByNameSnapshot: snapshot.generatedByNameSnapshot,
+      generatedByRoleSnapshot: snapshot.generatedByRoleSnapshot,
       holeDepthSnapshotDm: snapshot.holeDepthSnapshotDm,
       holeStatusSnapshot: snapshot.holeStatusSnapshot,
       activityStatus: "GENERATED",
@@ -528,6 +569,7 @@ export async function generateReport(
         entityId: report.localId,
         userId: input.generatedByUserId,
         userName: input.generatedByNameSnapshot,
+        userRole: input.generatedByRoleSnapshot,
       });
     }
 
@@ -546,6 +588,7 @@ export async function generateReport(
       entityId: input.operationId,
       userId: input.generatedByUserId,
       userName: input.generatedByNameSnapshot,
+      userRole: input.generatedByRoleSnapshot,
       metadata: {
         reason: facing.code,
         stage: transaction.stage,
@@ -568,18 +611,41 @@ export async function generateReport(
 export async function recoverInterruptedReportGeneration(
   holeId: string,
   services: ReportServices,
-  actor: { readonly userId: string; readonly userName: string },
+  actor: {
+    readonly userId: string;
+    readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
+  },
 ): Promise<GenerateReportResult | null> {
   const pending = await services.reports.getPendingTransaction(holeId);
   if (pending === null) return null;
+  let shiftId: string | undefined;
+  let csvDataset: CsvDatasetName | undefined;
+  try {
+    const parsed = JSON.parse(pending.fingerprint) as {
+      readonly shiftId?: unknown;
+      readonly csvDataset?: unknown;
+    };
+    if (typeof parsed.shiftId === "string") {
+      shiftId = parsed.shiftId;
+    }
+    csvDataset = CSV_DATASET_NAMES.find(
+      (dataset) => dataset === parsed.csvDataset,
+    );
+  } catch {
+    // Legacy fingerprints without parseable fields recover with safe defaults.
+  }
   return generateReport(
     {
       operationId: pending.operationId,
       holeId: pending.holeId,
       reportType: pending.reportType,
       format: pending.format,
+      shiftId,
+      csvDataset,
       generatedByUserId: actor.userId,
       generatedByNameSnapshot: actor.userName,
+      generatedByRoleSnapshot: actor.userRole,
     },
     services,
   );
@@ -592,6 +658,7 @@ export async function downloadReport(
     readonly holeId: string;
     readonly userId: string;
     readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
   },
   services: ReportServices,
 ): Promise<{
@@ -634,6 +701,7 @@ export async function downloadReport(
     entityId: report.localId,
     userId: input.userId,
     userName: input.userName,
+    userRole: input.userRole,
     metadata: { format: report.format, version: report.version },
   });
   return { blob, filename: report.filename, mimeType: report.mimeType };
@@ -654,6 +722,7 @@ export async function openReport(
     readonly holeId: string;
     readonly userId: string;
     readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
   },
   services: ReportServices,
 ): Promise<OpenReportResult> {
@@ -705,6 +774,7 @@ export async function openReport(
       entityId: report.localId,
       userId: input.userId,
       userName: input.userName,
+      userRole: input.userRole,
     });
     return {
       status: "popup_blocked",
@@ -721,6 +791,7 @@ export async function openReport(
     entityId: report.localId,
     userId: input.userId,
     userName: input.userName,
+    userRole: input.userRole,
   });
   return { status: "opened", filename: report.filename };
 }
@@ -732,6 +803,7 @@ export async function shareReport(
     readonly holeId: string;
     readonly userId: string;
     readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
   },
   services: ReportServices,
 ): Promise<ShareReportResult> {
@@ -754,6 +826,7 @@ export async function shareReport(
     entityId: report.localId,
     userId: input.userId,
     userName: input.userName,
+    userRole: input.userRole,
   });
 
   const result = await services.share.share({
@@ -777,6 +850,7 @@ export async function shareReport(
       entityId: report.localId,
       userId: input.userId,
       userName: input.userName,
+      userRole: input.userRole,
     });
   } else if (result.status === "cancelled") {
     await appendAudit(services, {
@@ -786,6 +860,7 @@ export async function shareReport(
       entityId: report.localId,
       userId: input.userId,
       userName: input.userName,
+      userRole: input.userRole,
     });
   } else {
     await services.reports.updateActivityStatus(
@@ -800,6 +875,7 @@ export async function shareReport(
       entityId: report.localId,
       userId: input.userId,
       userName: input.userName,
+      userRole: input.userRole,
       metadata: { fallback: true },
     });
   }
@@ -818,6 +894,7 @@ export async function prepareEmailDraft(
     readonly message?: string;
     readonly userId: string;
     readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
     readonly openMailClient?: boolean;
   },
   services: ReportServices,
@@ -879,6 +956,7 @@ export async function prepareEmailDraft(
     entityId: report.localId,
     userId: input.userId,
     userName: input.userName,
+    userRole: input.userRole,
     metadata: {
       toCount: input.toRecipients.length,
       status: "DRAFT",
@@ -925,6 +1003,7 @@ export async function saveReportRecipient(
     readonly holeId: string;
     readonly userId: string;
     readonly userName: string;
+    readonly userRole?: ReportOperatorRole;
   },
   services: ReportServices,
 ): Promise<SavedReportRecipient> {
@@ -939,6 +1018,7 @@ export async function saveReportRecipient(
     entityId: saved.id,
     userId: input.userId,
     userName: input.userName,
+    userRole: input.userRole,
     metadata: { email: saved.email, scope: saved.scope },
   });
   return saved;

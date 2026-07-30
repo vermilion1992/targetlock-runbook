@@ -12,9 +12,12 @@ import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveOperationActor } from "@/components/session/operation-actor";
+import { useOperatorSession } from "@/components/session";
 import type { NorthReference, SurveyTool } from "@/domain";
 
 export function SurveyToolRegistry({ holeId }: { holeId: string }) {
+  const { runtimeMode, session, pilot } = useOperatorSession();
   const [tools, setTools] = useState<readonly SurveyTool[]>([]);
   const [name, setName] = useState("");
   const [manufacturer, setManufacturer] = useState("");
@@ -52,18 +55,23 @@ export function SurveyToolRegistry({ holeId }: { holeId: string }) {
     }
     const operationId = crypto.randomUUID();
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        id: "user-driller-hoffman",
+        name: "M. Hoffman",
+        organisationId: "organisation-briggs",
+      });
       await createSurveyTool(
         {
           operationId,
           toolId: `survey-tool-${operationId}`,
-          organisationId: "organisation-briggs",
+          organisationId: actor.organisationId,
           name: name.trim(),
           manufacturer: manufacturer.trim() || undefined,
           model: model.trim() || undefined,
           serialNumber: serial.trim() || undefined,
           defaultNorthReference: reference,
-          createdByUserId: "user-driller-hoffman",
-          createdByNameSnapshot: "M. Hoffman",
+          createdByUserId: actor.id,
+          createdByNameSnapshot: actor.name,
           occurredAt: new Date().toISOString(),
           auditHoleId: holeId,
         },
@@ -84,14 +92,19 @@ export function SurveyToolRegistry({ holeId }: { holeId: string }) {
     const services = createBrowserRunbookServices();
     if (services === null) return;
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        id: "user-driller-hoffman",
+        name: "M. Hoffman",
+        organisationId: "organisation-briggs",
+      });
       await correctSurveyTool(
         {
           operationId: crypto.randomUUID(),
           toolId: tool.localId,
           expectedVersion: tool.version,
           status: tool.status === "ACTIVE" ? "INACTIVE" : "ACTIVE",
-          userId: "user-driller-hoffman",
-          userNameSnapshot: "M. Hoffman",
+          userId: actor.id,
+          userNameSnapshot: actor.name,
           occurredAt: new Date().toISOString(),
           auditHoleId: holeId,
         },

@@ -14,6 +14,8 @@ import { PhotoInput } from "@/components/media/photo-input";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveOperationActor } from "@/components/session/operation-actor";
+import { useOperatorSession } from "@/components/session";
 import type { Photo, Tray } from "@/domain";
 
 export function TrayPhotoReplacementForm({
@@ -24,6 +26,7 @@ export function TrayPhotoReplacementForm({
   trayId: string;
 }) {
   const router = useRouter();
+  const { runtimeMode, session, pilot } = useOperatorSession();
   const [tray, setTray] = useState<Tray | null>(null);
   const [currentPhoto, setCurrentPhoto] = useState<Photo | null>(null);
   const [replacement, setReplacement] = useState<File | null>(null);
@@ -76,6 +79,11 @@ export function TrayPhotoReplacementForm({
     const operationId = crypto.randomUUID();
     setSaving(true);
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        id: "user-driller-hoffman",
+        name: "M. Hoffman",
+        organisationId: "organisation-briggs",
+      });
       await replaceOperationalTrayPhoto(
         {
           operationId,
@@ -88,8 +96,8 @@ export function TrayPhotoReplacementForm({
           originalFilename: replacement.name,
           capturedAt: new Date().toISOString(),
           description: `Replacement photograph for completed core tray ${tray.trayNumber}`,
-          userId: "user-driller-hoffman",
-          userNameSnapshot: "M. Hoffman",
+          userId: actor.id,
+          userNameSnapshot: actor.name,
         },
         services,
       );

@@ -12,6 +12,8 @@ import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveOperationActor } from "@/components/session/operation-actor";
+import { useOperatorSession } from "@/components/session";
 import { parseMetreInput, type Decimetres, type Tray } from "@/domain";
 
 function optionalDepth(value: string): Decimetres | undefined | null {
@@ -28,6 +30,7 @@ export function TrayCorrectionForm({
   trayId: string;
 }) {
   const router = useRouter();
+  const { runtimeMode, session, pilot } = useOperatorSession();
   const [tray, setTray] = useState<Tray | null>(null);
   const [trayNumber, setTrayNumber] = useState("");
   const [startDepth, setStartDepth] = useState("");
@@ -101,6 +104,11 @@ export function TrayCorrectionForm({
     const operationId = crypto.randomUUID();
     setSaving(true);
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        id: "user-driller-hoffman",
+        name: "M. Hoffman",
+        organisationId: "organisation-briggs",
+      });
       await correctTrayDetails(
         {
           operationId,
@@ -114,8 +122,8 @@ export function TrayCorrectionForm({
           comment,
           isFinalPartial,
           reason: reason.trim(),
-          userId: "user-driller-hoffman",
-          userNameSnapshot: "M. Hoffman",
+          userId: actor.id,
+          userNameSnapshot: actor.name,
           occurredAt: new Date().toISOString(),
         },
         services,

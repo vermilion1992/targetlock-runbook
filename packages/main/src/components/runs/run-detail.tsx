@@ -27,6 +27,7 @@ import {
 import {
   targetLockStage3Seed,
 } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 import type {
   RunCorrectionRecord,
   SavedRunSnapshot,
@@ -77,9 +78,12 @@ export function RunDetail({
           throw new Error(local.reason);
         }
         const localRun = local.snapshots.find((run) => run.localId === runId);
-        const seedRun = targetLockStage3Seed.runs.find(
-          (run) => run.localId === runId && run.holeId === holeId,
-        );
+        const seedRun =
+          getBrowserRuntimeMode() === "demo"
+            ? targetLockStage3Seed.runs.find(
+                (run) => run.localId === runId && run.holeId === holeId,
+              )
+            : undefined;
         if (localRun === undefined && seedRun === undefined) {
           throw new Error("The run was not found.");
         }
@@ -182,7 +186,10 @@ export function RunDetail({
           : undefined,
     }));
   const seededChanges: RunComponentChange[] =
-    targetLockStage3Seed.componentAssignments
+    (getBrowserRuntimeMode() === "demo"
+      ? targetLockStage3Seed.componentAssignments
+      : []
+    )
       .filter(
         (assignment) =>
           assignment.holeId === holeId &&

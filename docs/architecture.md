@@ -11,8 +11,11 @@ The existing application baseline is:
 - Tailwind CSS v4 using CSS-first configuration.
 - shadcn-style components backed by Radix primitives.
 - `next-themes`, React Hook Form, and Zod.
-- No server database/ORM, real authentication, or PWA/service-worker offline
-  database. Stage 4 uses IndexedDB for local media blobs; Stage 5 adds
+- Stage 7C extends the Postgres control plane and immutable JSON operation
+  journal with transactional, normalised authoritative projections for the core
+  Project → Rig → Hole → BHA → Shift → Run/Rod → Handover vertical. Peripheral
+  modules remain journal-only. Stage 4 uses IndexedDB for local
+  media blobs; Stage 5 adds
   organisation-scoped completion metadata in localStorage; Stage 6 adds a
   separate IndexedDB database for report binaries plus a reports metadata
   envelope. Focused Vitest and Playwright coverage is configured for TargetLock.
@@ -100,6 +103,8 @@ src/
   domain/                  units, formulas, models, invariants, completion,
                            reports
   infrastructure/
+    sync/                  typed durable outbox, retry coordinator, lease guard
+    backup/                checksummed metadata export and import dry-run
     casing/                versioned string projection and immutable events
     components/            organisation registry, assignments, recovery
     completion/            org-scoped completion envelope, lock, reopen
@@ -112,18 +117,111 @@ src/
     trays/                 tray/photo metadata and media operation recovery
     audit/                 immutable hole-scoped audit appends
     seed/                  cumulative DDH041 Stage 1–5 fixtures
+  server/pilot/            Postgres control plane + authoritative core boundary
 ```
 
 Domain calculations do not depend on React or browser storage.
 
+## Stage 7C authoritative core write and recovery path
+
+Explicit demo mode alone enables cumulative DDH041 training seeds. Pilot and
+unknown runtime modes initialise organisation-scoped directories with no demo
+projects/holes. The server session provider configures exact organisation,
+operator role and registered-device context before the field workspace opens.
+
+Browser repository methods are classified by one explicit, fail-closed
+operation manifest; unknown methods are configuration errors rather than
+being guessed from method-name prefixes. Mutations are serialised through the
+existing `RunbookOperationCoordinator`. In pilot mode the coordinator:
+
+1. checks client role and the active hole writer lease;
+2. permits an online primary writer, a 30-minute bounded offline grace, or a
+   12-hour completion/close grace for a previously authorised shift;
+3. commits the established browser repository mutation;
+4. serialises the validated operation input/result (blobs become
+   metadata/checksum only) into IndexedDB; and
+5. retries the idempotent typed envelope to Postgres without rolling back the
+   already-committed local field change.
+
+The server independently verifies organisation/device/operator identity,
+privileged operation permission, payload hash, size, reference context and
+lease evidence. Drillers are fail-closed outside the registered device
+project/rig assignment; supervisor/admin recovery overrides are separately
+audited. Offline acceptance uses the current Postgres lease ID/version/writer,
+release/takeover state and server-issued grace deadlines, never client
+timestamps as authority. Immutable local project/rig/hole references are registered
+under organisation-scoped uniqueness so a new hole is not rejected merely
+because the server reference table was empty.
+
+Pending outbox rows are partitioned by organisation/device/operator. Context
+changes quarantine older unsynced rows instead of retrying them under a new
+identity, and active-context logout/removal is blocked until sync is clear or a
+recovery backup is exported.
+
+`pilot_domain_operations` remains the immutable receipt. Core manifest handlers
+validate operation-specific payloads with Zod and derive normalised projections.
+Inside one Postgres transaction the repository checks lease evidence and the
+canonical expected revision, applies the project-directory or hole aggregate,
+updates the revision registry and aggregate head, appends the durable change
+cursor, writes audit, and stores the stable operation receipt. Duplicate
+operation IDs replay their original result. Stale revisions, duplicate run
+numbers and conflicting entity versions produce explicit conflict receipts;
+there is no last-write-wins path.
+
+`pilot_projects`, `pilot_rigs` and `pilot_holes` retain their Stage 7A identity
+role and now hold authoritative state. Hole configurations, BHA setups, shifts,
+handovers, runs, rod events, run corrections, completion reviews, immutable
+completion records and reopen history use organisation-scoped tables and
+immutable local IDs. A partial unique index permits only one `OPEN` or
+`HANDOVER_PENDING` shift per organisation/hole. Peripheral operation types
+continue to be journal and revision controlled only.
+
+Authenticated core APIs return the assigned/available directory, a versioned
+complete hole snapshot, bounded changes since a durable cursor, and conflict
+details. In pilot mode the browser always pushes its durable outbox first. Once
+there is no pending/conflicted local operation, it pulls server changes and
+hydrates established local repository envelopes without passing through the
+mutation/outbox coordinator. First-use and explicit replacement-tablet restore
+use the same assignment-keyed hydration transaction under the runbook Web Lock,
+with a final outbox check immediately before storage commit. A restore dry-run
+is blocked by pending operations or durable unjournalled-failure evidence,
+requires confirmation/reason, prepares a durable idempotent server audit before
+local replacement and commits it afterwards, and stores aggregate
+IDs/revisions/cursor in backup metadata. Assignment changes and empty server
+directories become explicit stale/clear-confirmation states. Demo mode never
+uses this path.
+
+The local write remains the field-speed/offline commit, while Postgres is the
+authoritative recoverable core projection after journal acceptance. Media and
+generated-report blobs are not uploaded.
+
 ## Runbook navigation model
 
-`/sign-in` is the public pilot entry and `/start` is the authenticated local
-decision boundary. Start confirms an existing hole before opening it and
-requires project selection before routing to new-hole onboarding. `/projects`
-remains the complete directory. Within a selected hole, primary destinations
-(no in-page Back) are Current Hole, Runbook, Trays, Trajectory and More — shared
-by desktop rail and phone bottom nav via `RunbookNavigation`.
+`/sign-in` is the public entry and `/start` is the work-context boundary:
+Identity → Choose/confirm work → Runbook. In demo mode identity is local; in
+secure pilot mode protected layouts resolve the PostgreSQL-backed session.
+Start makes the
+operator's recent hole primary, exposes other open records as "Available on
+this device", and confirms project/client or site, rig, hole identity,
+lifecycle and operator role before navigation. A signed-out hole deep link is
+sanitised, preserved as `/start?next=…`, matched to a local hole and confirmed
+before the original destination opens. Ordinary resume/choose actions still
+derive BHA setup, handover, active-run or start-shift routing from repository
+state.
+
+Drillers can resume or choose local holes and may create a Draft from a client
+plan only for the registered device's assigned project/rig. That narrow route
+captures the plan reference and permits initial trajectory defaults, the first
+BHA/CSU, and Draft activation at the first Shift. Server lifecycle checks close
+the Driller setup window after the first matching configuration, BHA, Shift or
+Run. Project/rig creation, broad hole setup, later configuration, correction,
+completion and reopen routes remain privileged. Supervisors receive a separated
+Set up work area. Demo mode retains the lightweight client gate; secure pilot
+mode additionally enforces the same granular permission and assignment checks
+in server layouts and operation handling.
+Within a selected hole, primary destinations (no in-page Back) are Current
+Hole, Runbook, Trays, Trajectory and More — shared by desktop rail and phone
+bottom nav via `RunbookNavigation`.
 
 Secondary pages use `StagePageHeader.backTarget` with a named parent. Canonical
 parents for More tools resolve to `/holes/[holeId]/more`. Nested detail pages
@@ -135,10 +233,11 @@ See ADR-047 and `docs/runbook-navigation-matrix.md`.
 
 ## Runtime and data flow
 
-1. The root gateway reads the versioned browser-local operator session, then
-   routes to Sign In or Start. Library and Runbook layouts require an active
-   local operator; this is attribution and navigation continuity, not secure
-   authentication.
+1. The root gateway asks `/api/pilot/session` for runtime mode. Demo mode reads
+   the versioned browser-local operator session. Secure pilot mode validates the
+   HttpOnly cookie, active organisation/membership/account/session version and
+   optional registered device. Library and Runbook server layouts require that
+   identity before the existing client session boundary renders.
 2. The route renders the TargetLock shell and stable seed context.
 3. Client-side form controls collect observations through React state and
    React Hook Form where the existing workflow uses it.
@@ -192,7 +291,9 @@ See ADR-047 and `docs/runbook-navigation-matrix.md`.
     `getHoleTrajectoryComparison` / pure domain desurvey modules.
 16a. Trajectory graphics (Implementation 6) build a presentation view-model
     from verified comparison coordinates and render Canvas UI / PDF vector
-    panels / PNG exports without recalculating desurvey mathematics.
+    panels / PNG exports without recalculating desurvey mathematics. Report
+    cover location panels reuse those verified render paths and recorded collar
+    values; they do not geocode mine-grid coordinates or fetch map imagery.
 17. `LocalTrayRepository` stores hole-scoped tray, photo metadata, corrections,
     and operation stages in localStorage. `IndexedDbMediaRepository` stores the
     original/preview blobs separately. A tray is activated only after its
@@ -247,6 +348,10 @@ Browser APIs must remain behind client boundaries. Seed data and pure calculatio
 - **Completion state:** organisation-scoped hole status, active review,
   immutable completion snapshots, reopen history, and recoverable transaction
   stage. Locked statuses block operational mutators.
+- **Report state:** immutable repository snapshots include project/client/site,
+  rig, recorded collar/grid/direction context, generation time/version and the
+  active browser-local operator ID/name/role snapshot. Old local snapshots
+  remain readable because visual-parity fields and role are optional.
 - **Derived state:** calculated on demand; never persisted as authoritative input.
 - **View state:** panel expansion, active field, theme choice, and transient messages.
 
@@ -438,8 +543,35 @@ binary format validation (`assertValidReportBlob`). Open PDF creates a
 temporary object URL on the user gesture (not before) and revokes it after the
 tab can load. Download never offers a zero-byte file. Report currency compares
 immutable `sourceVersions` fingerprints; out-of-date reports remain historical
-and are never auto-regenerated. Railway still hosts code only — report blobs
-remain browser-local.
+and are never auto-regenerated. The Stage 7A Railway database does not store
+report blobs; they remain browser-local.
+
+## PDF Visual Parity v1
+
+The client-side `pdf-lib` adapter now uses shared PDF design tokens and layout
+primitives for TargetLock navy/blue branding, surface cards, status colour,
+section headings, striped tables and headers/footers. Full-Hole and Hole
+Summary page 1 is a dedicated hero with project/client/site/rig context,
+recorded collar/grid/direction values, generation attribution, report version,
+an eight-card KPI grid and deterministic vector depth-progression and
+recovery-by-depth charts. Searchable report text, the existing trajectory
+plan/section/3D panels, pagination, signatures, validation and offline
+generation remain in the same `pdf-lib` pipeline.
+
+Chart points are presentation projections of `ReportHoleAnalytics.shiftRows`
+and `runRows`; they do not recalculate drilling or trajectory domain values.
+CSV compatibility lives in the report domain: each report type has an ordered
+dataset list, the UI exposes a labelled selector only when multiple datasets
+are available, and the generation use case rejects incompatible requests
+instead of silently substituting another dataset.
+
+The cover location panel has an optional in-memory static-image asset boundary
+for a future map, but this increment supplies only recorded coordinates and
+offline vector trajectory context. A real orthophoto/satellite implementation
+requires project CRS/EPSG or stored WGS84, provider attribution/licensing,
+privacy controls, online fetch and cache policy, and an explicit offline
+fallback. Raw mine-grid Easting/Northing values must never be sent to a
+geographic satellite API as though they were longitude/latitude.
 
 **Original V1 reliability gap:** generation could complete in repositories while
 the UI only showed a transient status line, had no Open PDF path, and verified
@@ -457,3 +589,40 @@ when a blob existed, or accept insufficiently validated files.
 - Timeline and statistics merge seed and local completed runs by run number to
   avoid double-counting.
 - Close Shift supports both handover close and final-shift close for completion.
+
+## Stage 7A controlled-pilot server boundary
+
+Stage 7A adds a deliberately narrow Postgres-backed control plane under
+`src/server/pilot`:
+
+- opaque random session and device credentials are held only in Secure,
+  HttpOnly, SameSite cookies; PostgreSQL stores HMAC-SHA-256 hashes;
+- bcrypt password hashes, session expiry/revocation and account
+  `session_version` make disabled/revoked membership effective on the next
+  request;
+- `COMPANY_ADMIN`, `SUPERVISOR` and `DRILLER` permissions are centralised and
+  reused by API and server route boundaries;
+- every protected Library/Runbook request resolves membership server-side in
+  pilot mode. Setup, complete, reopen, void and correction route segments add
+  explicit server permission boundaries;
+- registered devices are organisation-scoped and can carry optional
+  site/project/rig references. A unique partial index permits one active
+  primary registration for an organisation/rig pair;
+- work leases serialize acquisition per organisation/resource, expire unless
+  heartbeated, support normal release, and require a supervisor takeover reason;
+- Stage 7A operation receipts validate organisation/user/device context and
+  provide the original idempotent boundary.
+
+`TARGETLOCK_MODE=demo` preserves the existing browser-local operator selector
+for development and E2E. Production requires an explicit mode; secure pilot
+mode fails closed without PostgreSQL, session secret and exact HTTPS origin.
+The optional Basic gate remains only for legacy demo previews and is bypassed
+by secure pilot mode.
+
+Stage 7B extends this foundation with the outbox/lease-aware mutation path and
+bounded JSON payloads. Stage 7C applies the explicitly registered core subset to
+authoritative server tables and provides snapshot/cursor recovery as described
+above. This is not a claim that every module is synchronised: casing,
+components, surveys, trays, report metadata and all blobs still require later
+materialisers or cloud object storage. Conflicts are surfaced for supervisor
+review and export-before-discard; automatic merge is intentionally absent.

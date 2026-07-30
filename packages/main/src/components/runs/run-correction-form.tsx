@@ -21,6 +21,7 @@ import {
   type RunCorrectionImpact,
 } from "@/domain";
 import { targetLockStage5Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 import type { SavedRunSnapshot } from "@/infrastructure/drafts";
 
 type CorrectionChoice =
@@ -55,7 +56,10 @@ export function RunCorrectionForm({
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
   const parentHref = runbookRoutes.runDetail(holeId, runId);
   const seedRuns = useMemo(
-    () => targetLockStage5Seed.runs.filter((item) => item.holeId === holeId),
+    () =>
+      getBrowserRuntimeMode() === "demo"
+        ? targetLockStage5Seed.runs.filter((item) => item.holeId === holeId)
+        : [],
     [holeId],
   );
 
@@ -188,7 +192,10 @@ export function RunCorrectionForm({
               }
             : undefined,
         seedRuns,
-        surveyDepthsDm: targetLockStage5Seed.surveys
+        surveyDepthsDm: (getBrowserRuntimeMode() === "demo"
+          ? targetLockStage5Seed.surveys
+          : []
+        )
           .filter((survey) => survey.holeId === holeId)
           .map((survey) => survey.depthDm),
       },
@@ -268,7 +275,10 @@ export function RunCorrectionForm({
           correctedByUserId: actor.id,
           correctedByNameSnapshot: actor.name,
           reportIds: reports.map((report) => report.localId),
-          surveyDepthsDm: targetLockStage5Seed.surveys
+          surveyDepthsDm: (getBrowserRuntimeMode() === "demo"
+            ? targetLockStage5Seed.surveys
+            : []
+          )
             .filter((survey) => survey.holeId === holeId)
             .map((survey) => survey.depthDm),
           acknowledgeWarnings: acknowledgeWarnings || (impact?.warnings.length ?? 0) === 0,

@@ -20,6 +20,7 @@ import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, type ShiftAnalytics } from "@/domain";
 import { targetLockStage2Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 
 import { formatRecoveryTenths } from "./shift-analytics-format";
 
@@ -59,7 +60,10 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
         const nextGroups = getShiftRunGroups({
           holeId,
           shifts,
-          seedRuns: targetLockStage2Seed.runs,
+          seedRuns:
+            getBrowserRuntimeMode() === "demo"
+              ? targetLockStage2Seed.runs
+              : [],
           localRuns: runs.snapshots,
         });
         setGroups(nextGroups);

@@ -53,9 +53,16 @@ export function StartShiftForm({
   drillers: readonly DrillerOption[];
 }) {
   const router = useRouter();
-  const { session } = useOperatorSession();
+  const { runtimeMode, session } = useOperatorSession();
   const availableDrillers =
-    session?.operator.role === "DRILLER" &&
+    runtimeMode === "pilot" && session
+      ? [
+          {
+            id: session.operator.localId,
+            name: session.operator.displayName,
+          },
+        ]
+      : session?.operator.role === "DRILLER" &&
     !drillers.some(({ id }) => id === session.operator.localId)
       ? [
           {
@@ -71,6 +78,10 @@ export function StartShiftForm({
   const [drillerId, setDrillerId] = useState(
     availableDrillers[0]?.id ?? "",
   );
+  const selectedDrillerId =
+    runtimeMode === "pilot" && session
+      ? session.operator.localId
+      : drillerId;
   const [crew, setCrew] = useState("");
   const [rigId, setRigId] = useState("");
   const [state, setState] = useState<CurrentHoleState | null>(null);
@@ -115,7 +126,9 @@ export function StartShiftForm({
   const submit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();
     setMessage(null);
-    const selected = availableDrillers.find(({ id }) => id === drillerId);
+    const selected = availableDrillers.find(
+      ({ id }) => id === selectedDrillerId,
+    );
     if (selected === undefined) {
       setMessage("Select a primary driller.");
       return;
@@ -301,7 +314,7 @@ export function StartShiftForm({
                 Primary driller
                 <select
                   required
-                  value={drillerId}
+                  value={selectedDrillerId}
                   onChange={(event) => setDrillerId(event.target.value)}
                   className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-base"
                 >

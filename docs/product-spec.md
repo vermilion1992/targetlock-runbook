@@ -12,47 +12,73 @@ run-overlap usage statistics; Stage 4 adds simplified manual survey records and
 completed-tray photography; Stage 5 adds final-hole completion review, lock,
 reopen, and immutable completion snapshots; Stage 6 adds local Report Centre
 PDF/Excel/CSV generation, IndexedDB report storage, share/download, and email
-draft preparation without SMTP delivery. A device-local operator sign-in now
-attributes pilot records and restores recent-hole context; secure account
-authentication, authorisation and synchronisation remain later work.
+draft preparation without SMTP delivery. Demo mode retains device-local,
+self-selected operators and DDH041 training data for development and E2E.
+Stage 7B secure shadow-pilot mode
+adds provisioned accounts, organisation membership, server roles, registered
+device context, lease-aware coordinated mutations, a durable browser outbox and
+idempotent validated JSON operation journal. Stage 7C adds transactional,
+normalised authoritative server projections and cross-device restore for the
+core Project/Rig/Hole/BHA/Shift/Run/Rod/Handover workflow. Peripheral
+operations remain journal-only and media/report blobs remain local.
+
+Pilot mode never hydrates demo projects/holes in a fresh browser. It uses exact
+server roles, including Company admin attribution. Online non-owning devices
+are read-only. A previously verified primary writer may continue within a
+visible 30-minute offline grace; completion/close of an already-authorised
+shift has a bounded 12-hour grace and is journalled for review.
 
 ## Users and core workflow
 
 The primary user is a driller or supervisor recording a drilling run at the rig.
 
-1. Sign in as the operator using this field device. The Start page offers the
-   last valid hole, another existing hole, a project-scoped new hole, or a new
-   project. Hole and project selections are confirmed before context changes.
-2. Create or select the project and its operating rig, then select the required
-   hole from the project-owned register.
-3. Create a draft hole with a required Hole ID, collar dip, collar azimuth and
+1. Identify the operator using this field device, then always choose or confirm
+   work before entering a runbook. In pilot mode Start uses the cached
+   server-authorised directory and labels offline state honestly; demo mode
+   continues to use local training work.
+2. Confirm project, client/site, rig, hole ID, lifecycle state and local
+   operator role before entering or switching holes. A signed-out hole deep
+   link is preserved through `/start` and cannot bypass this confirmation.
+3. Drillers can resume or choose an available hole and may create a Draft hole
+   from a client-issued plan only inside the registered device's assigned
+   project and rig. The plan/work-instruction reference is retained for
+   traceability. Drillers may record the first BHA/CSU while that assigned hole
+   is still Draft and has no Shift or Run; later setup changes remain
+   Supervisor-controlled.
+4. Supervisors additionally see a separated Set up work area for the project
+   library, project creation and unrestricted project-scoped new-hole creation.
+   Drillers cannot create or reassign projects/rigs, perform corrections, or
+   use later configuration workflows.
+5. A supervisor creates or selects the project and its operating rig, then
+   selects the required hole from the project-owned register.
+6. Create a draft hole with a required Hole ID, collar dip, collar azimuth and
    north reference. Collar Easting/Northing/RL and target details may be added
    during creation or later.
-4. Before the first shift or Run, record the initial full BHA length and
+7. Before the first shift or Run, record the initial full BHA length and
    constant stick-up (CSU). TargetLock derives base R/S as `BHA − CSU`; missing
    or invalid setup blocks operational work with one direct setup action.
    Optional component details may be deferred. Later BHA/CSU changes require a
    reason and are retained at their effective depth on the timeline.
-5. Start or accept the shift that owns new work. Open the current hole and
+8. Start or accept the shift that owns new work. Open the current hole and
    confirm BHA, CSU, rod length, and previous completed depth.
-6. Record any rod additions and the current measured stick-up. Stage 1 domain
+9. Record any rod additions and the current measured stick-up. Stage 1 domain
    history also represents removals; the full remove/correct UI remains later
    work.
-7. Review calculated current rod string (R/S), hole depth and drilled length,
+10. Review calculated current rod string (R/S), hole depth and drilled length,
    correct validation errors, add an optional note, and complete the Run.
-8. Resume an unfinished local draft in the same browser.
-9. Record casing lifecycle events and bit/reamer or BHA/CSU changes at exact
+11. Resume an unfinished local draft in the same browser.
+12. Record casing lifecycle events and bit/reamer or BHA/CSU changes at exact
    effective depths. Configuration changes append history and future Runs use
    the latest setup; completed Runs retain their original snapshots. Runs
    retain the component assignments that owned them when they started. Initial
    hole direction and later collar setup updates are also shown on the
    operational timeline.
-10. Record a manual survey station, optionally with a result photograph, and
+13. Record a manual survey station, optionally with a result photograph, and
    review survey history without converting references or calculating a
    trajectory.
-11. Photograph a completed core tray, retain its labelled depth range, and
+14. Photograph a completed core tray, retain its labelled depth range, and
    derive related completed runs without changing or splitting those runs.
-12. Close or hand over the Shift. Begin final-hole completion review when
+15. Close or hand over the Shift. Begin final-hole completion review when
    drilling is finished, resolve the
    checklist, acknowledge advisories, and lock the hole as completed or
    abandoned; reopen only with an explicit reason.
@@ -74,8 +100,11 @@ only — not penetration rate, productive hours, or utilisation.
 V2 end-of-Hole analytics provide a repository-backed Hole overview on
 `/holes/[holeId]/statistics`, completed-Hole teasers, and Full-Hole / Hole
 Summary reports (executive summary, operational analysis tables, chart text
-summaries, Excel analytics sheets). Weighted recovery, void exclusion, shared
-Run attribution, observed component recovery (with partial-Run labels), and
+summaries, Excel analytics sheets). PDF Visual Parity v1 additionally renders
+searchable branded hero/KPI content and deterministic vector depth-progression
+and recovery-by-depth graphics from those same analytics arrays. Weighted
+recovery, void exclusion, shared Run attribution, observed component recovery
+(with partial-Run labels), and
 per-category record completeness apply. Planned-versus-actual trajectories
 (Implementation 5) and interactive 3D / report trajectory graphics
 (Implementation 6) apply; graphics are presentation-only and not certified
@@ -334,14 +363,15 @@ negative, or drilled length is not positive.
   automatic depth recognition, and recovered-core allocation; payroll, hours,
   delays, and costs.
 
-SQLite and synchronisation are explicitly deferred to Stage 7. Browser
-persistence is a prototype convenience behind repository boundaries, not a
-claim of production-grade offline durability or offline asset availability.
+Stage 7C server materialisation is limited to the core drilling vertical.
+Peripheral materialisation and cloud blob synchronisation remain deferred.
+Local-first persistence is not a claim of complete cloud durability or offline
+asset packaging.
 
 ## Existing product baseline
 
-The repository currently has no database/ORM, real authentication, service
-worker, or server sync. Stage 4 uses IndexedDB only for local media blobs and
+Before Stage 7A the repository had no database/ORM, real authentication,
+service worker, or server sync. Stage 4 uses IndexedDB only for local media blobs and
 localStorage for operational metadata; Stage 5 adds an organisation-scoped
 completion envelope in localStorage. Neither store is production durability.
 TargetLock has focused Vitest coverage, while the
@@ -356,6 +386,16 @@ Stage 6 delivers local Report Centre workflows:
 - Generate Full-Hole, Current-Shift, Hole Summary, Survey History, Tray
   Register, Component History, and Casing History reports as PDF, Excel, and/or
   CSV from repository snapshots (including Stage 5 completion snapshots).
+- Attribute generation, report metadata and report audits to the active
+  browser-local operator ID/name/role snapshot. This improves local report
+  trust but does not convert self-selected local sign-in into authentication.
+- Select a compatible CSV dataset when a report exposes more than one; use
+  report-specific defaults and reject incompatible report/dataset pairs.
+- Present Full-Hole and Hole Summary PDF page 1 as a TargetLock hero with
+  project/client/site/rig, lifecycle, recorded collar/grid/direction,
+  generated-by/time/version, KPI cards, and deterministic depth/recovery vector
+  charts. Existing searchable tables and verified trajectory vectors continue
+  on safe page breaks.
 - Store binaries in IndexedDB; keep versioned metadata and Report Activity
   locally.
 - Download, share (Web Share / download fallback), and Prepare Email draft with
@@ -363,9 +403,17 @@ Stage 6 delivers local Report Centre workflows:
   delivery.
 - Routes: `/holes/[holeId]/reports`, `/holes/[holeId]/reports/history`.
 
-Pilot limitations: no authentication, no server sync, no cloud report storage,
-no cross-device report history, browser storage quota, and no physical-device
-native-share validation unless performed separately.
+Stage 6 local-mode limitations were no authentication, no server sync, no
+cloud report storage, no cross-device report history, browser storage quota,
+and no physical-device native-share validation. Stage 7B adds journal-backed
+metadata and quota/backup diagnostics. Stage 7C adds cross-device core workflow
+recovery, but not cloud report blobs or cross-device report history.
+
+PDF location panels use recorded collar coordinates and offline trajectory
+vectors only. They do not claim satellite imagery and never treat mine-grid
+Easting/Northing as WGS84. A future static orthophoto/map requires a project
+CRS/EPSG or stored WGS84, provider attribution/licensing, privacy controls,
+online fetch/caching, and an offline fallback.
 
 ## Pilot audit readiness
 
@@ -381,5 +429,66 @@ persistence. Field pilot operators should use `docs/pilot-test-guide.md` and
 `docs/local-installation.md`. Remaining constraints are listed in
 `docs/known-limitations.md`.
 
-Production claims still need authenticated identity, durable transactions,
-backup, and synchronisation.
+Stage 7A supplied the authenticated identity/control-plane foundation. Stage 7B
+adds the operationally honest shadow-pilot boundary below. Stage 7C
+materialises the core workflow and adds replacement-device recovery. Full
+production claims still need peripheral materialisers, reviewed conflict
+disposition, cloud blobs, field restore drills and physical validation.
+
+## Stage 7B scope: controlled shadow-pilot hardening
+
+Secure pilot mode requires a provisioned account and resolves
+organisation/role on the server. Roles are not selectable at sign-in:
+
+- `COMPANY_ADMIN`: provision/disable users plus supervisor operations.
+- `SUPERVISOR`: setup, completion/reopen/corrections, device assignment and
+  reasoned lease takeover.
+- `DRILLER`: normal field entry, lease use and operation journal submission;
+  no supervisor/admin actions.
+
+One organisation is shown in the initial UX, while every database record and
+service call carries an organisation ID. The primary rig tablet is registered
+with an HttpOnly device credential and optional site/project/rig assignment.
+Start must show the trusted server role and device/rig context separately from
+the local hole list.
+
+The active-work service supports acquire, status, heartbeat, release and
+supervisor takeover for hole/shift resources. A second device receives
+read-only/contention state. A central browser mutation boundary checks the
+lease, commits locally, and appends a typed operation to a durable IndexedDB
+outbox. The server validates account/device/organisation, operation permission,
+payload/hash/size, reference context and lease evidence before persisting
+accepted/conflict/rejected journal rows.
+
+The operation journal stores actual validated JSON and immutable
+organisation-scoped local project/rig/hole references. Stage 7C handlers
+materialise the registered core subset into authoritative project-directory and
+hole aggregates. Other operations remain audit/backup only; media blobs are not
+uploaded.
+
+Deployment acceptance follows `docs/controlled-pilot-runbook.md`. Full pilot
+readiness remains blocked on remaining domain materialisers, reviewed
+conflict-disposition policy, cloud photo/report storage, full-blob restore
+drills, physical-device testing and monitoring.
+
+## Stage 7C scope: authoritative core recovery
+
+For accepted core operations, the server validates canonical payload, actor,
+organisation, device, permission, lease evidence and expected revision. Journal
+receipt, normalised projection, aggregate/revision update, change cursor and
+audit are one transaction. Project-directory and hole aggregate boundaries
+retain server-received ordering and client time as evidence. Stable replay does
+not duplicate records; stale revisions or duplicate run numbers become
+conflicts.
+
+An authorised tablet can list its server directory, retrieve a complete
+versioned hole snapshot and pull bounded changes after a durable cursor. The
+client pushes pending local operations before pulling and never overwrites
+unsynced work. Initial hydration and explicit restore write directly to local
+repository envelopes without generating outbox operations. Restore has a
+dry-run, pending-work block, reasoned confirmation and audit.
+
+The runbook distinguishes **Local saved**, **Journal backed up**, **Server
+current** and **Conflict**. A recovery tablet is readable without becoming the
+writer; mutation still requires lease ownership or documented grace. There is
+no automatic conflict merge or last-write-wins behavior.

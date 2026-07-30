@@ -14,6 +14,7 @@ import {
   type HoleCompletionSnapshot,
   type ReportDocumentData,
   type ReportHoleAnalytics,
+  type ReportOperatorRole,
   type ReportShiftAnalytics,
   type ReportSourceVersion,
   type ReportTrajectorySummary,
@@ -35,6 +36,13 @@ export interface BuildReportInput {
   readonly holeId: string;
   readonly reportType: ReportType;
   readonly shiftId?: string;
+  readonly generation?: {
+    readonly generatedAt: string;
+    readonly version: number;
+    readonly generatedByUserId: string;
+    readonly generatedByNameSnapshot: string;
+    readonly generatedByRoleSnapshot?: ReportOperatorRole;
+  };
 }
 
 export interface BuildReportResult {
@@ -275,6 +283,13 @@ export async function buildReportDocumentData(
     lifecycle?.hole.status ?? context.hole.status,
   );
   const holeStatusSnapshot = HOLE_STATUS_LABELS[holeStatus];
+  const [coordinateConfiguration, actualConfiguration] =
+    dependencies.trajectory === undefined
+      ? [null, null]
+      : await Promise.all([
+          dependencies.trajectory.getCoordinateConfiguration(input.holeId),
+          dependencies.trajectory.getActualConfiguration(input.holeId),
+        ]).catch(() => [null, null] as const);
 
   const completedRuns = context.completedRuns
     .filter((run) => run.holeId === input.holeId)
@@ -731,6 +746,61 @@ export async function buildReportDocumentData(
   );
 
   const disclosures: string[] = [];
+  const collarEastingM =
+    coordinateConfiguration?.collarEastingDm === undefined
+      ? context.hole.collarEasting
+      : coordinateConfiguration.collarEastingDm / 10;
+  const collarNorthingM =
+    coordinateConfiguration?.collarNorthingDm === undefined
+      ? context.hole.collarNorthing
+      : coordinateConfiguration.collarNorthingDm / 10;
+  const collarRlM =
+    coordinateConfiguration?.collarRlDm === undefined
+      ? context.hole.collarElevation
+      : coordinateConfiguration.collarRlDm / 10;
+  const hasCollarCoordinates =
+    collarEastingM !== undefined ||
+    collarNorthingM !== undefined ||
+    collarRlM !== undefined;
+  const hasCollarDirection = actualConfiguration !== null;
+  const coordinateSystemLabel =
+    coordinateConfiguration?.coordinateMode === "MINE_GRID"
+      ? [
+          coordinateConfiguration.coordinateSystemName,
+          coordinateConfiguration.epsgCode,
+        ]
+          .filter(Boolean)
+          .join(" · ") || "Mine grid · CRS not recorded"
+      : coordinateConfiguration?.coordinateMode === "RELATIVE"
+        ? hasCollarCoordinates
+          ? "Recorded collar grid / CRS not recorded · trajectory coordinates are relative"
+          : "Relative local coordinates"
+        : hasCollarCoordinates
+          ? "Recorded collar grid / CRS not recorded"
+          : undefined;
+  const collar =
+    hasCollarCoordinates || hasCollarDirection
+      ? {
+          eastingM: collarEastingM,
+          northingM: collarNorthingM,
+          rlM: collarRlM,
+          dipDegrees:
+            actualConfiguration === null
+              ? undefined
+              : actualConfiguration.collarDipTenths / 10,
+          azimuthDegrees:
+            actualConfiguration === null
+              ? undefined
+              : actualConfiguration.collarAzimuthTenths / 10,
+          northReference:
+            actualConfiguration?.collarNorthReference ??
+            coordinateConfiguration?.calculationNorthReference,
+          coordinateMode: coordinateConfiguration?.coordinateMode,
+          coordinateSystemName:
+            coordinateConfiguration?.coordinateSystemName,
+          epsgCode: coordinateConfiguration?.epsgCode,
+        }
+      : undefined;
   if (componentRows.some((row) => row.isEstimate)) {
     disclosures.push(
       "Some component recovery values are run-level estimates because assignment boundaries fall inside runs.",
@@ -746,13 +816,36 @@ export async function buildReportDocumentData(
       "Completion warning acknowledgements are included from the Stage 5 completion snapshot.",
     );
   }
+  if (
+    hasCollarCoordinates &&
+    !coordinateConfiguration?.coordinateSystemName &&
+    !coordinateConfiguration?.epsgCode
+  ) {
+    disclosures.push(
+      "Collar coordinates are shown exactly as recorded. No project CRS/EPSG is recorded, so no geographic conversion or satellite map has been applied.",
+    );
+  }
 
   const documentData: ReportDocumentData = {
     holeId: input.holeId,
     holeName: context.hole.name,
     projectName: context.projectName,
+    projectCode: context.projectCode,
+    clientName: context.clientName,
+    siteLocation: context.siteLocation,
     rigName: context.rigName,
     holeStatus: holeStatusSnapshot,
+    collar,
+    coordinateSystemLabel,
+    generatedBy: input.generation
+      ? {
+          userId: input.generation.generatedByUserId,
+          displayName: input.generation.generatedByNameSnapshot,
+          role: input.generation.generatedByRoleSnapshot,
+        }
+      : undefined,
+    reportVersion: input.generation?.version,
+    reportGeneratedAt: input.generation?.generatedAt,
     currentOrFinalDepthDm: holeDepthSnapshotDm,
     plannedDepthDm,
     completion: completionSnapshot
@@ -908,6 +1001,24 @@ export async function buildReportDocumentData(
       entityId: context.hole.localId,
       version: context.hole.version,
     },
+    ...(context.projectVersion === undefined
+      ? []
+      : [
+          {
+            entityType: "project",
+            entityId: context.projectId,
+            version: context.projectVersion,
+          },
+        ]),
+    ...(context.rigVersion === undefined
+      ? []
+      : [
+          {
+            entityType: "rig",
+            entityId: context.rigId,
+            version: context.rigVersion,
+          },
+        ]),
     ...completedRuns.map((run) => ({
       entityType: "run",
       entityId: run.localId,
@@ -981,12 +1092,37 @@ export async function buildReportDocumentData(
       entityId: reopen.localId,
       version: reopen.version,
     })),
+    ...(coordinateConfiguration === null
+      ? []
+      : [
+          {
+            entityType: "trajectory_coordinate_configuration",
+            entityId: coordinateConfiguration.localId,
+            version: coordinateConfiguration.version,
+          },
+        ]),
+    ...(actualConfiguration === null
+      ? []
+      : [
+          {
+            entityType: "trajectory_actual_configuration",
+            entityId: actualConfiguration.localId,
+            version: actualConfiguration.version,
+          },
+        ]),
     ...trajectorySourceVersions,
   ];
 
   return {
     documentData,
-    sourceVersions,
+    sourceVersions: [
+      ...new Map(
+        sourceVersions.map((version) => [
+          `${version.entityType}:${version.entityId}`,
+          version,
+        ]),
+      ).values(),
+    ],
     holeDepthSnapshotDm,
     holeStatusSnapshot,
     shiftId: currentShift?.shiftId,

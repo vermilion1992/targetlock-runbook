@@ -12,6 +12,7 @@ import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetreInput } from "@/components/field/metre-input";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
+import { StatePanel } from "@/components/field/state-panel";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
@@ -64,7 +65,7 @@ function FieldLabel({
 
 export function UpdateBhaForm({ holeId }: { holeId: string }) {
   const router = useRouter();
-  const { session } = useOperatorSession();
+  const { session, pilot } = useOperatorSession();
   const identity = useRef({
     operationId: operationId(),
     effectiveAt: new Date().toISOString(),
@@ -145,6 +146,16 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
     parsedStickUp.value <= parsedAssembly.value
       ? calculateBaseRodString(parsedAssembly.value, parsedStickUp.value)
       : null;
+
+  if (!loading && pilot?.serverRole === "DRILLER" && hasExistingSetup) {
+    return (
+      <StatePanel
+        state="empty"
+        title="Supervisor approval required"
+        description="Drillers can record the initial BHA for an assigned Draft hole. Later BHA or constant stick-up changes require a Supervisor and an audited reason."
+      />
+    );
+  }
 
   const handleSubmit = async (event: FormEvent<HTMLFormElement>) => {
     event.preventDefault();

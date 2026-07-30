@@ -1,6 +1,7 @@
 # TargetLock Railway Deployment
 
-Deploy the TargetLock Runbook V1 field pilot from GitHub to Railway.
+Deploy the TargetLock Stage 7C authoritative-core pilot from GitHub to
+Railway. See `docs/controlled-pilot-runbook.md` for bootstrap and field checks.
 
 ## Isolation result
 
@@ -25,26 +26,32 @@ Therefore Railway **Root Directory** must be `/packages/main`.
 | Install | `npm ci` (Railpack default when lockfile present) |
 | Build Command | `npm run build` |
 | Start Command | `npm run start -- --hostname 0.0.0.0 --port $PORT` |
-| Healthcheck Path | `/api/health` |
+| Healthcheck Path | `/api/readiness` |
 | Healthcheck Timeout | `300` seconds |
 | Restart Policy | `ON_FAILURE` (max 10 retries) |
 | Watch Paths | `/packages/main/**` |
 | Volumes | none |
-| Databases | none |
+| Databases | Railway PostgreSQL required for secure pilot mode |
 
-## Optional pilot access variables
+## Secure pilot variables
 
 Server-only. Never use `NEXT_PUBLIC_` for these values.
 
 | Variable | Required | Notes |
 |----------|----------|-------|
-| `PILOT_ACCESS_ENABLED` | optional | Set to `true` to enable the gate |
-| `PILOT_ACCESS_USERNAME` | required when enabled | Set in Railway Variables |
-| `PILOT_ACCESS_PASSWORD` | required when enabled | Set in Railway Variables |
+| `TARGETLOCK_MODE` | yes | Set to `pilot` |
+| `DATABASE_URL` | yes | Railway PostgreSQL reference |
+| `PILOT_SESSION_SECRET` | yes | Random value, at least 32 characters |
+| `APP_ORIGIN` | yes | Exact generated HTTPS origin |
+| `PILOT_SESSION_TTL_SECONDS` | optional | Defaults to eight hours |
+| `DATABASE_SSL` | optional | Unset/`disable` on Railway private networking; `require` encrypts an external endpoint without CA identity verification; prefer `verify-ca` when a CA is available |
+| `DATABASE_CA_CERT` | for `verify-ca` | PEM CA certificate; server-only |
 
-When the gate is enabled, browsers receive an HTTP Basic Auth challenge.
-`/api/health` remains public. This is a deployment access gate, not full
-authentication.
+Production fails closed when the runtime mode or secure pilot variables are
+missing. `/api/health` is public liveness; `/api/readiness` checks safe
+configuration, database state and exact expected migration. The legacy
+`PILOT_ACCESS_*` Basic gate is only
+for demo previews and is ignored in secure pilot mode.
 
 Other optional variables (not required for TargetLock pilot):
 
@@ -97,7 +104,7 @@ npm run start -- --hostname 0.0.0.0 --port $PORT
 11. Confirm **Healthcheck Path**:
 
 ```text
-/api/health
+/api/readiness
 ```
 
 12. Confirm **Watch Paths**:
@@ -106,40 +113,67 @@ npm run start -- --hostname 0.0.0.0 --port $PORT
 /packages/main/**
 ```
 
-13. Under **Variables**, optionally add:
+13. Generate the application HTTPS domain, add a Railway PostgreSQL service,
+    and set:
 
 ```text
-PILOT_ACCESS_ENABLED=true
-PILOT_ACCESS_USERNAME=<set-in-railway>
-PILOT_ACCESS_PASSWORD=<set-in-railway>
+TARGETLOCK_MODE=pilot
+DATABASE_URL=<railway-postgres-reference>
+PILOT_SESSION_SECRET=<random-server-secret>
+APP_ORIGIN=https://<railway-domain>
 ```
 
-14. Deploy.
-15. Open **Settings → Networking**.
-16. Generate a public Railway domain.
-17. Test:
+14. Stop/hold application rollout, then run `npm run pilot:migrate` exactly once
+    as a controlled release command. The migrator takes a Postgres advisory
+    lock, but migrations are intentionally not part of every replica's start
+    command. Stage 7C readiness requires
+    `0004_stage_7c_core_materialisation.sql`; do not deploy the Stage 7C
+    application before that forward-only migration succeeds.
+15. Run `npm run pilot:migrate:check`; deployment readiness remains `503` until
+    the expected migration is present.
+16. Run the one-time `npm run pilot:bootstrap` workflow from the controlled
+    pilot runbook and remove all bootstrap variables.
+17. Deploy.
+18. Test:
 
 ```text
 https://<railway-domain>/api/health
+https://<railway-domain>/api/readiness
 https://<railway-domain>/
 https://<railway-domain>/holes/DDH041/current
 ```
 
-18. Confirm GitHub automatic deployments are enabled for `main`.
+19. Confirm GitHub automatic deployments are enabled only after the migration
+    step is part of the release checklist.
 
-## Storage limitation (unchanged by Railway)
+## Storage limitation
 
-Railway hosts the TargetLock application code only.
+Railway PostgreSQL stores organisations, accounts, sessions, registered
+devices, work leases, validated JSON operation journal rows, journal revision
+registries, authoritative core project/hole/BHA/shift/run/rod/handover
+projections, durable change cursors and audit events. Operational records still
+commit to browser localStorage/IndexedDB first; accepted core operations are
+then applied transactionally to Postgres. Peripheral journal rows are not yet
+materialised. Photograph and generated-report blobs remain local. The in-app
+backup contains metadata/outbox rows, server aggregate IDs/revisions/cursor and
+a media manifest, not recoverable blobs.
 
-Operational records, photographs and generated reports remain in each device’s
-browser (localStorage / IndexedDB). They are **not** synchronised, shared or
-backed up by Railway. Records entered on one device will not appear on another.
+Railway service-to-Postgres private networking normally does not require TLS;
+leave `DATABASE_SSL` unset or set `disable` there. For external endpoints,
+`require` provides encryption but sets `rejectUnauthorized: false`. Prefer
+`verify-ca` plus the Railway/provider CA PEM in `DATABASE_CA_CERT` when
+certificate verification is available.
+
+Stage 7C rate-limit buckets remain process-local. Keep exactly one application
+replica. Horizontal scaling requires a shared Postgres/Redis limiter first.
 
 ## Local production smoke test
 
 From `packages/main` after `npm run build`:
 
 ```powershell
+$env:TARGETLOCK_MODE="demo"
+$env:ALLOW_LOCAL_DEMO_IN_PRODUCTION="true"
 $env:PORT="3456"
 npm run start -- --hostname 0.0.0.0 --port $env:PORT
 ```
@@ -148,6 +182,7 @@ Then verify:
 
 ```text
 http://localhost:3456/api/health
+http://localhost:3456/api/readiness
 http://localhost:3456/
 http://localhost:3456/holes/DDH041/current
 ```

@@ -21,6 +21,61 @@ export const REPORT_FORMATS = ["PDF", "XLSX", "CSV"] as const;
 
 export type ReportFormat = (typeof REPORT_FORMATS)[number];
 
+export const CSV_DATASET_NAMES = [
+  "runs",
+  "shifts",
+  "surveys",
+  "trays",
+  "casing",
+  "components",
+  "corrections",
+] as const;
+
+export type CsvDatasetName = (typeof CSV_DATASET_NAMES)[number];
+
+export const CSV_DATASET_LABELS: Readonly<Record<CsvDatasetName, string>> = {
+  runs: "Runs",
+  shifts: "Shifts",
+  surveys: "Surveys",
+  trays: "Trays",
+  casing: "Casing",
+  components: "Components",
+  corrections: "Corrections",
+};
+
+export const CSV_DATASETS_BY_REPORT: Readonly<
+  Record<ReportType, readonly CsvDatasetName[]>
+> = {
+  FULL_HOLE_RUNBOOK: [
+    "runs",
+    "shifts",
+    "surveys",
+    "trays",
+    "casing",
+    "components",
+    "corrections",
+  ],
+  CURRENT_SHIFT_RUNBOOK: ["runs", "shifts"],
+  HOLE_SUMMARY: ["runs", "shifts", "corrections"],
+  SURVEY_HISTORY: ["surveys", "corrections"],
+  TRAY_REGISTER: ["trays"],
+  COMPONENT_HISTORY: ["components"],
+  CASING_HISTORY: ["casing"],
+};
+
+export function defaultCsvDatasetForReport(
+  reportType: ReportType,
+): CsvDatasetName {
+  return CSV_DATASETS_BY_REPORT[reportType][0];
+}
+
+export function isCsvDatasetCompatible(
+  reportType: ReportType,
+  dataset: CsvDatasetName,
+): boolean {
+  return CSV_DATASETS_BY_REPORT[reportType].includes(dataset);
+}
+
 export const REPORT_GENERATION_STAGES = [
   "SNAPSHOT_BUILDING",
   "SNAPSHOT_SAVED",
@@ -289,12 +344,43 @@ export interface ReportShiftAnalytics {
   readonly unresolvedItems: readonly string[];
 }
 
+export type ReportOperatorRole = "DRILLER" | "SUPERVISOR" | "COMPANY_ADMIN";
+
+export interface ReportGeneratedBySnapshot {
+  readonly userId: LocalId;
+  readonly displayName: string;
+  readonly role?: ReportOperatorRole;
+}
+
+export interface ReportCollarSnapshot {
+  /** Recorded collar coordinates in metres; no CRS conversion is performed. */
+  readonly eastingM?: number;
+  readonly northingM?: number;
+  readonly rlM?: number;
+  readonly dipDegrees?: number;
+  readonly azimuthDegrees?: number;
+  readonly northReference?: string;
+  readonly coordinateMode?: "RELATIVE" | "MINE_GRID";
+  readonly coordinateSystemName?: string;
+  readonly epsgCode?: string;
+}
+
 export interface ReportDocumentData {
   readonly holeId: LocalId;
   readonly holeName: string;
   readonly projectName: string;
+  readonly projectCode?: string;
+  readonly clientName?: string;
+  readonly siteLocation?: string;
   readonly rigName: string;
   readonly holeStatus: string;
+  readonly collar?: ReportCollarSnapshot;
+  /** Human-readable source grid/CRS label, never an inferred geographic CRS. */
+  readonly coordinateSystemLabel?: string;
+  /** Copied from generation metadata so the immutable document stands alone. */
+  readonly generatedBy?: ReportGeneratedBySnapshot;
+  readonly reportVersion?: number;
+  readonly reportGeneratedAt?: IsoTimestamp;
   readonly currentOrFinalDepthDm: Decimetres;
   readonly plannedDepthDm: Decimetres;
   readonly completion?: {
@@ -431,6 +517,7 @@ export interface ReportSnapshot {
   readonly generatedAt: IsoTimestamp;
   readonly generatedByUserId: LocalId;
   readonly generatedByNameSnapshot: string;
+  readonly generatedByRoleSnapshot?: ReportOperatorRole;
   readonly holeDepthSnapshotDm: Decimetres;
   readonly holeStatusSnapshot: string;
   readonly sourceVersions: readonly ReportSourceVersion[];
@@ -453,6 +540,7 @@ export interface GeneratedReportRecord {
   readonly generatedAt: IsoTimestamp;
   readonly generatedByUserId: LocalId;
   readonly generatedByNameSnapshot: string;
+  readonly generatedByRoleSnapshot?: ReportOperatorRole;
   readonly holeDepthSnapshotDm: Decimetres;
   readonly holeStatusSnapshot: string;
   readonly activityStatus: ReportActivityStatus;

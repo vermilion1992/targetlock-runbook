@@ -15,7 +15,7 @@ export default function TargetLockHomePage() {
   }, [error, loading, router, session]);
 
   return (
-    <main className="target-lock grid min-h-dvh place-items-center bg-[var(--tl-app-bg)] p-5 text-[var(--tl-ink)]">
+    <main className="target-lock grid min-h-dvh place-items-center bg-[var(--tl-canvas)] p-5 text-[var(--tl-ink)]">
       <div className="text-center">
         <p className="text-sm font-bold uppercase tracking-[0.12em] text-[var(--tl-primary)]">
           TargetLock

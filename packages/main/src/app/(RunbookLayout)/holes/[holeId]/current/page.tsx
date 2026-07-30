@@ -5,6 +5,7 @@ import {
   isRoutableHoleId,
   targetLockStage4Seed,
 } from "@/infrastructure/seed";
+import { readPilotEnvironment } from "@/server/pilot/environment";
 
 interface CurrentHolePageProps {
   params: Promise<{ holeId: string }>;
@@ -24,7 +25,9 @@ export default async function CurrentHolePage({
   return (
     <CurrentHoleDashboard
       holeId={holeId}
-      seed={targetLockStage4Seed}
+      seed={
+        readPilotEnvironment().mode === "demo" ? targetLockStage4Seed : null
+      }
       notice={
         query.notice === "shift-started" ||
         query.notice === "handover-accepted" ||

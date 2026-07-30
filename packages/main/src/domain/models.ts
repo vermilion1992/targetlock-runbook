@@ -111,6 +111,8 @@ export interface Hole extends SyncMetadata {
   readonly collarEasting?: number;
   readonly collarNorthing?: number;
   readonly collarElevation?: number;
+  readonly planReference?: string;
+  readonly planRevision?: string;
 }
 
 export interface HoleConfiguration extends SyncMetadata {

@@ -32,11 +32,17 @@ import {
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
+  CSV_DATASET_LABELS,
+  CSV_DATASET_NAMES,
+  CSV_DATASETS_BY_REPORT,
+  defaultCsvDatasetForReport,
+  isCsvDatasetCompatible,
   REPORT_FORMATS,
   REPORT_TYPE_LABELS,
   REPORT_TYPES,
   formatFileSize,
   formatMetres,
+  type CsvDatasetName,
   type GeneratedReportRecord,
   type ReportCurrencyResult,
   type ReportFormat,
@@ -44,11 +50,7 @@ import {
   type ReportType,
   type SavedReportRecipient,
 } from "@/domain";
-
-const ACTOR = {
-  userId: "user-supervisor-lee",
-  userName: "Morgan Lee",
-} as const;
+import { useOperatorSession } from "@/components/session";
 
 function activityTone(
   status: GeneratedReportRecord["activityStatus"],
@@ -69,11 +71,15 @@ function relativeGeneratedLabel(iso: string): string {
 }
 
 export function ReportCentre({ holeId }: { holeId: string }) {
+  const { session } = useOperatorSession();
   const progressId = useId();
   const errorRef = useRef<HTMLDivElement>(null);
   const [reportType, setReportType] = useState<ReportType>("FULL_HOLE_RUNBOOK");
   const [formats, setFormats] = useState<ReadonlySet<ReportFormat>>(
     new Set(["PDF", "XLSX"]),
+  );
+  const [csvDataset, setCsvDataset] = useState<CsvDatasetName>(
+    defaultCsvDatasetForReport("FULL_HOLE_RUNBOOK"),
   );
   const [reports, setReports] = useState<readonly GeneratedReportRecord[]>([]);
   const [currencyById, setCurrencyById] = useState<
@@ -172,16 +178,26 @@ export function ReportCentre({ holeId }: { holeId: string }) {
   async function onGenerate(options?: {
     readonly type?: ReportType;
     readonly format?: ReportFormat;
+    readonly csvDataset?: CsvDatasetName;
   }) {
     setError(null);
     setStatusMessage(null);
     setSuccessDismissed(false);
     const selectedType = options?.type ?? reportType;
+    const selectedCsvDataset =
+      options?.csvDataset ??
+      (isCsvDatasetCompatible(selectedType, csvDataset)
+        ? csvDataset
+        : defaultCsvDatasetForReport(selectedType));
     const selectedFormats = options?.format
       ? [options.format]
       : REPORT_FORMATS.filter((format) => formats.has(format));
     if (selectedFormats.length === 0) {
       setError("Select at least one format.");
+      return;
+    }
+    if (session === null) {
+      setError("An active operator session is required to generate a report.");
       return;
     }
     const services = createBrowserRunbookServices();
@@ -201,9 +217,11 @@ export function ReportCentre({ holeId }: { holeId: string }) {
             holeId,
             reportType: selectedType,
             format,
-            csvDataset: format === "CSV" ? "runs" : undefined,
-            generatedByUserId: ACTOR.userId,
-            generatedByNameSnapshot: ACTOR.userName,
+            csvDataset: format === "CSV" ? selectedCsvDataset : undefined,
+            generatedByUserId: session.operator.localId,
+            generatedByNameSnapshot: session.operator.displayName,
+            generatedByRoleSnapshot:
+              session.operator.serverRole ?? session.operator.role,
             onProgress: setProgress,
           },
           services,
@@ -231,6 +249,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
   }
 
   async function onOpen(report: GeneratedReportRecord) {
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     setBusy(true);
@@ -240,8 +259,9 @@ export function ReportCentre({ holeId }: { holeId: string }) {
           operationId: `open-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
           holeId,
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
         },
         services,
       );
@@ -260,6 +280,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
   }
 
   async function onDownload(report: GeneratedReportRecord) {
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     setBusy(true);
@@ -269,8 +290,9 @@ export function ReportCentre({ holeId }: { holeId: string }) {
           operationId: `download-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
           holeId,
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
         },
         services,
       );
@@ -284,6 +306,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
   }
 
   async function onShare(report: GeneratedReportRecord) {
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     setBusy(true);
@@ -293,8 +316,9 @@ export function ReportCentre({ holeId }: { holeId: string }) {
           operationId: `share-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
           holeId,
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
         },
         services,
       );
@@ -319,6 +343,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
 
   async function onPrepareEmail() {
     if (!emailReportId) return;
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     const to = toEmail
@@ -341,8 +366,9 @@ export function ReportCentre({ holeId }: { holeId: string }) {
             .split(",")
             .map((value) => value.trim())
             .filter(Boolean),
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
           openMailClient: true,
         },
         services,
@@ -362,6 +388,9 @@ export function ReportCentre({ holeId }: { holeId: string }) {
   }
 
   function reportActions(report: GeneratedReportRecord) {
+    const priorCsvDataset = CSV_DATASET_NAMES.find(
+      (dataset) => dataset === report.csvDataset,
+    );
     return (
       <div className="mt-3 flex flex-wrap gap-2">
         {report.format === "PDF" ? (
@@ -419,6 +448,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
             void onGenerate({
               type: report.reportType,
               format: report.format,
+              csvDataset: priorCsvDataset,
             })
           }
           disabled={busy}
@@ -481,7 +511,10 @@ export function ReportCentre({ holeId }: { holeId: string }) {
                     name="report-type"
                     value={type}
                     checked={reportType === type}
-                    onChange={() => setReportType(type)}
+                    onChange={() => {
+                      setReportType(type);
+                      setCsvDataset(defaultCsvDatasetForReport(type));
+                    }}
                     className="size-5"
                     disabled={busy}
                   />
@@ -515,6 +548,43 @@ export function ReportCentre({ holeId }: { holeId: string }) {
               ))}
             </div>
           </fieldset>
+
+          {formats.has("CSV") &&
+          CSV_DATASETS_BY_REPORT[reportType].length > 1 ? (
+            <label
+              htmlFor="report-csv-dataset"
+              className="block max-w-sm text-sm font-semibold text-[var(--tl-ink)]"
+            >
+              CSV dataset
+              <select
+                id="report-csv-dataset"
+                value={csvDataset}
+                onChange={(event) =>
+                  setCsvDataset(event.target.value as CsvDatasetName)
+                }
+                disabled={busy}
+                className="mt-1 min-h-11 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3"
+              >
+                {CSV_DATASETS_BY_REPORT[reportType].map((dataset) => (
+                  <option key={dataset} value={dataset}>
+                    {CSV_DATASET_LABELS[dataset]}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block font-normal text-[var(--tl-ink-muted)]">
+                One focused dataset is exported per CSV file.
+              </span>
+            </label>
+          ) : null}
+
+          {session ? (
+            <p className="text-sm text-[var(--tl-ink-muted)]">
+              Generated by {session.operator.displayName} ·{" "}
+              {session.operator.role === "SUPERVISOR"
+                ? "Supervisor"
+                : "Driller"}
+            </p>
+          ) : null}
 
           <button
             type="button"
@@ -681,6 +751,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
                   disabled={busy}
                   onClick={() => {
                     setReportType(op.reportType);
+                    setCsvDataset(defaultCsvDatasetForReport(op.reportType));
                     setFormats(new Set([op.format]));
                     void onGenerate({
                       type: op.reportType,

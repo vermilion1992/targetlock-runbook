@@ -22,6 +22,10 @@ import {
 } from "@/domain";
 import { ComponentRepositoryError } from "@/infrastructure/components";
 import { targetLockStage3Seed } from "@/infrastructure/seed";
+import {
+  getBrowserRuntimeMode,
+  getPilotBrowserRuntimeContext,
+} from "@/infrastructure/sync";
 
 import {
   COMPONENT_TYPES,
@@ -120,13 +124,21 @@ export function AddComponentForm({
     }
 
     const actor = defaultComponentActor();
+    const pilot = getPilotBrowserRuntimeContext();
+    if (getBrowserRuntimeMode() === "pilot" && pilot === null) {
+      setError("The active pilot identity is unavailable. Sign in again.");
+      setSaving(false);
+      return;
+    }
     const occurredAt = new Date().toISOString();
     const id = createComponentLocalId(`component-${type.toLocaleLowerCase("en-AU")}`);
     try {
       await createComponent(
         {
           id,
-          organisationId: targetLockStage3Seed.organisation.localId,
+          organisationId:
+            pilot?.organisationId ??
+            targetLockStage3Seed.organisation.localId,
           auditHoleId: holeId,
           type,
           serialNumber,

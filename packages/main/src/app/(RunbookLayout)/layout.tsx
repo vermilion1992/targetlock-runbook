@@ -3,12 +3,14 @@ import { Suspense } from "react";
 
 import { RunbookShell } from "@/components/app-shell/runbook-shell";
 import { RequireOperatorSession } from "@/components/session";
+import { requirePilotPageSession } from "@/server/pilot/runtime";
 
 interface RunbookLayoutProps {
   children: ReactNode;
 }
 
-export default function RunbookLayout({ children }: RunbookLayoutProps) {
+export default async function RunbookLayout({ children }: RunbookLayoutProps) {
+  await requirePilotPageSession("/start");
   return (
     <RequireOperatorSession>
       <Suspense

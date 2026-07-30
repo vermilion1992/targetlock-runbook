@@ -50,6 +50,8 @@ export interface CreateHoleWithTrajectoryInput {
   readonly collarEastingM?: number;
   readonly collarNorthingM?: number;
   readonly collarRlM?: number;
+  readonly planReference?: string;
+  readonly planRevision?: string;
   readonly preferredSurveyIntervalM?: number;
   readonly preferredSurveyNorthReference?: NorthReference;
   readonly calculationNorthReference?: NorthReference;
@@ -191,6 +193,8 @@ export async function createHoleWithTrajectoryDefaults(
     collarEasting: input.collarEastingM,
     collarNorthing: input.collarNorthingM,
     collarElevation: input.collarRlM,
+    planReference: input.planReference?.trim() || undefined,
+    planRevision: input.planRevision?.trim() || undefined,
   };
 
   let hole: CanonicalHole;
@@ -309,6 +313,12 @@ export async function createHoleWithTrajectoryDefaults(
           collarNorthReference: input.collarNorthReference,
           collarCoordinatesRecorded: hasCollarCoordinates,
           targetRecorded: hasTarget,
+          ...(input.planReference?.trim()
+            ? { planReference: input.planReference.trim() }
+            : {}),
+          ...(input.planRevision?.trim()
+            ? { planRevision: input.planRevision.trim() }
+            : {}),
         },
       } satisfies AuditEntry);
     }

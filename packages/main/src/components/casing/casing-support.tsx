@@ -17,6 +17,10 @@ import {
   type UsageRun,
 } from "@/domain";
 import { targetLockStage3Seed } from "@/infrastructure/seed";
+import {
+  getBrowserRuntimeMode,
+  getPilotBrowserRuntimeContext,
+} from "@/infrastructure/sync";
 
 export const CASING_STATUSES: readonly CasingStatus[] = [
   "ACTIVE",
@@ -66,6 +70,15 @@ export function defaultCasingActor(): {
   readonly userId: string;
   readonly userName: string;
 } {
+  if (getBrowserRuntimeMode() === "pilot") {
+    const pilot = getPilotBrowserRuntimeContext();
+    if (pilot === null) {
+      throw new Error(
+        "The active pilot identity is unavailable. Sign in again.",
+      );
+    }
+    return { userId: pilot.operatorId, userName: pilot.operatorName };
+  }
   const user =
     targetLockStage3Seed.users.find(({ role }) => role === "supervisor") ??
     targetLockStage3Seed.users.find(({ role }) => role === "driller") ??
@@ -84,7 +97,10 @@ export function completedHoleDepth(
   if (localResult.status === "invalid") throw new Error(localResult.reason);
 
   const localIds = new Set(localResult.snapshots.map(({ localId }) => localId));
-  const seedRuns: readonly UsageRun[] = targetLockStage3Seed.runs
+  const seedRuns: readonly UsageRun[] = (getBrowserRuntimeMode() === "demo"
+    ? targetLockStage3Seed.runs
+    : []
+  )
     .filter(
       (run) =>
         run.status !== "in_progress" &&

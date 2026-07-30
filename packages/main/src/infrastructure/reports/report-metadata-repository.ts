@@ -39,6 +39,11 @@ const reportTypeSchema = z.enum([
 ]);
 
 const reportFormatSchema = z.enum(["PDF", "XLSX", "CSV"]);
+const reportOperatorRoleSchema = z.enum([
+  "DRILLER",
+  "SUPERVISOR",
+  "COMPANY_ADMIN",
+]);
 
 const generationStageSchema = z.enum([
   "SNAPSHOT_BUILDING",
@@ -79,6 +84,7 @@ const snapshotSchema = z.object({
   generatedAt: z.string().datetime(),
   generatedByUserId: z.string().min(1),
   generatedByNameSnapshot: z.string().min(1),
+  generatedByRoleSnapshot: reportOperatorRoleSchema.optional(),
   holeDepthSnapshotDm: z.number().int().nonnegative(),
   holeStatusSnapshot: z.string().min(1),
   sourceVersions: z.array(
@@ -107,6 +113,7 @@ const generatedReportSchema = z.object({
   generatedAt: z.string().datetime(),
   generatedByUserId: z.string().min(1),
   generatedByNameSnapshot: z.string().min(1),
+  generatedByRoleSnapshot: reportOperatorRoleSchema.optional(),
   holeDepthSnapshotDm: z.number().int().nonnegative(),
   holeStatusSnapshot: z.string().min(1),
   activityStatus: activityStatusSchema,

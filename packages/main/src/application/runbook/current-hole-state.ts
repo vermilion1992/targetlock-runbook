@@ -75,6 +75,7 @@ export interface CurrentHoleState {
 export interface CurrentHoleStateDependencies {
   readonly seed: TargetLockStage1Seed;
   readonly seedCurrentState: SeedCurrentState;
+  readonly enableSeedFallback?: boolean;
   readonly runs: RunRepository;
   readonly shifts: ShiftRepository;
   readonly casing: CasingRepository;
@@ -110,7 +111,8 @@ export async function getCurrentHoleState(
     trays,
     trajectory,
   } = dependencies;
-  const isPrimarySeedHole = seed.hole.localId === holeId;
+  const isPrimarySeedHole =
+    dependencies.enableSeedFallback !== false && seed.hole.localId === holeId;
 
   const completedResult = runs.readCompletedRuns(holeId);
   if (completedResult.status === "invalid") {

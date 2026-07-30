@@ -11,6 +11,8 @@ function request(pathname: string, authorization?: string): NextRequest {
 
 beforeEach(() => {
   vi.stubEnv("NODE_ENV", "production");
+  vi.stubEnv("TARGETLOCK_MODE", "demo");
+  vi.stubEnv("ALLOW_LOCAL_DEMO_IN_PRODUCTION", "true");
   vi.stubEnv("PILOT_ACCESS_ENABLED", "true");
   vi.stubEnv("PILOT_ACCESS_USERNAME", "pilot");
   vi.stubEnv("PILOT_ACCESS_PASSWORD", "field-pass");
@@ -53,5 +55,27 @@ describe("production proxy security policy", () => {
 
     const authorization = `Basic ${btoa("pilot:field-pass")}`;
     expect(proxy(request("/apps/chat-ai", authorization)).status).toBe(200);
+  });
+
+  it("fails closed when a production runtime mode is missing", () => {
+    vi.stubEnv("TARGETLOCK_MODE", "");
+    vi.stubEnv("PILOT_ACCESS_ENABLED", "false");
+
+    expect(proxy(request("/start")).status).toBe(503);
+    expect(proxy(request("/api/health")).status).toBe(200);
+  });
+
+  it("uses account auth rather than the legacy Basic gate in pilot mode", () => {
+    vi.stubEnv("TARGETLOCK_MODE", "pilot");
+    vi.stubEnv("DATABASE_URL", "postgresql://user:pass@db/targetlock");
+    vi.stubEnv("PILOT_SESSION_SECRET", "s".repeat(48));
+    vi.stubEnv("APP_ORIGIN", "https://pilot.example.test");
+
+    const response = proxy(request("/sign-in"));
+    expect(response.status).toBe(200);
+    expect(response.headers.get("www-authenticate")).toBeNull();
+    expect(response.headers.get("x-frame-options")).toBe("DENY");
+    expect(proxy(request("/api/pilot/session")).status).toBe(200);
+    expect(proxy(request("/api/readiness")).status).toBe(200);
   });
 });

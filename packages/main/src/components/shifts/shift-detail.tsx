@@ -19,6 +19,7 @@ import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, type AuditEntry, type ShiftAnalytics } from "@/domain";
 import { targetLockStage2Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 
 import { ShiftDetailAnalyticsSections } from "./shift-analytics-panels";
 
@@ -57,7 +58,10 @@ export function ShiftDetail({
         const next = getShiftRunGroups({
           holeId,
           shifts,
-          seedRuns: targetLockStage2Seed.runs,
+          seedRuns:
+            getBrowserRuntimeMode() === "demo"
+              ? targetLockStage2Seed.runs
+              : [],
           localRuns: runs.snapshots,
         }).find(({ shift }) => shift.localId === shiftId);
         if (next === undefined) throw new Error("The shift was not found.");

@@ -7,6 +7,10 @@ import {
   type HoleStatus,
 } from "@/domain";
 import { targetLockStage4Seed } from "@/infrastructure/seed";
+import {
+  getBrowserRuntimeMode,
+  getPilotBrowserRuntimeContext,
+} from "@/infrastructure/sync";
 
 export function createCompletionOperationId(prefix: string): string {
   if (
@@ -19,6 +23,15 @@ export function createCompletionOperationId(prefix: string): string {
 }
 
 export function defaultCompletionActor(): CompletionActor {
+  if (getBrowserRuntimeMode() === "pilot") {
+    const pilot = getPilotBrowserRuntimeContext();
+    if (pilot === null) {
+      throw new Error(
+        "The active pilot identity is unavailable. Sign in again.",
+      );
+    }
+    return { id: pilot.operatorId, name: pilot.operatorName };
+  }
   const user =
     targetLockStage4Seed.users.find(({ role }) => role === "supervisor") ??
     targetLockStage4Seed.users.find(({ role }) => role === "driller") ??

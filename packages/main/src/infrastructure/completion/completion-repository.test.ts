@@ -291,6 +291,8 @@ describe("LocalCompletionRepository", () => {
       collarEasting: 100,
       collarNorthing: 200,
       collarElevation: 300,
+      planReference: "CLIENT-WI-041",
+      planRevision: "Rev B",
       createdAt: STARTED_AT,
     });
 
@@ -301,6 +303,8 @@ describe("LocalCompletionRepository", () => {
       holeSize: "NQ",
       plannedDepth: 8_250,
       status: "DRAFT",
+      planReference: "CLIENT-WI-041",
+      planRevision: "Rev B",
     });
   });
 

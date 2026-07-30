@@ -73,6 +73,8 @@ const holeSchema = z
     collarEasting: z.number().finite().optional(),
     collarNorthing: z.number().finite().optional(),
     collarElevation: z.number().finite().optional(),
+    planReference: z.string().trim().min(1).max(160).optional(),
+    planRevision: z.string().trim().min(1).max(80).optional(),
   })
   .strict();
 
@@ -503,6 +505,8 @@ export interface CreateHoleInput {
   readonly collarEasting?: number;
   readonly collarNorthing?: number;
   readonly collarElevation?: number;
+  readonly planReference?: string;
+  readonly planRevision?: string;
   readonly createdAt: string;
 }
 
@@ -1093,6 +1097,8 @@ export class LocalCompletionRepository implements CompletionRepository {
       collarEasting: input.collarEasting,
       collarNorthing: input.collarNorthing,
       collarElevation: input.collarElevation,
+      planReference: input.planReference?.trim() || undefined,
+      planRevision: input.planRevision?.trim() || undefined,
     });
     const prior = this.operation(
       envelope,
@@ -1138,6 +1144,8 @@ export class LocalCompletionRepository implements CompletionRepository {
       collarEasting: input.collarEasting,
       collarNorthing: input.collarNorthing,
       collarElevation: input.collarElevation,
+      planReference: input.planReference?.trim() || undefined,
+      planRevision: input.planRevision?.trim() || undefined,
     });
     if (!parsed.success) {
       throw new CompletionRepositoryError(

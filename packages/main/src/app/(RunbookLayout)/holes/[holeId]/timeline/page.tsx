@@ -5,6 +5,7 @@ import {
   isRoutableHoleId,
   targetLockStage4Seed,
 } from "@/infrastructure/seed";
+import { readPilotEnvironment } from "@/server/pilot/environment";
 
 interface TimelinePageProps {
   params: Promise<{ holeId: string }>;
@@ -17,5 +18,12 @@ export default async function TimelinePage({ params }: TimelinePageProps) {
     notFound();
   }
 
-  return <TimelinePreview holeId={holeId} seed={targetLockStage4Seed} />;
+  return (
+    <TimelinePreview
+      holeId={holeId}
+      seed={
+        readPilotEnvironment().mode === "demo" ? targetLockStage4Seed : null
+      }
+    />
+  );
 }

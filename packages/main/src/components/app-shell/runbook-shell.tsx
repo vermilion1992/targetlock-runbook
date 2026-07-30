@@ -16,6 +16,24 @@ import { holeIdFromPathname } from "@/components/navigation/runbook-routes";
 import { subscribeToExternalRunbookStorageChanges } from "@/infrastructure/drafts";
 import { isRoutableHoleId } from "@/infrastructure/seed";
 import { OperatorMenu } from "@/components/session";
+import { useOperatorSession } from "@/components/session";
+import {
+  emptyOutboxSummary,
+  getBrowserCoreRecoveryCoordinator,
+  getBrowserPilotLeaseCoordinator,
+  getBrowserSyncCoordinator,
+} from "@/infrastructure/sync";
+
+const subscribeToNothing = () => () => {};
+const emptySyncSnapshot = emptyOutboxSummary();
+const unavailableSyncSnapshot = {
+  ...emptyOutboxSummary("unavailable"),
+  incomplete: 1,
+  storageErrors: 1,
+  unsynced: 1,
+  warning:
+    "Durable journal storage is unavailable. Export or recover browser storage before field work.",
+};
 
 function subscribeToConnectivity(onStoreChange: () => void): () => void {
   window.addEventListener("online", onStoreChange);
@@ -47,6 +65,39 @@ export function RunbookShell({ children }: RunbookShellProps) {
       : holeIdFromPathname(pathname);
   const [railExpanded, setRailExpanded] = useState(false);
   const [externalChange, setExternalChange] = useState(false);
+  const { runtimeMode, pilot } = useOperatorSession();
+  const syncCoordinator = getBrowserSyncCoordinator();
+  const recoveryCoordinator = getBrowserCoreRecoveryCoordinator();
+  const leaseCoordinator = getBrowserPilotLeaseCoordinator();
+  const syncSummary = useSyncExternalStore(
+    syncCoordinator?.subscribe ?? subscribeToNothing,
+    syncCoordinator?.getSnapshot ?? (() => unavailableSyncSnapshot),
+    () => emptySyncSnapshot,
+  );
+  const recoveryState = useSyncExternalStore(
+    recoveryCoordinator?.subscribe ?? subscribeToNothing,
+    recoveryCoordinator?.getSnapshot ?? (() => ({
+      status: "unavailable" as const,
+      cursor: null,
+      lastPulledAt: null,
+      holeCount: 0,
+      aggregateRevisions: {},
+      message: "Authoritative server recovery is unavailable.",
+    })),
+    () => ({
+      status: "unknown" as const,
+      cursor: null,
+      lastPulledAt: null,
+      holeCount: 0,
+      aggregateRevisions: {},
+      message: null,
+    }),
+  );
+  const leaseState = useSyncExternalStore(
+    leaseCoordinator.subscribe,
+    leaseCoordinator.getSnapshot,
+    leaseCoordinator.getSnapshot,
+  );
   const browserOnline = useSyncExternalStore(
     subscribeToConnectivity,
     getConnectivitySnapshot,
@@ -70,6 +121,15 @@ export function RunbookShell({ children }: RunbookShellProps) {
       window.removeEventListener("storage", handleStorage);
     };
   }, []);
+  useEffect(() => {
+    if (runtimeMode !== "pilot" || !pilot || !holeId) {
+      leaseCoordinator.deactivate();
+      return;
+    }
+    void leaseCoordinator
+      .activateHole(holeId, pilot.device?.projectRef ?? null)
+      .catch(() => undefined);
+  }, [holeId, leaseCoordinator, pilot, runtimeMode]);
 
   return (
     <div className="target-lock">
@@ -106,6 +166,80 @@ export function RunbookShell({ children }: RunbookShellProps) {
         <ThemeModeControl />
         <OperatorMenu compact />
       </header>
+
+      {runtimeMode === "pilot" ? (
+        <div
+          className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-4 py-2 text-xs font-semibold"
+          data-testid="pilot-operation-status"
+        >
+          <span
+            className={
+              leaseState.kind === "PRIMARY_WRITER"
+                ? "text-emerald-700"
+                : leaseState.kind === "OFFLINE_GRACE"
+                  ? "text-amber-700"
+                  : "text-[var(--tl-danger)]"
+            }
+          >
+            {leaseState.kind === "PRIMARY_WRITER"
+              ? "Primary writer"
+              : leaseState.kind === "READ_ONLY"
+                ? "Read-only"
+                : leaseState.kind === "OFFLINE_GRACE"
+                  ? "Offline grace"
+                  : leaseState.kind === "CHECKING"
+                    ? "Checking writer lease"
+                    : leaseState.kind === "DEVICE_REQUIRED"
+                      ? "Device required"
+                      : leaseState.kind === "CONFLICT"
+                        ? "Lease conflict"
+                        : "Lease inactive"}
+          </span>
+          <span className="text-[var(--tl-ink-muted)]">
+            Local saved
+          </span>
+          <span className="text-[var(--tl-ink-muted)]">
+            {syncSummary.availability === "initializing"
+              ? "Journal loading"
+              : syncSummary.availability === "unavailable"
+                ? "Journal unavailable"
+                : syncSummary.unsynced === 0
+                  ? "Journal backed up"
+                  : `${syncSummary.unsynced} awaiting journal`}
+          </span>
+          <span
+            className={
+              recoveryState.status === "server-current"
+                ? "text-emerald-700"
+                : recoveryState.status === "conflict" ||
+                    syncSummary.conflict > 0
+                  ? "text-[var(--tl-danger)]"
+                  : "text-[var(--tl-ink-muted)]"
+            }
+          >
+            {recoveryState.status === "server-current"
+              ? "Server current"
+              : recoveryState.status === "pulling"
+                ? "Server pull in progress"
+                : recoveryState.status === "conflict" ||
+                    syncSummary.conflict > 0
+                  ? "Conflict — supervisor review required"
+                  : "Server state not yet confirmed"}
+          </span>
+          {syncSummary.unsynced > 0 && browserOnline ? (
+            <button
+              type="button"
+              className="min-h-8 rounded-md border border-[var(--tl-border-strong)] px-3"
+              onClick={() => void syncCoordinator?.flush(true)}
+            >
+              Retry now
+            </button>
+          ) : null}
+          <span className="basis-full text-[var(--tl-ink-muted)] sm:basis-auto">
+            {syncSummary.warning ?? recoveryState.message ?? leaseState.message}
+          </span>
+        </div>
+      ) : null}
 
       {externalChange ? (
         <div

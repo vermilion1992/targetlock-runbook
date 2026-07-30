@@ -48,6 +48,10 @@ import {
   createBrowserTrayRepository,
 } from "@/infrastructure/trays";
 import type { ReportServices } from "@/application/reports";
+import {
+  getBrowserRuntimeMode,
+  getPilotBrowserRuntimeContext,
+} from "@/infrastructure/sync";
 import type { RunServices } from "./run-use-cases";
 import type { ShiftServices } from "./shift-use-cases";
 import {
@@ -86,14 +90,33 @@ export type BrowserRunbookServices = ShiftServices &
     >;
   };
 
+export function shouldHydrateDemoRunbookData(
+  mode: "unknown" | "demo" | "pilot",
+): boolean {
+  return mode === "demo";
+}
+
 export function createBrowserRunbookServices(): BrowserRunbookServices | null {
+  const runtimeMode = getBrowserRuntimeMode();
+  const demoDataEnabled = shouldHydrateDemoRunbookData(runtimeMode);
+  const pilotRuntime = getPilotBrowserRuntimeContext();
+  const organisationId =
+    pilotRuntime?.organisationId ?? targetLockStage5Seed.organisation.localId;
+  const seedProjects = demoDataEnabled ? [targetLockStage5Seed.project] : [];
+  const seedRigs = demoDataEnabled ? [targetLockStage5Seed.rig] : [];
+  const seedHoles = demoDataEnabled
+    ? targetLockStage5Seed.completionSeed
+    : { holes: [] };
   const projectsRaw = createBrowserProjectDirectoryRepository(
-    targetLockStage5Seed.organisation.localId,
-    [targetLockStage5Seed.project],
-    [targetLockStage5Seed.rig],
+    organisationId,
+    seedProjects,
+    seedRigs,
   );
   if (projectsRaw === null) return null;
-  const migrationCandidates = targetLockStage5Seed.componentAssignments.flatMap(
+  const migrationCandidates = (demoDataEnabled
+    ? targetLockStage5Seed.componentAssignments
+    : []
+  ).flatMap(
     (assignment) => {
       const component = targetLockStage5Seed.components.find(
         ({ localId }) => localId === assignment.componentId,
@@ -114,25 +137,35 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   );
 
   const completionRaw = createBrowserCompletionRepository(
-    targetLockStage5Seed.organisation.localId,
-    targetLockStage5Seed.completionSeed,
+    organisationId,
+    seedHoles,
   );
   if (completionRaw === null) return null;
   const mutationGuard = new HoleMutationGuard(completionRaw);
   const bhaSetupsRaw = createBrowserBottomHoleAssemblySetupRepository(
-    targetLockStage5Seed.rodStringConfigurations.map((configuration) => ({
-      ...configuration,
-      holeId: targetLockStage5Seed.hole.localId,
-    })),
+    demoDataEnabled
+      ? targetLockStage5Seed.rodStringConfigurations.map((configuration) => ({
+          ...configuration,
+          holeId: targetLockStage5Seed.hole.localId,
+        }))
+      : [],
     mutationGuard,
   );
 
-  const runs = createBrowserRunRepository(migrationCandidates, mutationGuard);
+  // The manifest proxy below owns serialization for service mutations. Avoid
+  // acquiring the same non-reentrant browser lock again inside the run store.
+  const runsRaw = createBrowserRunRepository(
+    migrationCandidates,
+    mutationGuard,
+    false,
+  );
   const shiftsRaw = createBrowserShiftRepository(
-    ddh041Stage2Shifts,
+    demoDataEnabled ? ddh041Stage2Shifts : [],
     mutationGuard,
   );
-  const auditsRaw = createBrowserAuditRepository(ddh041Stage5AuditEntries);
+  const auditsRaw = createBrowserAuditRepository(
+    demoDataEnabled ? ddh041Stage5AuditEntries : [],
+  );
   const runCorrectionsRaw = createBrowserRunCorrectionRepository(
     migrationCandidates,
     mutationGuard,
@@ -140,9 +173,9 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   );
   let componentsRaw: ReturnType<typeof createBrowserComponentRepository> = null;
   componentsRaw = createBrowserComponentRepository(
-    targetLockStage5Seed.organisation.localId,
-    targetLockStage5Seed.components,
-    targetLockStage5Seed.componentAssignments,
+    organisationId,
+    demoDataEnabled ? targetLockStage5Seed.components : [],
+    demoDataEnabled ? targetLockStage5Seed.componentAssignments : [],
     async (input, result) => {
       if (componentsRaw === null || auditsRaw === null) return;
       await recordComponentChangeAudit(input, result, {
@@ -154,43 +187,43 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
     mutationGuard,
   );
   const casingRaw = createBrowserCasingRepository(
-    targetLockStage5Seed.casingStrings,
-    targetLockStage5Seed.casingEvents,
+    demoDataEnabled ? targetLockStage5Seed.casingStrings : [],
+    demoDataEnabled ? targetLockStage5Seed.casingEvents : [],
     mutationGuard,
   );
   const media = createBrowserMediaRepository(
-    targetLockStage5Seed.organisation.localId,
+    organisationId,
   );
   const surveysRaw = createBrowserSurveyRepository(
-    targetLockStage5Seed.organisation.localId,
-    targetLockStage5Seed.surveyTools,
-    targetLockStage5Seed.surveys,
+    organisationId,
+    demoDataEnabled ? targetLockStage5Seed.surveyTools : [],
+    demoDataEnabled ? targetLockStage5Seed.surveys : [],
     mutationGuard,
   );
   const surveyToolsRaw =
     surveysRaw === null ? null : createSurveyToolRepository(surveysRaw);
   const trajectoryRaw = createBrowserTrajectoryRepository(
-    trajectorySeedByHole,
+    demoDataEnabled ? trajectorySeedByHole : new Map(),
     mutationGuard,
   );
   const traysRaw = createBrowserTrayRepository(
-    targetLockStage5Seed.trays,
-    targetLockStage5Seed.photos,
+    demoDataEnabled ? targetLockStage5Seed.trays : [],
+    demoDataEnabled ? targetLockStage5Seed.photos : [],
     media ?? undefined,
     mutationGuard,
   );
   const photosRaw =
     traysRaw === null ? null : createBrowserPhotoRepository(traysRaw);
   const reportFiles = createBrowserReportFileRepository(
-    targetLockStage5Seed.organisation.localId,
+    organisationId,
   );
   const reportsRaw = createBrowserReportMetadataRepository(
-    targetLockStage5Seed.organisation.localId,
-    stage6DefaultRecipients,
+    organisationId,
+    demoDataEnabled ? stage6DefaultRecipients : [],
   );
   const share = createBrowserReportShareAdapter();
   if (
-    runs === null ||
+    runsRaw === null ||
     shiftsRaw === null ||
     auditsRaw === null ||
     runCorrectionsRaw === null ||
@@ -210,34 +243,33 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
 
   const coordinator = getBrowserRunbookOperationCoordinator();
   const coordinate = <T extends object>(
+    repositoryName: string,
     repository: T,
-    synchronousMethods: readonly string[] = [],
   ): T =>
     coordinator === null
       ? repository
       : coordinateBrowserRepository(
           repository,
           coordinator,
-          synchronousMethods,
+          repositoryName,
         );
-  const completion = coordinate(completionRaw, [
-    "getHoleMutationSnapshot",
-  ]);
-  const bhaSetups = coordinate(bhaSetupsRaw);
-  const shifts = coordinate(shiftsRaw);
-  const audits = coordinate(auditsRaw);
-  const runCorrections = coordinate(runCorrectionsRaw);
-  const components = coordinate(componentsRaw);
-  const casing = coordinate(casingRaw);
-  const surveys = coordinate(surveysRaw, ["assertHoleMutable"]);
-  const surveyTools = coordinate(surveyToolsRaw);
-  const trajectory = coordinate(trajectoryRaw);
-  const trays = coordinate(traysRaw);
-  const photos = coordinate(photosRaw);
-  const reports = coordinate(reportsRaw);
-  const projects = coordinate(projectsRaw);
-  const coordinatedMedia = coordinate(media);
-  const coordinatedReportFiles = coordinate(reportFiles);
+  const completion = coordinate("completion", completionRaw);
+  const runs = coordinate("runs", runsRaw);
+  const bhaSetups = coordinate("bha-setups", bhaSetupsRaw);
+  const shifts = coordinate("shifts", shiftsRaw);
+  const audits = coordinate("audits", auditsRaw);
+  const runCorrections = coordinate("run-corrections", runCorrectionsRaw);
+  const components = coordinate("components", componentsRaw);
+  const casing = coordinate("casing", casingRaw);
+  const surveys = coordinate("surveys", surveysRaw);
+  const surveyTools = coordinate("survey-tools", surveyToolsRaw);
+  const trajectory = coordinate("trajectory", trajectoryRaw);
+  const trays = coordinate("trays", traysRaw);
+  const photos = coordinate("photos", photosRaw);
+  const reports = coordinate("reports", reportsRaw);
+  const projects = coordinate("projects", projectsRaw);
+  const coordinatedMedia = coordinate("media", media);
+  const coordinatedReportFiles = coordinate("report-files", reportFiles);
 
   void completion
     .listHoles()
@@ -251,6 +283,7 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
   const currentState = {
     seed: targetLockStage5Seed,
     seedCurrentState: ddh041Stage2CurrentState,
+    enableSeedFallback: demoDataEnabled,
     runs,
     shifts,
     components,
@@ -286,9 +319,11 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
       currentState,
     },
     {
-      runs: targetLockStage5Seed.runs,
-      rodEvents: targetLockStage5Seed.rodEvents,
-      holeId: targetLockStage5Seed.hole.localId,
+      runs: demoDataEnabled ? targetLockStage5Seed.runs : [],
+      rodEvents: demoDataEnabled ? targetLockStage5Seed.rodEvents : [],
+      holeId: demoDataEnabled
+        ? targetLockStage5Seed.hole.localId
+        : "__NO_DEMO_HOLE__",
       preferredSurveyIntervalDm:
         targetLockStage5Seed.holeConfigurations[0]?.preferredSurveyIntervalDm,
     },
@@ -310,10 +345,14 @@ export function createBrowserRunbookServices(): BrowserRunbookServices | null {
       shiftAnalytics,
     },
     {
-      runs: targetLockStage5Seed.runs,
-      rodEvents: targetLockStage5Seed.rodEvents,
-      holeId: targetLockStage5Seed.hole.localId,
-      plannedDepthDm: Number(targetLockStage5Seed.hole.plannedDepth),
+      runs: demoDataEnabled ? targetLockStage5Seed.runs : [],
+      rodEvents: demoDataEnabled ? targetLockStage5Seed.rodEvents : [],
+      holeId: demoDataEnabled
+        ? targetLockStage5Seed.hole.localId
+        : "__NO_DEMO_HOLE__",
+      plannedDepthDm: demoDataEnabled
+        ? Number(targetLockStage5Seed.hole.plannedDepth)
+        : 0,
       preferredSurveyIntervalDm:
         targetLockStage5Seed.holeConfigurations[0]?.preferredSurveyIntervalDm,
     },

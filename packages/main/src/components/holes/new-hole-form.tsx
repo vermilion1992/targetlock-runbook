@@ -21,6 +21,7 @@ import {
   type TargetAttitudeMode,
 } from "@/domain";
 import { targetLockStage5Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 import { createBrowserTrajectoryProjectDefaultsRepository } from "@/infrastructure/trajectory";
 import { useOperatorSession } from "@/components/session";
 
@@ -33,6 +34,8 @@ const NORTH_OPTIONS: NorthReference[] = [
 
 interface NewHoleFormProps {
   projectId?: string;
+  assignedRigId?: string;
+  sourceMode?: "standard" | "client-plan";
 }
 
 function createOperationId(): string {
@@ -44,6 +47,8 @@ function createOperationId(): string {
 
 export function NewHoleForm({
   projectId = targetLockStage5Seed.project.localId,
+  assignedRigId,
+  sourceMode = "standard",
 }: NewHoleFormProps) {
   const router = useRouter();
   const { session } = useOperatorSession();
@@ -52,6 +57,8 @@ export function NewHoleForm({
     occurredAt: new Date().toISOString(),
   });
   const [holeId, setHoleId] = useState("");
+  const [planReference, setPlanReference] = useState("");
+  const [planRevision, setPlanRevision] = useState("");
   const [projectName, setProjectName] = useState("Loading project…");
   const [rigs, setRigs] = useState<readonly { id: string; name: string }[]>([]);
   const [rigId, setRigId] = useState("");
@@ -59,10 +66,16 @@ export function NewHoleForm({
     targetLockStage5Seed.hole.holeSize,
   );
   const [plannedDepth, setPlannedDepth] = useState(
-    (targetLockStage5Seed.hole.plannedDepth / 10).toFixed(1),
+    getBrowserRuntimeMode() === "demo"
+      ? (targetLockStage5Seed.hole.plannedDepth / 10).toFixed(1)
+      : "",
   );
-  const [collarDip, setCollarDip] = useState("-60.0");
-  const [collarAzimuth, setCollarAzimuth] = useState("128.0");
+  const [collarDip, setCollarDip] = useState(
+    getBrowserRuntimeMode() === "demo" ? "-60.0" : "",
+  );
+  const [collarAzimuth, setCollarAzimuth] = useState(
+    getBrowserRuntimeMode() === "demo" ? "128.0" : "",
+  );
   const [collarRef, setCollarRef] = useState<NorthReference>("GRID");
   const [collarE, setCollarE] = useState("");
   const [collarN, setCollarN] = useState("");
@@ -82,7 +95,10 @@ export function NewHoleForm({
   const [busy, setBusy] = useState(false);
   const [isDirty, setIsDirty] = useState(false);
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
-  const parentHref = `/projects/${encodeURIComponent(projectId)}`;
+  const parentHref =
+    sourceMode === "client-plan"
+      ? "/start"
+      : `/projects/${encodeURIComponent(projectId)}`;
 
   useEffect(() => {
     let cancelled = false;
@@ -106,12 +122,19 @@ export function NewHoleForm({
         return;
       }
       setProjectName(project.name);
-      const nextRigs = projectRigs.map((rig) => ({
-        id: rig.localId,
-        name: rig.name,
-      }));
+      const nextRigs = projectRigs
+        .filter((rig) => !assignedRigId || rig.localId === assignedRigId)
+        .map((rig) => ({
+          id: rig.localId,
+          name: rig.name,
+        }));
       setRigs(nextRigs);
       setRigId((current) => current || nextRigs[0]?.id || "");
+      if (assignedRigId && nextRigs.length === 0) {
+        setMessage(
+          "The rig assigned to this field device is not available in the project directory.",
+        );
+      }
     }).catch((caught: unknown) => {
       if (!cancelled) {
         setMessage(
@@ -124,7 +147,7 @@ export function NewHoleForm({
     return () => {
       cancelled = true;
     };
-  }, [projectId]);
+  }, [assignedRigId, projectId]);
 
   async function handleSubmit(event: FormEvent) {
     event.preventDefault();
@@ -147,6 +170,10 @@ export function NewHoleForm({
     }
     if (!rigId) {
       setMessage("Select an operating rig before creating the hole.");
+      return;
+    }
+    if (sourceMode === "client-plan" && planReference.trim().length < 2) {
+      setMessage("Enter the client plan or work-instruction reference.");
       return;
     }
 
@@ -258,6 +285,8 @@ export function NewHoleForm({
           collarEastingM,
           collarNorthingM,
           collarRlM,
+          planReference: planReference.trim() || undefined,
+          planRevision: planRevision.trim() || undefined,
           preferredSurveyIntervalM:
             projectDefaults === null
               ? 30
@@ -297,9 +326,13 @@ export function NewHoleForm({
   return (
     <div className="space-y-4" data-testid="new-hole-form">
       <StagePageHeader
-        eyebrow="Holes"
-        title="New Hole"
-        description="Create the hole identity and collar direction first. BHA and constant stick-up are the next required setup before drilling."
+        eyebrow={sourceMode === "client-plan" ? "Client hole plan" : "Holes"}
+        title={sourceMode === "client-plan" ? "Create assigned hole" : "New Hole"}
+        description={
+          sourceMode === "client-plan"
+            ? "Record the hole supplied by the client for this device's assigned project and rig. It remains Draft until the initial BHA is recorded and the first shift starts."
+            : "Create the hole identity and collar direction first. BHA and constant stick-up are the next required setup before drilling."
+        }
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
@@ -308,11 +341,13 @@ export function NewHoleForm({
         className="rounded-[var(--tl-radius-md)] border border-[var(--tl-primary)] bg-[var(--tl-primary-soft)] px-4 py-3"
       >
         <p className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-primary)]">
-          Setup step 1 of 2
+          {sourceMode === "client-plan"
+            ? "Assigned field setup · step 1 of 2"
+            : "Setup step 1 of 2"}
         </p>
         <p className="mt-1 text-sm font-semibold text-[var(--tl-ink)]">
-          Save the hole, then enter BHA length and constant stick-up from its
-          Overview.
+          Save the Draft hole, verify its details, then enter the initial BHA
+          length and constant stick-up from its Overview.
         </p>
       </div>
 
@@ -365,6 +400,7 @@ export function NewHoleForm({
                 required
                 value={rigId}
                 onChange={(event) => setRigId(event.target.value)}
+                disabled={Boolean(assignedRigId)}
                 className="w-full rounded-md border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-3 py-2"
               >
                 {rigs.length === 0 ? (
@@ -408,6 +444,38 @@ export function NewHoleForm({
               />
             </label>
           </div>
+          {sourceMode === "client-plan" ? (
+            <div className="grid gap-3 sm:grid-cols-2">
+              <label className="block space-y-1 text-sm">
+                <span className="font-semibold text-[var(--tl-ink)]">
+                  Client plan reference
+                </span>
+                <input
+                  required
+                  maxLength={160}
+                  value={planReference}
+                  onChange={(event) => setPlanReference(event.target.value)}
+                  placeholder="Plan, work order or instruction number"
+                  className="w-full rounded-md border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-3 py-2"
+                />
+                <span className="block text-xs text-[var(--tl-ink-muted)]">
+                  Required for field traceability.
+                </span>
+              </label>
+              <label className="block space-y-1 text-sm">
+                <span className="font-semibold text-[var(--tl-ink)]">
+                  Plan revision
+                </span>
+                <input
+                  maxLength={80}
+                  value={planRevision}
+                  onChange={(event) => setPlanRevision(event.target.value)}
+                  placeholder="Optional revision or issue date"
+                  className="w-full rounded-md border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-3 py-2"
+                />
+              </label>
+            </div>
+          ) : null}
         </fieldset>
 
         <fieldset className="space-y-3">

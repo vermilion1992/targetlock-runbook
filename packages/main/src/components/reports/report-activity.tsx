@@ -20,6 +20,7 @@ import {
 } from "@/components/holes/stage-page-header";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { useOperatorSession } from "@/components/session";
 import {
   REPORT_FORMATS,
   REPORT_TYPE_LABELS,
@@ -34,12 +35,8 @@ import {
   type ReportType,
 } from "@/domain";
 
-const ACTOR = {
-  userId: "user-supervisor-lee",
-  userName: "Morgan Lee",
-} as const;
-
 export function ReportActivity({ holeId }: { holeId: string }) {
+  const { session } = useOperatorSession();
   const [reports, setReports] = useState<readonly GeneratedReportRecord[]>([]);
   const [failedOps, setFailedOps] = useState<
     readonly ReportGenerationTransaction[]
@@ -101,6 +98,7 @@ export function ReportActivity({ holeId }: { holeId: string }) {
   }, [dateFilter, formatFilter, reports, statusFilter, typeFilter]);
 
   async function onOpen(report: GeneratedReportRecord) {
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     try {
@@ -109,8 +107,9 @@ export function ReportActivity({ holeId }: { holeId: string }) {
           operationId: `open-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
           holeId,
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
         },
         services,
       );
@@ -125,6 +124,7 @@ export function ReportActivity({ holeId }: { holeId: string }) {
   }
 
   async function onDownload(report: GeneratedReportRecord) {
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     try {
@@ -133,8 +133,9 @@ export function ReportActivity({ holeId }: { holeId: string }) {
           operationId: `download-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
           holeId,
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
         },
         services,
       );
@@ -146,6 +147,7 @@ export function ReportActivity({ holeId }: { holeId: string }) {
   }
 
   async function onShare(report: GeneratedReportRecord) {
+    if (session === null) return;
     const services = createBrowserRunbookServices();
     if (services === null) return;
     try {
@@ -154,8 +156,9 @@ export function ReportActivity({ holeId }: { holeId: string }) {
           operationId: `share-${report.localId}-${crypto.randomUUID()}`,
           reportId: report.localId,
           holeId,
-          userId: ACTOR.userId,
-          userName: ACTOR.userName,
+          userId: session.operator.localId,
+          userName: session.operator.displayName,
+          userRole: session.operator.role,
         },
         services,
       );

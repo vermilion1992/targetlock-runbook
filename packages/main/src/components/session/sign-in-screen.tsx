@@ -37,13 +37,26 @@ const roleOptions: readonly {
 
 export function SignInScreen({
   destination = "/start",
+  notice = null,
 }: {
   destination?: string;
+  notice?: "session-expired" | null;
 }) {
   const router = useRouter();
-  const { loading, session, profiles, error, signIn } = useOperatorSession();
+  const {
+    loading,
+    runtimeMode,
+    session,
+    profiles,
+    error,
+    signIn,
+    pilotSignIn,
+  } = useOperatorSession();
   const [displayName, setDisplayName] = useState("");
   const [role, setRole] = useState<OperatorRole>("DRILLER");
+  const [organisation, setOrganisation] = useState("");
+  const [email, setEmail] = useState("");
+  const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
 
@@ -74,8 +87,24 @@ export function SignInScreen({
     completeSignIn(normalized, role);
   }
 
+  async function handlePilotSubmit(event: FormEvent<HTMLFormElement>) {
+    event.preventDefault();
+    if (submitting) return;
+    setSubmitting(true);
+    setFormError(null);
+    try {
+      await pilotSignIn(organisation, email, password);
+      router.replace(destination);
+    } catch (cause) {
+      setFormError(
+        cause instanceof Error ? cause.message : "Pilot sign-in failed.",
+      );
+      setSubmitting(false);
+    }
+  }
+
   return (
-    <main className="target-lock relative min-h-dvh overflow-hidden bg-[var(--tl-app-bg)] text-[var(--tl-ink)]">
+    <main className="target-lock relative min-h-dvh overflow-hidden bg-[var(--tl-canvas)] text-[var(--tl-ink)]">
       <div
         className="pointer-events-none absolute inset-x-0 top-0 h-72 bg-[radial-gradient(circle_at_top_left,var(--tl-primary-soft),transparent_68%)]"
         aria-hidden="true"
@@ -101,14 +130,15 @@ export function SignInScreen({
         <div className="grid flex-1 items-center gap-8 py-8 lg:grid-cols-[minmax(0,1fr)_28rem] lg:gap-16">
           <section className="hidden max-w-xl lg:block">
             <p className="text-sm font-bold uppercase tracking-[0.14em] text-[var(--tl-primary)]">
-              Field runbook
+              Secure field operations
             </p>
             <h1 className="mt-4 text-5xl font-extrabold leading-[1.05] tracking-[-0.045em]">
-              Start the shift with the right operator and the right hole.
+              Start with the right operator, rig tablet and work context.
             </h1>
             <p className="mt-5 max-w-lg text-lg leading-8 text-[var(--tl-ink-muted)]">
-              Your projects, drilling setup and runbook history stay together
-              on this device, even when the network does not.
+              Core field records save locally first and are validated into the
+              authoritative server record when connectivity permits. Media and
+              generated report files remain on their original tablet.
             </p>
             <div className="mt-8 grid gap-3 sm:grid-cols-2">
               <div className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
@@ -116,7 +146,7 @@ export function SignInScreen({
                   aria-hidden="true"
                   className="size-5 text-[var(--tl-primary)]"
                 />
-                <p className="mt-3 font-bold">Offline-first</p>
+                <p className="mt-3 font-bold">Local-first capture</p>
                 <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
                   Continue field work without depending on coverage.
                 </p>
@@ -126,9 +156,9 @@ export function SignInScreen({
                   aria-hidden="true"
                   className="size-5 text-[var(--tl-primary)]"
                 />
-                <p className="mt-3 font-bold">Operator attribution</p>
+                <p className="mt-3 font-bold">Authoritative recovery</p>
                 <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-                  Setup and audit records carry the signed-in name.
+                  Core work can be restored to an authorised replacement tablet.
                 </p>
               </div>
             </div>
@@ -142,7 +172,7 @@ export function SignInScreen({
               <UserRound aria-hidden="true" className="size-6" />
             </div>
             <p className="mt-5 text-xs font-bold uppercase tracking-[0.12em] text-[var(--tl-primary)]">
-              This device
+              Secure access
             </p>
             <h1
               id="sign-in-heading"
@@ -151,9 +181,20 @@ export function SignInScreen({
               Sign in to TargetLock
             </h1>
             <p className="mt-2 text-sm leading-6 text-[var(--tl-ink-muted)]">
-              Select a recent operator or enter your details to open the field
-              workspace.
+              {runtimeMode === "pilot"
+                ? "Use the account provisioned by your company administrator. Your role is assigned by the server."
+                : "Select a recent operator or enter your details to open the field workspace."}
             </p>
+
+            {notice === "session-expired" ? (
+              <p
+                role="alert"
+                className="mt-4 rounded-md border border-amber-400 bg-amber-50 px-3 py-2 text-sm font-semibold text-amber-950"
+              >
+                Your secure pilot session expired or was revoked. Sign in again.
+                The registered-device cookie remains on this dedicated tablet.
+              </p>
+            ) : null}
 
             {session ? (
               <button
@@ -171,7 +212,7 @@ export function SignInScreen({
               </button>
             ) : null}
 
-            {!loading && profiles.length > 0 ? (
+            {runtimeMode === "demo" && !loading && profiles.length > 0 ? (
               <div className="mt-5">
                 <p className="text-sm font-bold">Recent operators</p>
                 <div className="mt-2 grid gap-2">
@@ -205,11 +246,89 @@ export function SignInScreen({
               </div>
             ) : null}
 
-            <form
-              onSubmit={handleSubmit}
-              className={profiles.length > 0 ? "" : "mt-6"}
-              noValidate
-            >
+            {runtimeMode === "pilot" ? (
+              <form
+                onSubmit={(event) => void handlePilotSubmit(event)}
+                className="mt-6"
+                noValidate
+              >
+                <label
+                  htmlFor="organisation"
+                  className="block text-sm font-bold"
+                >
+                  Organisation
+                </label>
+                <input
+                  id="organisation"
+                  name="organisation"
+                  value={organisation}
+                  onChange={(event) => setOrganisation(event.target.value)}
+                  autoComplete="organization"
+                  maxLength={80}
+                  required
+                  placeholder="Company pilot code"
+                  className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface-raised)] px-4 text-base outline-none focus:border-[var(--tl-primary)] focus:ring-2 focus:ring-[var(--tl-primary-soft)]"
+                />
+                <label
+                  htmlFor="pilot-email"
+                  className="mt-4 block text-sm font-bold"
+                >
+                  Email
+                </label>
+                <input
+                  id="pilot-email"
+                  name="email"
+                  type="email"
+                  value={email}
+                  onChange={(event) => setEmail(event.target.value)}
+                  autoComplete="username"
+                  maxLength={320}
+                  required
+                  className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface-raised)] px-4 text-base outline-none focus:border-[var(--tl-primary)] focus:ring-2 focus:ring-[var(--tl-primary-soft)]"
+                />
+                <label
+                  htmlFor="pilot-password"
+                  className="mt-4 block text-sm font-bold"
+                >
+                  Password
+                </label>
+                <input
+                  id="pilot-password"
+                  name="password"
+                  type="password"
+                  value={password}
+                  onChange={(event) => setPassword(event.target.value)}
+                  autoComplete="current-password"
+                  minLength={10}
+                  maxLength={200}
+                  required
+                  className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface-raised)] px-4 text-base outline-none focus:border-[var(--tl-primary)] focus:ring-2 focus:ring-[var(--tl-primary-soft)]"
+                />
+                {formError || error ? (
+                  <p
+                    role="alert"
+                    className="mt-4 rounded-md bg-[var(--tl-danger-soft)] px-3 py-2 text-sm font-semibold text-[var(--tl-danger)]"
+                  >
+                    {formError ?? error}
+                  </p>
+                ) : null}
+                <button
+                  type="submit"
+                  disabled={submitting || loading}
+                  className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-5 font-bold text-white shadow-[var(--tl-shadow-sm)] disabled:cursor-not-allowed disabled:opacity-60"
+                >
+                  {submitting ? "Verifying account…" : "Sign in securely"}
+                  {!submitting ? (
+                    <ArrowRight aria-hidden="true" className="size-5" />
+                  ) : null}
+                </button>
+              </form>
+            ) : runtimeMode === "demo" ? (
+              <form
+                onSubmit={handleSubmit}
+                className={profiles.length > 0 ? "" : "mt-6"}
+                noValidate
+              >
               <label
                 htmlFor="operator-name"
                 className="block text-sm font-bold"
@@ -290,13 +409,19 @@ export function SignInScreen({
                   <ArrowRight aria-hidden="true" className="size-5" />
                 ) : null}
               </button>
-            </form>
+              </form>
+            ) : (
+              <p role="status" className="mt-6 text-sm font-semibold">
+                Checking pilot configuration…
+              </p>
+            )}
 
             <div className="mt-5 flex items-start gap-2 border-t border-[var(--tl-border)] pt-4 text-xs leading-5 text-[var(--tl-ink-muted)]">
               <HardDrive aria-hidden="true" className="mt-0.5 size-4 shrink-0" />
               <p>
-                Local pilot sign-in identifies records on this browser. It is
-                not account security or cross-device authentication.
+                {runtimeMode === "pilot"
+                  ? "Account, role and device assignment are server-backed. Core Project, Rig, Hole, BHA, Shift, Run and Handover records support authoritative recovery; media and report files remain local."
+                  : "Local demo sign-in identifies records on this browser. It is not account security or cross-device authentication."}
               </p>
             </div>
           </section>

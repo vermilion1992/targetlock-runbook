@@ -1,12 +1,20 @@
 export type TemplateSurfaceDecision = "allow" | "not-found";
 
-const TARGET_LOCK_ROUTE_ROOTS = ["/holes", "/projects"];
+const TARGET_LOCK_ROUTE_ROOTS = [
+  "/holes",
+  "/projects",
+  "/pilot-admin",
+  "/api/pilot",
+];
 const TARGET_LOCK_EXACT_ROUTES = new Set([
   "/",
   "/sign-in",
   "/start",
   "/components",
   "/components/new",
+  "/pilot-account",
+  "/pilot-terms",
+  "/pilot-support",
 ]);
 const PUBLIC_ASSET_ROUTE_ROOTS = [
   "/_next/static",
@@ -60,6 +68,7 @@ export function isTargetLockRoute(pathname: string): boolean {
     TARGET_LOCK_EXACT_ROUTES.has(pathname) ||
     isComponentDetailRoute(pathname) ||
     pathname === "/api/health" ||
+    pathname === "/api/readiness" ||
     TARGET_LOCK_ROUTE_ROOTS.some((root) =>
       isPathOrDescendant(pathname, root),
     )

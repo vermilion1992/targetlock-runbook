@@ -15,6 +15,10 @@ const operatorProfileSchema = z
     localId: z.string().trim().min(1).max(200),
     displayName: z.string().trim().min(2).max(100),
     role: operatorRoleSchema,
+    serverRole: z
+      .enum(["COMPANY_ADMIN", "SUPERVISOR", "DRILLER"])
+      .optional(),
+    organisationName: z.string().trim().min(1).max(160).optional(),
     createdAt: z.string().datetime(),
     lastSignedInAt: z.string().datetime(),
     lastHoleId: z.string().trim().min(1).max(64).optional(),

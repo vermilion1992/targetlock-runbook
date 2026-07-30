@@ -1,7 +1,6 @@
 import {
   PDFDocument,
   StandardFonts,
-  rgb,
   type PDFFont,
   type PDFPage,
 } from "pdf-lib";
@@ -18,17 +17,30 @@ import {
   buildReportTrajectoryViewModel,
   drawTrajectoryGraphicsOnPdfPage,
 } from "./trajectory-pdf-graphics";
+import {
+  PDF_PAGE,
+  PDF_THEME,
+  drawBrandHeaderFooter,
+  drawSectionHeading,
+  pdfSafeText,
+  wrapPdfText,
+} from "./pdf-design";
+import {
+  buildReportAnalyticsGraphicsModel,
+  drawReportAnalyticsGraphicsOnPdfPage,
+  type ReportAnalyticsGraphicsModel,
+} from "./report-analytics-pdf-graphics";
+import {
+  buildReportCoverModel,
+  drawReportCoverHero,
+  drawReportKpiGrid,
+  type ReportCoverModel,
+} from "./report-cover-pdf";
 
-const PAGE_WIDTH = 841.89; // A4 landscape
-const PAGE_HEIGHT = 595.28;
-const PORTRAIT_WIDTH = 595.28;
-const PORTRAIT_HEIGHT = 841.89;
-const MARGIN = 36;
-const LINE = 12;
-const BLACK = rgb(0, 0, 0);
-const GRAY = rgb(0.25, 0.25, 0.25);
+const MARGIN = PDF_PAGE.margin;
+const LINE = PDF_PAGE.lineHeight;
 
-interface PdfLayoutModel {
+export interface PdfLayoutModel {
   readonly reportType: ReportType;
   readonly holeId: string;
   readonly version: number;
@@ -43,6 +55,8 @@ interface PdfLayoutModel {
   readonly hasCorrections: boolean;
   readonly sections: readonly string[];
   readonly oneDecimalSamples: readonly string[];
+  readonly cover?: ReportCoverModel;
+  readonly analyticsGraphics: ReportAnalyticsGraphicsModel;
 }
 
 export function buildPdfLayoutModel(snapshot: ReportSnapshot): PdfLayoutModel {
@@ -56,6 +70,9 @@ export function buildPdfLayoutModel(snapshot: ReportSnapshot): PdfLayoutModel {
   const landscapePages = Math.max(1, Math.ceil(runRows / 28) + (shiftGroups.length > 0 ? 1 : 0));
   const sections = sectionsFor(snapshot.reportType, data);
   const portraitPages = Math.max(1, Math.ceil(sections.length / 4));
+  const hasCover =
+    snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
+    snapshot.reportType === "HOLE_SUMMARY";
   return {
     reportType: snapshot.reportType,
     holeId: snapshot.holeId,
@@ -67,6 +84,8 @@ export function buildPdfLayoutModel(snapshot: ReportSnapshot): PdfLayoutModel {
     hasCorrections: data.corrections.length > 0 || data.disclosures.length > 0,
     sections,
     oneDecimalSamples: data.runsheet.slice(0, 5).map((row) => formatMetres(row.holeDepthDm)),
+    cover: hasCover ? buildReportCoverModel(snapshot) : undefined,
+    analyticsGraphics: buildReportAnalyticsGraphicsModel(data),
   };
 }
 
@@ -142,70 +161,6 @@ function sectionsFor(reportType: ReportType, data: ReportDocumentData): string[]
   }
 }
 
-function drawHeaderFooter(
-  page: PDFPage,
-  font: PDFFont,
-  input: {
-    readonly holeId: string;
-    readonly version: number;
-    readonly generatedAt: string;
-    readonly pageNumber: number;
-    readonly pageCount: number;
-    readonly width: number;
-    readonly height: number;
-  },
-): void {
-  const header = `TargetLock Runbook — ${input.holeId} — ${formatReportVersion(input.version)}`;
-  page.drawText(header, {
-    x: MARGIN,
-    y: input.height - 24,
-    size: 9,
-    font,
-    color: BLACK,
-  });
-  page.drawText(`Generated ${input.generatedAt}`, {
-    x: MARGIN,
-    y: 18,
-    size: 8,
-    font,
-    color: GRAY,
-  });
-  const pageLabel = `Page ${input.pageNumber} of ${input.pageCount}`;
-  const width = font.widthOfTextAtSize(pageLabel, 8);
-  page.drawText(pageLabel, {
-    x: input.width - MARGIN - width,
-    y: 18,
-    size: 8,
-    font,
-    color: GRAY,
-  });
-}
-
-function pdfSafeText(value: string): string {
-  return value
-    .replace(/→/g, "->")
-    .replace(/–|—/g, "-")
-    .replace(/…/g, "...")
-    .replace(/[^\x20-\x7E\n\r\t]/g, "?");
-}
-
-function wrapText(text: string, font: PDFFont, size: number, maxWidth: number): string[] {
-  const words = pdfSafeText(text).split(/\s+/);
-  const lines: string[] = [];
-  let current = "";
-  for (const word of words) {
-    const next = current.length === 0 ? word : `${current} ${word}`;
-    if (font.widthOfTextAtSize(next, size) <= maxWidth) {
-      current = next;
-    } else {
-      if (current.length > 0) lines.push(current);
-      current = word;
-    }
-  }
-  if (current.length > 0) lines.push(current);
-  return lines.length === 0 ? [""] : lines;
-}
-
 class PdfWriter {
   private page!: PDFPage;
   private y = 0;
@@ -221,17 +176,22 @@ class PdfWriter {
       readonly holeId: string;
       readonly version: number;
       readonly generatedAt: string;
+      readonly reportLabel: string;
     },
   ) {
     this.newPage();
   }
 
   get width(): number {
-    return this.landscape ? PAGE_WIDTH : PORTRAIT_WIDTH;
+    return this.landscape
+      ? PDF_PAGE.landscapeWidth
+      : PDF_PAGE.portraitWidth;
   }
 
   get height(): number {
-    return this.landscape ? PAGE_HEIGHT : PORTRAIT_HEIGHT;
+    return this.landscape
+      ? PDF_PAGE.landscapeHeight
+      : PDF_PAGE.portraitHeight;
   }
 
   get currentPage(): PDFPage {
@@ -266,25 +226,29 @@ class PdfWriter {
       y: this.y,
       size: 14,
       font: this.bold,
-      color: BLACK,
+      color: PDF_THEME.navy,
     });
     this.y -= LINE * 2;
   }
 
   heading(value: string): void {
-    this.ensureSpace(LINE * 1.5);
-    this.page.drawText(pdfSafeText(value), {
+    this.ensureSpace(LINE * 2);
+    drawSectionHeading(this.page, this.bold, {
       x: MARGIN,
       y: this.y,
-      size: 11,
-      font: this.bold,
-      color: BLACK,
+      width: this.width - MARGIN * 2,
+      label: value,
     });
-    this.y -= LINE * 1.5;
+    this.y -= LINE * 2;
   }
 
   line(value: string): void {
-    const lines = wrapText(value, this.font, 9, this.width - MARGIN * 2);
+    const lines = wrapPdfText(
+      value,
+      this.font,
+      9,
+      this.width - MARGIN * 2,
+    );
     for (const textLine of lines) {
       this.ensureSpace(LINE);
       this.page.drawText(textLine, {
@@ -292,7 +256,7 @@ class PdfWriter {
         y: this.y,
         size: 9,
         font: this.font,
-        color: BLACK,
+        color: PDF_THEME.ink,
       });
       this.y -= LINE;
     }
@@ -300,6 +264,7 @@ class PdfWriter {
 
   table(headers: readonly string[], rows: readonly (readonly string[])[]): void {
     const colWidth = (this.width - MARGIN * 2) / headers.length;
+    let rowIndex = 0;
     const drawRow = (cells: readonly string[], header: boolean) => {
       this.ensureSpace(LINE + 2);
       if (header) {
@@ -308,42 +273,53 @@ class PdfWriter {
           y: this.y - 2,
           width: this.width - MARGIN * 2,
           height: LINE + 2,
-          color: rgb(0.92, 0.92, 0.92),
+          color: PDF_THEME.navy,
+        });
+      } else if (rowIndex % 2 === 1) {
+        this.page.drawRectangle({
+          x: MARGIN,
+          y: this.y - 2,
+          width: this.width - MARGIN * 2,
+          height: LINE + 2,
+          color: PDF_THEME.surfaceMuted,
         });
       }
       cells.forEach((cell, index) => {
         const safe = pdfSafeText(cell);
-        const clipped = safe.length > 18 ? `${safe.slice(0, 17)}...` : safe;
+        const maxCharacters = Math.max(6, Math.floor(colWidth / 4.3));
+        const clipped =
+          safe.length > maxCharacters
+            ? `${safe.slice(0, maxCharacters - 3)}...`
+            : safe;
         this.page.drawText(clipped, {
           x: MARGIN + index * colWidth + 2,
           y: this.y,
           size: 8,
           font: header ? this.bold : this.font,
-          color: BLACK,
+          color: header ? PDF_THEME.white : PDF_THEME.ink,
         });
       });
       this.y -= LINE + 2;
+      if (!header) rowIndex += 1;
     };
 
     drawRow(headers, true);
-    let rowIndex = 0;
     for (const row of rows) {
       if (this.y < MARGIN + 40) {
         this.newPage();
         drawRow(headers, true);
       }
       drawRow(row, false);
-      rowIndex += 1;
-      void rowIndex;
     }
   }
 
   finalize(): void {
     const pageCount = this.pages.length;
     this.pages.forEach((page, index) => {
-      drawHeaderFooter(page, this.font, {
+      drawBrandHeaderFooter(page, this.font, this.bold, {
         holeId: this.meta.holeId,
-        version: this.meta.version,
+        reportLabel: this.meta.reportLabel,
+        versionLabel: formatReportVersion(this.meta.version),
         generatedAt: this.meta.generatedAt,
         pageNumber: index + 1,
         pageCount,
@@ -358,11 +334,45 @@ function percent(tenths: number): string {
   return `${(tenths / 10).toFixed(1)}%`;
 }
 
-export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob> {
+export interface ReportPdfAssets {
+  readonly locationMap?: {
+    readonly bytes: Uint8Array;
+    readonly mediaType: "image/png" | "image/jpeg";
+    readonly attribution: string;
+  };
+}
+
+export async function generateReportPdf(
+  snapshot: ReportSnapshot,
+  assets?: ReportPdfAssets,
+): Promise<Blob> {
   const doc = await PDFDocument.create();
   const font = await doc.embedFont(StandardFonts.Helvetica);
   const bold = await doc.embedFont(StandardFonts.HelveticaBold);
   const data = snapshot.documentData;
+  const layout = buildPdfLayoutModel(snapshot);
+  const generatedDate = new Date(snapshot.generatedAt);
+  if (Number.isFinite(generatedDate.getTime())) {
+    doc.setCreationDate(generatedDate);
+    doc.setModificationDate(generatedDate);
+  }
+  doc.setProducer("TargetLock offline report generator");
+  doc.setCreator("TargetLock");
+  doc.setTitle(
+    `${snapshot.holeId} ${reportTypeLabel(snapshot.reportType)} ${formatReportVersion(snapshot.version)}`,
+  );
+  doc.setSubject("Deterministic offline drilling report snapshot");
+  doc.setKeywords([
+    "TargetLock",
+    snapshot.holeId,
+    reportTypeLabel(snapshot.reportType),
+  ]);
+  const locationMap =
+    assets?.locationMap === undefined
+      ? undefined
+      : assets.locationMap.mediaType === "image/png"
+        ? await doc.embedPng(assets.locationMap.bytes)
+        : await doc.embedJpg(assets.locationMap.bytes);
   const landscape =
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
     snapshot.reportType === "CURRENT_SHIFT_RUNBOOK";
@@ -370,17 +380,58 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
     holeId: snapshot.holeId,
     version: snapshot.version,
     generatedAt: snapshot.generatedAt,
+    reportLabel: reportTypeLabel(snapshot.reportType),
   });
 
-  writer.title(`TargetLock Runbook — ${reportTypeLabel(snapshot.reportType)}`);
-  writer.line(`Hole ID ${data.holeId} · ${data.holeName}`);
-  writer.line(`Project ${data.projectName} · Rig ${data.rigName}`);
-  writer.line(
-    `Status ${data.holeStatus} · Current/final depth ${formatMetres(data.currentOrFinalDepthDm)} · Planned ${formatMetres(data.plannedDepthDm)}`,
-  );
-  writer.line(
-    `Generated ${snapshot.generatedAt} · Report ${formatReportVersion(snapshot.version)} · By ${snapshot.generatedByNameSnapshot}`,
-  );
+  if (layout.cover) {
+    const afterHero = drawReportCoverHero({
+      page: writer.currentPage,
+      font,
+      bold,
+      model: layout.cover,
+      x: MARGIN,
+      y: writer.cursorY,
+      width: writer.width - MARGIN * 2,
+      height: landscape ? 185 : 225,
+      mapImage: locationMap,
+      mapAttribution: assets?.locationMap?.attribution,
+    });
+    writer.setCursorY(
+      drawReportKpiGrid({
+        page: writer.currentPage,
+        font,
+        bold,
+        kpis: layout.cover.kpis,
+        x: MARGIN,
+        y: afterHero,
+        width: writer.width - MARGIN * 2,
+      }),
+    );
+    const chartHeight = landscape ? 124 : 155;
+    writer.ensureSpace(chartHeight + 6);
+    const graphics = drawReportAnalyticsGraphicsOnPdfPage({
+      page: writer.currentPage,
+      font,
+      bold,
+      model: layout.analyticsGraphics,
+      x: MARGIN,
+      y: writer.cursorY,
+      width: writer.width - MARGIN * 2,
+      height: chartHeight,
+    });
+    writer.setCursorY(graphics.nextY);
+    writer.newPage();
+  } else {
+    writer.title(`TargetLock Runbook — ${reportTypeLabel(snapshot.reportType)}`);
+    writer.line(`Hole ID ${data.holeId} · ${data.holeName}`);
+    writer.line(`Project ${data.projectName} · Rig ${data.rigName}`);
+    writer.line(
+      `Status ${data.holeStatus} · Current/final depth ${formatMetres(data.currentOrFinalDepthDm)} · Planned ${formatMetres(data.plannedDepthDm)}`,
+    );
+    writer.line(
+      `Generated ${snapshot.generatedAt} · Report ${formatReportVersion(snapshot.version)} · By ${snapshot.generatedByNameSnapshot}`,
+    );
+  }
 
   if (snapshot.reportType === "HOLE_SUMMARY") {
     writer.heading("Hole Summary");
@@ -422,9 +473,9 @@ export async function generateReportPdf(snapshot: ReportSnapshot): Promise<Blob>
     writer.line(
       `Rods +3.0 m ${analytics.rodsAdded3m} · +6.0 m ${analytics.rodsAdded6m} · removed ${analytics.rodsRemoved}`,
     );
-    writer.heading("Chart data summaries");
+    writer.heading("Analytical notes");
     writer.line(
-      "Chart images are not embedded in this PDF version; the following text summaries use the same repository-backed datasets as the Statistics UI.",
+      "Cover-page vector charts and the following searchable notes use the same repository-backed analytics snapshot.",
     );
     for (const chart of analytics.chartSummaries) {
       writer.line(`${chart.chart}: ${chart.summary}`);

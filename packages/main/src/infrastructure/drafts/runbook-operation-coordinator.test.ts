@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 
+import { PILOT_OPERATION_MANIFEST } from "@/domain/pilot-operation-manifest";
 import {
   coordinateBrowserRepository,
   RunbookOperationCoordinator,
@@ -97,26 +98,109 @@ describe("RunbookOperationCoordinator", () => {
     const coordinator = new RunbookOperationCoordinator({ channel });
     const repository = coordinateBrowserRepository(
       {
-        snapshot: () => "ready",
-        list: async () => ["item"],
-        save: async () => "saved",
+        readDraft: () => "ready",
+        readCompletedRuns: () => ["item"],
+        saveCompletedRun: async () => "saved",
       },
       coordinator,
-      ["snapshot"],
+      "runs",
+      {
+        prepare: async (repositoryName, method, args) => ({
+          enabled: true,
+          repository: repositoryName,
+          method,
+          arguments: args,
+          clientTime: new Date().toISOString(),
+          projectRef: null,
+          rigRef: null,
+          holeRef: null,
+          shiftRef: null,
+          expectedVersion: null,
+          leaseEvidence: null,
+        }),
+        complete: async () => undefined,
+      },
     );
     let externalChanges = 0;
     coordinator.subscribe(() => {
       externalChanges += 1;
     });
 
-    expect(repository.snapshot()).toBe("ready");
-    await expect(repository.list()).resolves.toEqual(["item"]);
+    expect(repository.readDraft()).toBe("ready");
+    expect(repository.readCompletedRuns()).toEqual(["item"]);
     expect(channel.messages).toHaveLength(0);
-    await expect(repository.save()).resolves.toBe("saved");
+    await expect(repository.saveCompletedRun()).resolves.toBe("saved");
     expect(channel.messages).toHaveLength(1);
 
     channel.emitExternal();
     await Promise.resolve();
     expect(externalChanges).toBe(1);
+  });
+
+  it("coordinates every explicit mutator exactly once and never coordinates reads", async () => {
+    for (const [repositoryName, definitions] of Object.entries(
+      PILOT_OPERATION_MANIFEST,
+    )) {
+      const channel = new TestChannel();
+      const coordinator = new RunbookOperationCoordinator({ channel });
+      const prepared: string[] = [];
+      const completed: string[] = [];
+      const methods = Object.fromEntries(
+        Object.keys(definitions).map((method) => [
+          method,
+          () => `${repositoryName}.${method}`,
+        ]),
+      );
+      const repository = coordinateBrowserRepository(
+        methods,
+        coordinator,
+        repositoryName,
+        {
+          prepare: async (name, method, args) => {
+            prepared.push(`${name}.${method}`);
+            return {
+              enabled: true,
+              repository: name,
+              method,
+              arguments: args,
+              clientTime: new Date().toISOString(),
+              projectRef: null,
+              rigRef: null,
+              holeRef: null,
+              shiftRef: null,
+              expectedVersion: null,
+              leaseEvidence: null,
+            };
+          },
+          complete: async (preparation) => {
+            completed.push(
+              `${preparation.repository}.${preparation.method}`,
+            );
+          },
+        },
+      ) as Record<string, () => unknown>;
+
+      for (const [method, definition] of Object.entries(definitions)) {
+        const result = repository[method]();
+        if (!definition.synchronous) await result;
+      }
+      const expectedMutations = Object.entries(definitions)
+        .filter(([, definition]) => definition.kind === "mutation")
+        .map(([method]) => `${repositoryName}.${method}`);
+      expect(prepared, repositoryName).toEqual(expectedMutations);
+      expect(completed, repositoryName).toEqual(expectedMutations);
+      expect(channel.messages, repositoryName).toHaveLength(
+        expectedMutations.length,
+      );
+    }
+  });
+
+  it("fails closed when a repository method is absent from the manifest", () => {
+    const repository = coordinateBrowserRepository(
+      { surpriseMutation: async () => undefined },
+      new RunbookOperationCoordinator(),
+      "runs",
+    ) as { surpriseMutation: () => Promise<void> };
+    expect(() => repository.surpriseMutation).toThrow(/missing from/);
   });
 });

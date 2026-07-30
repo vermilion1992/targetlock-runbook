@@ -11,9 +11,9 @@ import { OperatorMenu } from "@/components/session";
 
 export function LibraryShell({ children }: { children: ReactNode }) {
   const pathname = usePathname();
-  const isStart = pathname === "/start";
+  const isStart = pathname === "/start" || pathname.startsWith("/start/");
   return (
-    <div className="min-h-dvh bg-[var(--tl-app-bg)] text-[var(--tl-ink)]">
+    <div className="target-lock min-h-dvh bg-[var(--tl-canvas)] text-[var(--tl-ink)]">
       <header className="sticky top-0 z-40 border-b border-[var(--tl-border)] bg-[var(--tl-surface)]/95 backdrop-blur">
         <div className="mx-auto flex min-h-16 w-full max-w-[1440px] items-center gap-3 px-3 sm:px-5 lg:px-8">
           <TargetLockBrand href="/start" />

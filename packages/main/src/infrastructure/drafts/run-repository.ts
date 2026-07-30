@@ -100,6 +100,7 @@ export class LocalRunRepository implements RunRepository {
 export function createBrowserRunRepository(
   migrationCandidates: readonly RunAssignmentMigrationCandidate[] = [],
   mutationGuard?: HoleMutationGuardPort,
+  coordinateMutations = true,
 ): RunRepository | null {
   const storage = getBrowserLocalStorageAdapter();
   return storage === null
@@ -108,6 +109,8 @@ export function createBrowserRunRepository(
         storage,
         migrationCandidates,
         mutationGuard,
-        getBrowserRunbookOperationCoordinator() ?? undefined,
+        coordinateMutations
+          ? (getBrowserRunbookOperationCoordinator() ?? undefined)
+          : undefined,
       );
 }

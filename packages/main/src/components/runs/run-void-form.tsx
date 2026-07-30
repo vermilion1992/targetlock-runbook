@@ -15,6 +15,7 @@ import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import type { RunCorrectionImpact } from "@/domain";
 import { targetLockStage5Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 import type {
   RunVoidReason,
   SavedRunSnapshot,
@@ -51,7 +52,10 @@ export function RunVoidForm({
   const { requestLeave, dialog: discardDialog } = useDiscardLeaveGuard(isDirty);
   const parentHref = runbookRoutes.runDetail(holeId, runId);
   const seedRuns = useMemo(
-    () => targetLockStage5Seed.runs.filter((item) => item.holeId === holeId),
+    () =>
+      getBrowserRuntimeMode() === "demo"
+        ? targetLockStage5Seed.runs.filter((item) => item.holeId === holeId)
+        : [],
     [holeId],
   );
 

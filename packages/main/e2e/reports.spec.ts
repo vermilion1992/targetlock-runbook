@@ -207,6 +207,86 @@ test("3. Excel generate, download, activity, refresh", async ({ page }) => {
   ).toBeVisible();
 });
 
+test("CSV dataset selection and operator attribution use active session", async ({
+  page,
+}) => {
+  await openReports(page);
+  await page.getByRole("radio", { name: "Survey History" }).check();
+  await selectOnlyFormat(page, "CSV");
+  const dataset = page.getByRole("combobox", { name: "CSV dataset" });
+  await expect(dataset).toBeVisible();
+  await expect(dataset.getByRole("option")).toHaveText([
+    "Surveys",
+    "Corrections",
+  ]);
+  await dataset.selectOption("corrections");
+  await page.getByRole("button", { name: "Generate report" }).click();
+  await expect(page.getByText(/Report generated/i)).toBeVisible({
+    timeout: 45_000,
+  });
+  await expect(
+    page
+      .getByText(/DDH041_Survey_History_corrections_v001_.*\.csv/i)
+      .first(),
+  ).toBeVisible();
+
+  const attribution = await page.evaluate(() => {
+    const sessionRaw = window.localStorage.getItem(
+      "targetlock:prototype:v1:operator-session",
+    );
+    const reportKey = Object.keys(window.localStorage).find((key) =>
+      key.includes(":reports"),
+    );
+    if (!sessionRaw || !reportKey) return null;
+    const session = JSON.parse(sessionRaw) as {
+      activeOperatorId: string;
+      profiles: Array<{
+        localId: string;
+        displayName: string;
+        role: "DRILLER" | "SUPERVISOR";
+      }>;
+    };
+    const operator = session.profiles.find(
+      (profile) => profile.localId === session.activeOperatorId,
+    );
+    const envelope = JSON.parse(
+      window.localStorage.getItem(reportKey) ?? "{}",
+    ) as {
+      reports?: Array<{
+        csvDataset?: string;
+        generatedByUserId: string;
+        generatedByNameSnapshot: string;
+        generatedByRoleSnapshot?: string;
+      }>;
+      snapshots?: Array<{
+        documentData?: {
+          generatedBy?: {
+            userId: string;
+            displayName: string;
+            role?: string;
+          };
+        };
+      }>;
+    };
+    return {
+      operator,
+      report: envelope.reports?.[0],
+      generatedBy: envelope.snapshots?.[0]?.documentData?.generatedBy,
+    };
+  });
+  expect(attribution?.report).toMatchObject({
+    csvDataset: "corrections",
+    generatedByUserId: attribution?.operator?.localId,
+    generatedByNameSnapshot: attribution?.operator?.displayName,
+    generatedByRoleSnapshot: attribution?.operator?.role,
+  });
+  expect(attribution?.generatedBy).toEqual({
+    userId: attribution?.operator?.localId,
+    displayName: attribution?.operator?.displayName,
+    role: attribution?.operator?.role,
+  });
+});
+
 test("4. out-of-date after relevant change; updated version current; old historical", async ({
   page,
 }) => {

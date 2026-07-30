@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { decimetres, type ReportDocumentData } from "@/domain";
+import {
+  CSV_DATASETS_BY_REPORT,
+  decimetres,
+  defaultCsvDatasetForReport,
+  isCsvDatasetCompatible,
+  type ReportDocumentData,
+} from "@/domain";
 
 import { generateCsvDataset } from "./csv-generator";
 
@@ -74,6 +80,19 @@ function sampleData(): ReportDocumentData {
 }
 
 describe("generateCsvDataset", () => {
+  it("defines sensible report-specific defaults and compatibility", () => {
+    expect(defaultCsvDatasetForReport("FULL_HOLE_RUNBOOK")).toBe("runs");
+    expect(defaultCsvDatasetForReport("SURVEY_HISTORY")).toBe("surveys");
+    expect(defaultCsvDatasetForReport("TRAY_REGISTER")).toBe("trays");
+    expect(CSV_DATASETS_BY_REPORT.HOLE_SUMMARY).toEqual([
+      "runs",
+      "shifts",
+      "corrections",
+    ]);
+    expect(isCsvDatasetCompatible("SURVEY_HISTORY", "corrections")).toBe(true);
+    expect(isCsvDatasetCompatible("HOLE_SUMMARY", "surveys")).toBe(false);
+  });
+
   it("writes UTF-8 BOM, numeric depths and formula-safe text", () => {
     const runs = generateCsvDataset("runs", sampleData());
     expect(runs.startsWith("\uFEFF")).toBe(true);

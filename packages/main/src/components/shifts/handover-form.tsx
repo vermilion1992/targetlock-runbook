@@ -18,6 +18,7 @@ import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { useOperatorSession } from "@/components/session";
 import {
   formatMetres,
   shiftTypeLabel,
@@ -52,11 +53,27 @@ export function HandoverForm({
   drillers: readonly DrillerOption[];
 }) {
   const router = useRouter();
+  const { runtimeMode, session } = useOperatorSession();
+  const availableDrillers =
+    runtimeMode === "pilot" && session
+      ? [
+          {
+            id: session.operator.localId,
+            name: session.operator.displayName,
+          },
+        ]
+      : drillers;
   const [pending, setPending] = useState<RunbookShift | null>(null);
   const [analytics, setAnalytics] = useState<ShiftAnalytics | null>(null);
   const [shiftType, setShiftType] = useState<ShiftType>("NIGHT");
   const [shiftDate, setShiftDate] = useState(localDateValue);
-  const [drillerId, setDrillerId] = useState(drillers[0]?.id ?? "");
+  const [drillerId, setDrillerId] = useState(
+    availableDrillers[0]?.id ?? "",
+  );
+  const selectedDrillerId =
+    runtimeMode === "pilot" && session
+      ? session.operator.localId
+      : drillerId;
   const [operationId] = useState(() => id("handover"));
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -101,7 +118,9 @@ export function HandoverForm({
   const submit = async (event: FormEvent) => {
     event.preventDefault();
     if (pending === null) return;
-    const driller = drillers.find(({ id: value }) => value === drillerId);
+    const driller = availableDrillers.find(
+      ({ id: value }) => value === selectedDrillerId,
+    );
     if (driller === undefined) {
       setMessage("Select the incoming driller.");
       return;
@@ -228,8 +247,8 @@ export function HandoverForm({
             </label>
             <label className="block text-sm font-bold">
               Incoming driller
-              <select required value={drillerId} onChange={(event) => setDrillerId(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3">
-                {drillers.map((driller) => <option key={driller.id} value={driller.id}>{driller.name}</option>)}
+              <select required value={selectedDrillerId} onChange={(event) => setDrillerId(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3">
+                {availableDrillers.map((driller) => <option key={driller.id} value={driller.id}>{driller.name}</option>)}
               </select>
             </label>
             <FieldActionButton type="submit" fieldSize="major" fullWidth busy={saving}>

@@ -12,6 +12,8 @@ import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveOperationActor } from "@/components/session/operation-actor";
+import { useOperatorSession } from "@/components/session";
 import {
   parseAzimuthInput,
   parseDipInput,
@@ -28,6 +30,7 @@ export function SurveyCorrectionForm({
   surveyId: string;
 }) {
   const router = useRouter();
+  const { runtimeMode, session, pilot } = useOperatorSession();
   const [survey, setSurvey] = useState<Survey | null>(null);
   const [depth, setDepth] = useState("");
   const [dip, setDip] = useState("");
@@ -90,6 +93,11 @@ export function SurveyCorrectionForm({
     setSaving(true);
     const operationId = crypto.randomUUID();
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        id: "user-driller-hoffman",
+        name: "M. Hoffman",
+        organisationId: "organisation-briggs",
+      });
       await correctSurvey(
         {
           operationId,
@@ -105,8 +113,8 @@ export function SurveyCorrectionForm({
             comment: comment.trim() || undefined,
           },
           reason: reason.trim(),
-          correctedByUserId: "user-driller-hoffman",
-          correctedByNameSnapshot: "M. Hoffman",
+          correctedByUserId: actor.id,
+          correctedByNameSnapshot: actor.name,
           correctedAt: new Date().toISOString(),
         },
         services,

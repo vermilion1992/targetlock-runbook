@@ -107,6 +107,7 @@ export class IndexedDbMediaRepository implements MediaRepository {
     )) as StoredMedia[];
     const existing = records.find(
       (record) =>
+        record.organisationId === this.organisationId &&
         record.kind === kind && record.holeId === input.holeId,
     );
     if (existing !== undefined) {
@@ -131,6 +132,7 @@ export class IndexedDbMediaRepository implements MediaRepository {
         crypto.randomUUID(),
       );
     const record: StoredMedia = {
+      organisationId: this.organisationId,
       storageKey,
       operationId: input.operationId,
       holeId: input.holeId,
@@ -174,4 +176,40 @@ export function createBrowserMediaRepository(
     return null;
   }
   return new IndexedDbMediaRepository(window.indexedDB, organisationId);
+}
+
+export async function listBrowserMediaManifest(): Promise<
+  readonly SavedMedia[]
+> {
+  if (typeof indexedDB === "undefined") return [];
+  const database = await new Promise<IDBDatabase>((resolve, reject) => {
+    const request = indexedDB.open(DATABASE_NAME, DATABASE_VERSION);
+    request.onsuccess = () => resolve(request.result);
+    request.onerror = () => reject(request.error);
+    request.onupgradeneeded = () => {
+      if (!request.result.objectStoreNames.contains(STORE_NAME)) {
+        const store = request.result.createObjectStore(STORE_NAME, {
+          keyPath: "storageKey",
+        });
+        store.createIndex("operationId", "operationId", { unique: false });
+      }
+    };
+  });
+  try {
+    const transaction = database.transaction(STORE_NAME, "readonly");
+    const records = (await requestResult(
+      transaction.objectStore(STORE_NAME).getAll(),
+    )) as StoredMedia[];
+    return records.map((record) => ({
+      organisationId: record.organisationId,
+      storageKey: record.storageKey,
+      operationId: record.operationId,
+      holeId: record.holeId,
+      kind: record.kind,
+      mimeType: record.mimeType,
+      sizeBytes: record.sizeBytes,
+    }));
+  } finally {
+    database.close();
+  }
 }

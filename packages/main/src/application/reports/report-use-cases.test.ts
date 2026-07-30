@@ -253,8 +253,13 @@ function makeContext(status: Hole["status"] = "ACTIVE"): HoleCompletionContext {
     },
     projectId: "project-briggs",
     projectName: "Briggs",
+    projectCode: "BRG-26-01",
+    clientName: "North Ridge Minerals",
+    siteLocation: "Pilbara, Western Australia",
+    projectVersion: 3,
     rigId: "rig-1",
     rigName: "Rig 1",
+    rigVersion: 2,
     currentState: {
       holeId: "DDH041",
       currentDepthDm: decimetres(6615),
@@ -392,6 +397,29 @@ function makeServices(
       listByHole: async () => context.surveys,
       listCorrections: async () => [],
     } as unknown as ReportServices["surveys"],
+    trajectory: {
+      getCoordinateConfiguration: async () => ({
+        ...metadata("coordinate-DDH041"),
+        holeId: "DDH041",
+        coordinateMode: "MINE_GRID",
+        coordinateSystemName: "Pilbara Mine Grid",
+        epsgCode: "EPSG:7850",
+        collarEastingDm: 4_823_154,
+        collarNorthingDm: 75_148_822,
+        collarRlDm: 4_873,
+        calculationNorthReference: "GRID",
+        createdByUserId: "user-1",
+        createdByNameSnapshot: "Hoffman",
+      }),
+      getActualConfiguration: async () => ({
+        ...metadata("actual-DDH041"),
+        holeId: "DDH041",
+        collarDipTenths: -600,
+        collarAzimuthTenths: 1280,
+        collarNorthReference: "GRID",
+        desurveyMethod: "MINIMUM_CURVATURE",
+      }),
+    } as unknown as ReportServices["trajectory"],
     reports,
     reportFiles: new MemoryReportFileRepository(),
     share,
@@ -466,6 +494,72 @@ describe("generateReport", () => {
     expect(second.report.version).toBe(2);
     const listed = await services.reports.listReports("DDH041");
     expect(listed).toHaveLength(2);
+  });
+
+  it("freezes the signed-in operator, project and collar context in metadata and audits", async () => {
+    const services = makeServices();
+    const result = await generateReport(
+      {
+        operationId: "op-attribution",
+        holeId: "DDH041",
+        reportType: "HOLE_SUMMARY",
+        format: "PDF",
+        generatedByUserId: "operator-avery",
+        generatedByNameSnapshot: "Avery Chen",
+        generatedByRoleSnapshot: "DRILLER",
+        generatedAt: NOW,
+      },
+      services,
+    );
+    const reportSnapshot = await services.reports.getSnapshot(
+      result.report.snapshotId,
+      "DDH041",
+    );
+
+    expect(result.report).toMatchObject({
+      generatedByUserId: "operator-avery",
+      generatedByNameSnapshot: "Avery Chen",
+      generatedByRoleSnapshot: "DRILLER",
+    });
+    expect(reportSnapshot).toMatchObject({
+      generatedByUserId: "operator-avery",
+      generatedByNameSnapshot: "Avery Chen",
+      generatedByRoleSnapshot: "DRILLER",
+      documentData: {
+        projectCode: "BRG-26-01",
+        clientName: "North Ridge Minerals",
+        siteLocation: "Pilbara, Western Australia",
+        coordinateSystemLabel: "Pilbara Mine Grid · EPSG:7850",
+        generatedBy: {
+          userId: "operator-avery",
+          displayName: "Avery Chen",
+          role: "DRILLER",
+        },
+        reportVersion: 1,
+        reportGeneratedAt: NOW,
+        collar: {
+          eastingM: 482315.4,
+          northingM: 7514882.2,
+          rlM: 487.3,
+          dipDegrees: -60,
+          azimuthDegrees: 128,
+          northReference: "GRID",
+        },
+      },
+    });
+    expect(
+      services.audits.entries.filter((entry) =>
+        entry.action.startsWith("report_"),
+      ),
+    ).toEqual(
+      expect.arrayContaining([
+        expect.objectContaining({
+          userId: "operator-avery",
+          userNameSnapshot: "Avery Chen",
+          metadata: expect.objectContaining({ operatorRole: "DRILLER" }),
+        }),
+      ]),
+    );
   });
 
   it("is idempotent for duplicate operation ids", async () => {
@@ -578,6 +672,40 @@ describe("generateReport", () => {
       services,
     );
     expect(await services.reports.listReports("DDH099")).toHaveLength(0);
+  });
+
+  it("uses report-specific CSV defaults and rejects incompatible datasets", async () => {
+    const services = makeServices();
+    const defaulted = await generateReport(
+      {
+        operationId: "op-survey-csv-default",
+        holeId: "DDH041",
+        reportType: "SURVEY_HISTORY",
+        format: "CSV",
+        generatedByUserId: "user-1",
+        generatedByNameSnapshot: "Hoffman",
+        generatedAt: NOW,
+      },
+      services,
+    );
+    expect(defaulted.report.csvDataset).toBe("surveys");
+    expect(defaulted.report.filename).toContain("_surveys_v001_");
+
+    await expect(
+      generateReport(
+        {
+          operationId: "op-invalid-csv-dataset",
+          holeId: "DDH041",
+          reportType: "HOLE_SUMMARY",
+          format: "CSV",
+          csvDataset: "surveys",
+          generatedByUserId: "user-1",
+          generatedByNameSnapshot: "Hoffman",
+          generatedAt: NOW,
+        },
+        services,
+      ),
+    ).rejects.toMatchObject({ code: "UNSUPPORTED" });
   });
 
   it("does not mark failed generation as generated and allows retry with new op id", async () => {

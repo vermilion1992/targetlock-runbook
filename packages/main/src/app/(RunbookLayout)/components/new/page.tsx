@@ -7,6 +7,7 @@ import {
   runbookRoutes,
 } from "@/components/navigation/runbook-routes";
 import { isRoutableHoleId } from "@/infrastructure/seed";
+import { readPilotEnvironment } from "@/server/pilot/environment";
 
 export default async function NewComponentPage({
   searchParams,
@@ -18,6 +19,12 @@ export default async function NewComponentPage({
   }>;
 }) {
   const { type, holeId: requestedHoleId, returnTo } = await searchParams;
+  if (
+    readPilotEnvironment().mode === "pilot" &&
+    typeof requestedHoleId !== "string"
+  ) {
+    notFound();
+  }
   const holeId =
     typeof requestedHoleId === "string" ? requestedHoleId : DEFAULT_HOLE_ID;
   if (!isRoutableHoleId(holeId)) notFound();

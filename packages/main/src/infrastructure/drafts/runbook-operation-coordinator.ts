@@ -1,3 +1,9 @@
+import {
+  completePilotMutation,
+  preparePilotMutation,
+} from "@/infrastructure/sync";
+import { pilotRepositoryMethodDefinition } from "@/domain/pilot-operation-manifest";
+
 const RUNBOOK_LOCK_NAME = "targetlock:runbook-storage:v1";
 const RUNBOOK_CHANNEL_NAME = "targetlock:runbook-storage-changes:v1";
 
@@ -103,25 +109,51 @@ export class RunbookOperationCoordinator {
   }
 }
 
-const mutationMethodPattern =
-  /^(accept|activate|advance|abandon|append|assign|attach|begin|cancel|change|clear|close|complete|correct|create|delete|fail|finalize|finish|mark|materialize|queue|record|recover|remove|reopen|replace|resolve|save|set|start|supersede|update|upsert|void|write)/;
+export interface PilotMutationCoordinationHooks {
+  readonly prepare: typeof preparePilotMutation;
+  readonly complete: typeof completePilotMutation;
+}
+
+const defaultPilotMutationHooks: PilotMutationCoordinationHooks = {
+  prepare: preparePilotMutation,
+  complete: completePilotMutation,
+};
 
 export function coordinateBrowserRepository<T extends object>(
   repository: T,
   coordinator: RunbookOperationCoordinator,
-  synchronousMethods: readonly string[] = [],
+  repositoryName = "repository",
+  hooks: PilotMutationCoordinationHooks = defaultPilotMutationHooks,
 ): T {
-  const synchronous = new Set(synchronousMethods);
   return new Proxy(repository, {
     get(target, property, receiver) {
       const value = Reflect.get(target, property, receiver);
       if (typeof value !== "function") return value;
       const methodName = String(property);
-      if (synchronous.has(methodName)) return value.bind(target);
+      const definition = pilotRepositoryMethodDefinition(
+        repositoryName,
+        methodName,
+      );
+      if (definition === null) {
+        throw new Error(
+          `Repository method ${repositoryName}.${methodName} is missing from the pilot operation manifest.`,
+        );
+      }
+      if (definition.synchronous) return value.bind(target);
       return (...args: unknown[]) =>
         coordinator.runExclusive(
-          () => Promise.resolve(value.apply(target, args)),
-          mutationMethodPattern.test(methodName),
+          async () => {
+            const preparation =
+              definition.kind === "mutation"
+              ? await hooks.prepare(repositoryName, methodName, args)
+              : null;
+            const result = await Promise.resolve(value.apply(target, args));
+            if (preparation !== null) {
+              await hooks.complete(preparation, result);
+            }
+            return result;
+          },
+          definition.kind === "mutation",
         );
     },
   });

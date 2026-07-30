@@ -35,7 +35,10 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   await page.getByRole("button", { name: "Add 3.0 m" }).click();
   await page.getByRole("textbox", { name: "Measured stick-up" }).fill("0.1");
   await page.getByRole("textbox", { name: "Core recovered" }).fill("3.0");
-  await page.getByRole("button", { name: "Complete run" }).click();
+  await page.getByRole("textbox", { name: "Core recovered" }).press("Tab");
+  const completeRunButton = page.getByRole("button", { name: "Complete run" });
+  await expect(completeRunButton).toBeEnabled();
+  await completeRunButton.click();
   await expect(page).toHaveURL(/\/runs\/local-run-/);
   await expect(
     page.getByRole("heading", { name: "Run 246", exact: true }),
@@ -50,6 +53,8 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   await page.getByRole("button", { name: "Add 6.0 m" }).click();
   await page.getByRole("textbox", { name: "Measured stick-up" }).fill("0.1");
   await page.getByRole("textbox", { name: "Core recovered" }).fill("6.0");
+  await page.getByRole("textbox", { name: "Core recovered" }).press("Tab");
+  await expect(completeRunButton).toBeEnabled();
   await page.getByRole("button", { name: "Complete run" }).click();
   await expect(page).toHaveURL(/\/runs\/local-run-/);
   await expect(
@@ -92,6 +97,8 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   await page.getByRole("button", { name: "Add 3.0 m" }).click();
   await page.getByRole("textbox", { name: "Measured stick-up" }).fill("0.0");
   await page.getByRole("textbox", { name: "Core recovered" }).fill("3.0");
+  await page.getByRole("textbox", { name: "Core recovered" }).press("Tab");
+  await expect(completeRunButton).toBeEnabled();
   await page.getByRole("button", { name: "Complete run" }).click();
   await expect(page).toHaveURL(/\/runs\/local-run-/);
   await expect(page.getByText("Shared between shifts")).toBeVisible();
@@ -247,14 +254,12 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
 
   // 16. Confirm mutation routes are blocked
   await page.goto("/holes/DDH041/shifts/start");
-  await page.getByRole("combobox", { name: "Shift" }).selectOption("DAY");
-  await page
-    .getByRole("combobox", { name: "Primary driller" })
-    .selectOption({ label: "M. Hoffman" });
-  await page.getByRole("button", { name: "Start shift" }).click();
   await expect(
-    page.getByText("Hole DDH041 is completed and is locked."),
+    page.getByRole("region", { name: "Hole is not available for shift start" }),
   ).toBeVisible({ timeout: 10_000 });
+  await expect(
+    page.getByText("Hole status completed does not allow drilling operations."),
+  ).toBeVisible();
   await page.goto("/holes/DDH041/current");
   await expect(page.getByText(/locked|Completed/i).first()).toBeVisible();
   await expect(page.getByRole("link", { name: "RECORD NEXT RUN" })).toHaveCount(0);

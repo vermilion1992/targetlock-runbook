@@ -65,7 +65,7 @@ export function CurrentHoleDashboard({
   notice,
 }: {
   holeId: string;
-  seed: TargetLockStage1Seed;
+  seed: TargetLockStage1Seed | null;
   notice?:
     | "shift-started"
     | "handover-accepted"
@@ -170,10 +170,10 @@ export function CurrentHoleDashboard({
       );
   }, [holeId]);
 
-  const isSeedHole = holeId === seed.hole.localId;
+  const isSeedHole = seed !== null && holeId === seed.hole.localId;
   const holeStatus = lifecycle
     ? normalizeHoleStatus(lifecycle.status)
-    : normalizeHoleStatus(isSeedHole ? seed.hole.status : "DRAFT");
+    : normalizeHoleStatus(isSeedHole && seed ? seed.hole.status : "DRAFT");
   const holeLocked =
     holeStatus === "COMPLETED" ||
     holeStatus === "ABANDONED" ||
@@ -200,7 +200,7 @@ export function CurrentHoleDashboard({
   const localRuns = state?.completedLocalRuns ?? [];
   const localRunIds = new Set(localRuns.map(({ localId }) => localId));
   const localRunNumbers = new Set(localRuns.map(({ runNumber }) => runNumber));
-  const completedSeedRuns = (isSeedHole ? seed.runs : []).filter(
+  const completedSeedRuns = (isSeedHole && seed ? seed.runs : []).filter(
     (run) =>
       run.status !== "in_progress" &&
       !localRunIds.has(run.localId) &&
@@ -227,15 +227,15 @@ export function CurrentHoleDashboard({
         eyebrow={
           directoryContext
             ? `${directoryContext.projectCode} · ${directoryContext.rigName}`
-            : isSeedHole
+            : isSeedHole && seed
               ? `${seed.project.code} · ${seed.rig.name}`
               : "Local operational hole"
         }
         title={`${holeId} overview`}
         description={
           lifecycle
-            ? `${directoryContext?.projectName ?? "Project"} · ${lifecycle.hole.holeSize} · planned ${formatMetres(lifecycle.hole.plannedDepth)}`
-            : isSeedHole
+            ? `${directoryContext?.projectName ?? "Project"} · ${lifecycle.hole.holeSize} · planned ${formatMetres(lifecycle.hole.plannedDepth)}${lifecycle.hole.planReference ? ` · Plan ${lifecycle.hole.planReference}${lifecycle.hole.planRevision ? ` (${lifecycle.hole.planRevision})` : ""}` : ""}`
+            : isSeedHole && seed
               ? `${seed.project.name} · ${seed.hole.holeSize} · planned ${formatMetres(seed.hole.plannedDepth)}`
               : "Run, shift, survey, tray and trajectory state for this hole."
         }

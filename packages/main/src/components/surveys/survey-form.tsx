@@ -16,6 +16,8 @@ import { PhotoInput } from "@/components/media/photo-input";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
+import { resolveOperationActor } from "@/components/session/operation-actor";
+import { useOperatorSession } from "@/components/session";
 import {
   formatMetres,
   parseAzimuthInput,
@@ -36,6 +38,7 @@ const referenceLabels: Readonly<Record<NorthReference, string>> = {
 
 export function SurveyForm({ holeId }: { holeId: string }) {
   const router = useRouter();
+  const { runtimeMode, session, pilot } = useOperatorSession();
   const warningRef = useRef<HTMLDivElement>(null);
   const operationId = useRef<string | null>(null);
   const [depth, setDepth] = useState("");
@@ -84,7 +87,7 @@ export function SurveyForm({ holeId }: { holeId: string }) {
         );
         setTools(activeTools);
         setShiftId(state.activeShift?.localId);
-        if (state.activeShift) {
+        if (runtimeMode === "demo" && state.activeShift) {
           setUser({
             id: state.activeShift.primaryDrillerId,
             name: state.activeShift.primaryDrillerNameSnapshot,
@@ -113,7 +116,7 @@ export function SurveyForm({ holeId }: { holeId: string }) {
         );
         setReady(true);
       });
-  }, [holeId]);
+  }, [holeId, runtimeMode]);
 
   const selectedTool = tools.find(({ localId }) => localId === toolId);
 
@@ -146,6 +149,10 @@ export function SurveyForm({ holeId }: { holeId: string }) {
     setSaving(true);
     setError(null);
     try {
+      const actor = resolveOperationActor(runtimeMode, session, pilot, {
+        ...user,
+        organisationId: "organisation-briggs",
+      });
       await recordSurvey(
         {
           operationId: operationId.current,
@@ -163,8 +170,8 @@ export function SurveyForm({ holeId }: { holeId: string }) {
           warningsConfirmed: confirmWarnings,
           photo: photo ?? undefined,
           photoFilename: photo?.name,
-          recordedByUserId: user.id,
-          recordedByNameSnapshot: user.name,
+          recordedByUserId: actor.id,
+          recordedByNameSnapshot: actor.name,
           recordedAt: new Date().toISOString(),
         },
         services,

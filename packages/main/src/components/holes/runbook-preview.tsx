@@ -17,6 +17,7 @@ import {
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, formatRecoveryPercentage } from "@/domain";
 import { targetLockStage3Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 
 export const RUNBOOK_SHIFT_TABLE_HEADERS = [
   "Run",
@@ -61,7 +62,10 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
           getShiftRunGroups({
             holeId,
             shifts,
-            seedRuns: targetLockStage3Seed.runs,
+            seedRuns:
+              getBrowserRuntimeMode() === "demo"
+                ? targetLockStage3Seed.runs
+                : [],
             localRuns: local.snapshots,
           }).filter((group) => group.runs.length > 0),
         );

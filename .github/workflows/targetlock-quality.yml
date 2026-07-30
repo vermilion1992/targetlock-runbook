@@ -51,5 +51,47 @@ jobs:
       - name: Run unit tests
         run: npm run test
 
+      - name: Run pilot script tests
+        run: npm run test:pilot-scripts
+
       - name: Build production application
         run: npm run build
+
+  pilot-postgres:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: targetlock_test
+          POSTGRES_USER: targetlock
+          POSTGRES_PASSWORD: targetlock
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U targetlock -d targetlock_test"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    defaults:
+      run:
+        working-directory: packages/main
+    env:
+      TEST_DATABASE_URL: postgresql://targetlock:targetlock@127.0.0.1:5432/targetlock_test
+      DATABASE_SSL: disable
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: packages/main/package-lock.json
+
+      - name: Install exact dependencies
+        run: npm ci
+
+      - name: Run pilot Postgres integration
+        run: npm run test:pilot-db

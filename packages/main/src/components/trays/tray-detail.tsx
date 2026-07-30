@@ -22,6 +22,7 @@ import {
   type TrayOverlapRun,
 } from "@/domain";
 import { targetLockStage4Seed } from "@/infrastructure/seed";
+import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 import type { TrayCorrection } from "@/infrastructure/trays";
 
 function range(tray: Tray): string {
@@ -82,7 +83,10 @@ export function TrayDetail({
           localRuns.snapshots.map(({ runNumber }) => runNumber),
         );
         const runs: TrayOverlapRun[] = [
-          ...targetLockStage4Seed.runs
+          ...(getBrowserRuntimeMode() === "demo"
+            ? targetLockStage4Seed.runs
+            : []
+          )
             .filter(
               (run) =>
                 run.holeId === holeId &&
