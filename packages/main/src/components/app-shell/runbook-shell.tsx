@@ -167,6 +167,17 @@ export function RunbookShell({ children }: RunbookShellProps) {
         <OperatorMenu compact />
       </header>
 
+      {runtimeMode === "demo" ? (
+        <div
+          role="status"
+          data-testid="demo-local-only-banner"
+          className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-950"
+        >
+          Demo mode — data is local-only on this device and is not synced to the
+          pilot server.
+        </div>
+      ) : null}
+
       {runtimeMode === "pilot" ? (
         <div
           className="flex flex-wrap items-center gap-x-4 gap-y-2 border-b border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-4 py-2 text-xs font-semibold"

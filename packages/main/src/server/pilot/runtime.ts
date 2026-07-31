@@ -5,6 +5,7 @@ import {
   readPilotEnvironment,
   type SecurePilotEnvironment,
 } from "./environment";
+import { shouldBypassPilotAuthForGuest } from "./guest";
 import { hasPilotPermission } from "./permissions";
 import { PostgresPilotRepository } from "./postgres-repository";
 import {
@@ -18,8 +19,10 @@ import type {
 
 export const PILOT_SESSION_COOKIE = "__Host-targetlock_session";
 export const PILOT_DEVICE_COOKIE = "__Host-targetlock_device";
+export const PILOT_GUEST_COOKIE = "__Host-targetlock_guest";
 const DEVELOPMENT_SESSION_COOKIE = "targetlock_session";
 const DEVELOPMENT_DEVICE_COOKIE = "targetlock_device";
+const DEVELOPMENT_GUEST_COOKIE = "targetlock_guest";
 
 declare global {
   var __targetLockPilotService: PilotFoundationService | undefined;
@@ -28,12 +31,18 @@ declare global {
 export function getCookieNames(environment: SecurePilotEnvironment): {
   readonly session: string;
   readonly device: string;
+  readonly guest: string;
 } {
   return environment.nodeEnv === "production"
-    ? { session: PILOT_SESSION_COOKIE, device: PILOT_DEVICE_COOKIE }
+    ? {
+        session: PILOT_SESSION_COOKIE,
+        device: PILOT_DEVICE_COOKIE,
+        guest: PILOT_GUEST_COOKIE,
+      }
     : {
         session: DEVELOPMENT_SESSION_COOKIE,
         device: DEVELOPMENT_DEVICE_COOKIE,
+        guest: DEVELOPMENT_GUEST_COOKIE,
       };
 }
 
@@ -91,6 +100,14 @@ export async function requirePilotPageSession(
   if (environment.mode === "demo") return null;
   const cookieStore = await cookies();
   const names = getCookieNames(environment);
+  if (
+    shouldBypassPilotAuthForGuest(
+      environment,
+      cookieStore.get(names.guest)?.value ?? null,
+    )
+  ) {
+    return null;
+  }
   const context = await resolvePilotRequestContext();
   if (context === null) {
     const search = new URLSearchParams({ next: nextPath });

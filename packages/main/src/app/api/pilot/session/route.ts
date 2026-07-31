@@ -1,17 +1,44 @@
+import { cookies } from "next/headers";
+
 import { readPilotEnvironment } from "@/server/pilot/environment";
+import {
+  isBetaGuestAllowed,
+  shouldBypassPilotAuthForGuest,
+} from "@/server/pilot/guest";
 import { apiErrorResponse, secureJson } from "@/server/pilot/http";
-import { resolvePilotRequestContext } from "@/server/pilot/runtime";
+import {
+  getCookieNames,
+  resolvePilotRequestContext,
+} from "@/server/pilot/runtime";
 
 export const dynamic = "force-dynamic";
 
 export async function GET() {
   try {
     const environment = readPilotEnvironment();
+    const betaGuestAllowed = isBetaGuestAllowed();
     if (environment.mode === "demo") {
       return secureJson({
         mode: "demo",
         authenticated: false,
         localDomainData: true,
+        betaGuestAllowed: false,
+      });
+    }
+    const cookieStore = await cookies();
+    const names = getCookieNames(environment);
+    if (
+      shouldBypassPilotAuthForGuest(
+        environment,
+        cookieStore.get(names.guest)?.value ?? null,
+      )
+    ) {
+      return secureJson({
+        mode: "demo",
+        guest: true,
+        authenticated: false,
+        localDomainData: true,
+        betaGuestAllowed: true,
       });
     }
     const context = await resolvePilotRequestContext();
@@ -20,12 +47,14 @@ export async function GET() {
         mode: "pilot",
         authenticated: false,
         localDomainData: true,
+        betaGuestAllowed,
       });
     }
     return secureJson({
       mode: "pilot",
       authenticated: true,
       localDomainData: true,
+      betaGuestAllowed,
       user: {
         id: context.principal.userId,
         organisationId: context.principal.organisationId,

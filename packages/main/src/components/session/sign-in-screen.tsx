@@ -49,7 +49,9 @@ export function SignInScreen({
     session,
     profiles,
     error,
+    betaGuestAllowed,
     signIn,
+    enterBetaGuest,
     pilotSignIn,
   } = useOperatorSession();
   const [displayName, setDisplayName] = useState("");
@@ -58,11 +60,11 @@ export function SignInScreen({
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [formError, setFormError] = useState<string | null>(null);
-  const [submitting, setSubmitting] = useState(false);
+  const [submitting, setSubmitting] = useState<"pilot" | "demo" | null>(null);
 
   function completeSignIn(name: string, selectedRole: OperatorRole) {
     if (submitting) return;
-    setSubmitting(true);
+    setSubmitting("demo");
     setFormError(null);
     try {
       signIn(name, selectedRole);
@@ -73,7 +75,7 @@ export function SignInScreen({
           ? cause.message
           : "This operator could not be signed in.",
       );
-      setSubmitting(false);
+      setSubmitting(null);
     }
   }
 
@@ -90,7 +92,7 @@ export function SignInScreen({
   async function handlePilotSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
-    setSubmitting(true);
+    setSubmitting("pilot");
     setFormError(null);
     try {
       await pilotSignIn(organisation, email, password);
@@ -99,7 +101,24 @@ export function SignInScreen({
       setFormError(
         cause instanceof Error ? cause.message : "Pilot sign-in failed.",
       );
-      setSubmitting(false);
+      setSubmitting(null);
+    }
+  }
+
+  async function handleDemoClick() {
+    if (submitting) return;
+    setSubmitting("demo");
+    setFormError(null);
+    try {
+      await enterBetaGuest();
+      router.replace("/holes/DDH041/current");
+    } catch (cause) {
+      setFormError(
+        cause instanceof Error
+          ? cause.message
+          : "Demo mode could not be started.",
+      );
+      setSubmitting(null);
     }
   }
 
@@ -220,7 +239,7 @@ export function SignInScreen({
                     <button
                       key={profile.localId}
                       type="button"
-                      disabled={submitting}
+                      disabled={submitting !== null}
                       className="flex min-h-12 items-center justify-between rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface-raised)] px-4 text-left disabled:opacity-60"
                       onClick={() =>
                         completeSignIn(profile.displayName, profile.role)
@@ -314,14 +333,36 @@ export function SignInScreen({
                 ) : null}
                 <button
                   type="submit"
-                  disabled={submitting || loading}
+                  disabled={submitting !== null || loading}
                   className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-5 font-bold text-white shadow-[var(--tl-shadow-sm)] disabled:cursor-not-allowed disabled:opacity-60"
                 >
-                  {submitting ? "Verifying account…" : "Sign in securely"}
-                  {!submitting ? (
+                  {submitting === "pilot" ? "Verifying account…" : "Sign in securely"}
+                  {submitting !== "pilot" ? (
                     <ArrowRight aria-hidden="true" className="size-5" />
                   ) : null}
                 </button>
+                {betaGuestAllowed && !session ? (
+                  <>
+                    <div className="my-4 flex items-center gap-3 text-xs font-bold uppercase text-[var(--tl-ink-muted)]">
+                      <span className="h-px flex-1 bg-[var(--tl-border)]" />
+                      Or
+                      <span className="h-px flex-1 bg-[var(--tl-border)]" />
+                    </div>
+                    <button
+                      type="button"
+                      disabled={submitting !== null || loading}
+                      onClick={() => void handleDemoClick()}
+                      className="flex min-h-12 w-full items-center justify-center gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface-raised)] px-5 font-bold text-[var(--tl-ink)] disabled:cursor-not-allowed disabled:opacity-60"
+                      data-testid="beta-guest-demo-button"
+                    >
+                      {submitting === "demo" ? "Opening demo…" : "Try demo"}
+                    </button>
+                    <p className="mt-2 text-xs leading-5 text-[var(--tl-ink-muted)]">
+                      Local-only beta sandbox on hole DDH041. Changes stay in
+                      this browser and are never synced to the pilot server.
+                    </p>
+                  </>
+                ) : null}
               </form>
             ) : runtimeMode === "demo" ? (
               <form
@@ -401,11 +442,11 @@ export function SignInScreen({
 
               <button
                 type="submit"
-                disabled={submitting || loading}
+                disabled={submitting !== null || loading}
                 className="mt-5 flex min-h-14 w-full items-center justify-center gap-2 rounded-[var(--tl-radius-md)] bg-[var(--tl-primary)] px-5 font-bold text-white shadow-[var(--tl-shadow-sm)] disabled:cursor-not-allowed disabled:opacity-60"
               >
-                {submitting ? "Opening workspace…" : "Sign in on this device"}
-                {!submitting ? (
+                {submitting !== null ? "Opening workspace…" : "Sign in on this device"}
+                {submitting === null ? (
                   <ArrowRight aria-hidden="true" className="size-5" />
                 ) : null}
               </button>

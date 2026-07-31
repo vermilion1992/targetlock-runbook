@@ -44,10 +44,17 @@ export async function POST(request: Request) {
         sessionExpiresAt: result.principal.sessionExpiresAt,
       },
     });
+    const names = getCookieNames(environment);
     response.cookies.set(
-      getCookieNames(environment).session,
+      names.session,
       result.token,
       pilotCookieOptions(environment, environment.sessionTtlSeconds),
+    );
+    // Real pilot login replaces any beta guest bypass.
+    response.cookies.set(
+      names.guest,
+      "",
+      pilotCookieOptions(environment, 0),
     );
     return response;
   } catch (error) {

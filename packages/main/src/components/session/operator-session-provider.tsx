@@ -55,8 +55,10 @@ interface OperatorSessionContextValue {
   readonly session: OperatorSession | null;
   readonly profiles: readonly OperatorProfile[];
   readonly pilot: PilotClientContext | null;
+  readonly betaGuestAllowed: boolean;
   readonly error: string | null;
   signIn(displayName: string, role: OperatorRole): OperatorSession;
+  enterBetaGuest(): Promise<void>;
   pilotSignIn(organisation: string, email: string, password: string): Promise<void>;
   signOut(): Promise<void>;
   rememberHole(holeId: string): void;
@@ -77,6 +79,7 @@ export function OperatorSessionProvider({
   const [session, setSession] = useState<OperatorSession | null>(null);
   const [profiles, setProfiles] = useState<readonly OperatorProfile[]>([]);
   const [pilot, setPilot] = useState<PilotClientContext | null>(null);
+  const [betaGuestAllowed, setBetaGuestAllowed] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const repository = useCallback(() => {
@@ -113,6 +116,8 @@ export function OperatorSessionProvider({
     });
     const body = (await response.json()) as {
       mode?: "demo" | "pilot";
+      guest?: boolean;
+      betaGuestAllowed?: boolean;
       authenticated?: boolean;
       user?: {
         id: string;
@@ -136,6 +141,7 @@ export function OperatorSessionProvider({
     if (!response.ok) {
       throw new Error(body.error?.message ?? "Pilot session is unavailable.");
     }
+    setBetaGuestAllowed(body.betaGuestAllowed === true);
     if (body.mode === "demo") {
       configureDemoBrowserRuntime();
       setRuntimeMode("demo");
@@ -285,6 +291,31 @@ export function OperatorSessionProvider({
     [refreshDemo, repository, runtimeMode],
   );
 
+  const enterBetaGuest = useCallback(async () => {
+    const response = await fetch("/api/pilot/guest", {
+      method: "POST",
+      credentials: "same-origin",
+    });
+    const body = (await response.json()) as {
+      error?: { message?: string };
+    };
+    if (!response.ok) {
+      throw new Error(
+        body.error?.message ?? "Beta guest demo is not available.",
+      );
+    }
+    configureDemoBrowserRuntime();
+    setRuntimeMode("demo");
+    setPilot(null);
+    setBetaGuestAllowed(true);
+    repository().signIn({
+      displayName: "Demo Operator",
+      role: "DRILLER",
+      signedInAt: new Date().toISOString(),
+    });
+    refreshDemo();
+  }, [refreshDemo, repository]);
+
   const pilotSignIn = useCallback(
     async (organisation: string, email: string, password: string) => {
       const response = await fetch("/api/pilot/auth/login", {
@@ -328,9 +359,21 @@ export function OperatorSessionProvider({
       configurePilotBrowserRuntime(null);
       return;
     }
+    try {
+      await fetch("/api/pilot/guest", {
+        method: "DELETE",
+        credentials: "same-origin",
+      });
+    } catch {
+      // Guest clear is best-effort; local sign-out still proceeds.
+    }
     repository().signOut();
-    refreshDemo();
-  }, [refreshDemo, repository, runtimeMode]);
+    try {
+      await refreshPilot();
+    } catch {
+      refreshDemo();
+    }
+  }, [refreshDemo, refreshPilot, repository, runtimeMode]);
 
   const rememberHole = useCallback(
     (holeId: string) => {
@@ -360,14 +403,18 @@ export function OperatorSessionProvider({
       session,
       profiles,
       pilot,
+      betaGuestAllowed,
       error,
       signIn,
+      enterBetaGuest,
       pilotSignIn,
       signOut,
       rememberHole,
       refresh,
     }),
     [
+      betaGuestAllowed,
+      enterBetaGuest,
       error,
       loading,
       pilot,

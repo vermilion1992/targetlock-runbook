@@ -21,7 +21,9 @@ records remain journal-only; media/report blobs are not uploaded.
    - optionally `DATABASE_SSL=require` when using an external TLS endpoint
 5. Do not set `ALLOW_LOCAL_DEMO_IN_PRODUCTION` or any bootstrap password on the
    running service.
-6. Keep one application replica for Stage 7C. Login/provisioning rate-limit
+6. Optionally set `ALLOW_BETA_GUEST=true` to expose the sign-in **Try demo**
+   button (cookie-gated local-only DDH041 sandbox; does not write pilot data).
+7. Keep one application replica for Stage 7C. Login/provisioning rate-limit
    buckets are process-local; use a shared limiter before horizontal scaling.
 
 Production requests fail with `503` when this configuration is absent or

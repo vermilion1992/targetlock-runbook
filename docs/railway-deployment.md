@@ -44,6 +44,7 @@ Server-only. Never use `NEXT_PUBLIC_` for these values.
 | `PILOT_SESSION_SECRET` | yes | Random value, at least 32 characters |
 | `APP_ORIGIN` | yes | Exact generated HTTPS origin |
 | `PILOT_SESSION_TTL_SECONDS` | optional | Defaults to eight hours |
+| `ALLOW_BETA_GUEST` | optional | Set `true` to show the sign-in **Try demo** button (local-only DDH041 sandbox; no pilot sync) |
 | `DATABASE_SSL` | optional | Unset/`disable` on Railway private networking; `require` encrypts an external endpoint without CA identity verification; prefer `verify-ca` when a CA is available |
 | `DATABASE_CA_CERT` | for `verify-ca` | PEM CA certificate; server-only |
 
