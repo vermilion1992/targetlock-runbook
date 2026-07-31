@@ -74,10 +74,11 @@ try {
   await client.query(
     `INSERT INTO pilot_audit_events (
        organisation_id, actor_user_id, action, target_type, target_id, metadata
-     ) VALUES ($1, $2, 'ORGANISATION_BOOTSTRAPPED', 'ORGANISATION', $1::text, $3::jsonb)`,
+     ) VALUES ($1, $2, 'ORGANISATION_BOOTSTRAPPED', 'ORGANISATION', $3, $4::jsonb)`,
     [
       organisationId,
       userId,
+      String(organisationId),
       JSON.stringify({ adminUserId: userId, role: "COMPANY_ADMIN" }),
     ],
   );
