@@ -1,8 +1,16 @@
-/** Core tray photograph frame: physical ~110 cm × 35 cm. */
-export const TRAY_FRAME_WIDTH_CM = 110;
-export const TRAY_FRAME_HEIGHT_CM = 35;
-/** Width / height */
-export const TRAY_FRAME_ASPECT = TRAY_FRAME_WIDTH_CM / TRAY_FRAME_HEIGHT_CM;
+/** Core tray photograph: physical ~110 cm × 35 cm, captured phone-vertical. */
+export const TRAY_FRAME_LONG_CM = 110;
+export const TRAY_FRAME_SHORT_CM = 35;
+/** @deprecated Prefer TRAY_FRAME_LONG_CM — kept for existing copy. */
+export const TRAY_FRAME_WIDTH_CM = TRAY_FRAME_LONG_CM;
+/** @deprecated Prefer TRAY_FRAME_SHORT_CM — kept for existing copy. */
+export const TRAY_FRAME_HEIGHT_CM = TRAY_FRAME_SHORT_CM;
+
+/**
+ * Capture frame width/height with the phone upright and the tray long axis
+ * running vertically (35 cm across × 110 cm tall).
+ */
+export const TRAY_FRAME_ASPECT = TRAY_FRAME_SHORT_CM / TRAY_FRAME_LONG_CM;
 
 export interface ViewRect {
   readonly left: number;
@@ -59,7 +67,7 @@ export function mapCoverFrameToVideoCrop(
   return { sx, sy, sw, sh };
 }
 
-/** Largest frame of the given aspect that fits inside the padded viewport. */
+/** Largest vertical tray frame that fits inside the padded viewport. */
 export function fitTrayFrameInView(
   viewWidth: number,
   viewHeight: number,
@@ -83,19 +91,46 @@ export function fitTrayFrameInView(
   };
 }
 
+let lockedScrollY = 0;
+
+/** Lock document scroll while the in-app camera is open (avoids mobile viewport jump). */
+export function lockMobileViewportForCamera(): void {
+  if (typeof window === "undefined" || typeof document === "undefined") return;
+  lockedScrollY = window.scrollY || window.pageYOffset || 0;
+  const body = document.body;
+  body.dataset.tlCameraLock = "1";
+  body.style.position = "fixed";
+  body.style.top = `-${lockedScrollY}px`;
+  body.style.left = "0";
+  body.style.right = "0";
+  body.style.width = "100%";
+  body.style.overflow = "hidden";
+  document.documentElement.style.overflow = "hidden";
+}
+
 export function restoreMobileViewportAfterCamera(): void {
-  if (typeof window === "undefined") return;
+  if (typeof window === "undefined" || typeof document === "undefined") return;
   const root = document.documentElement;
-  root.style.setProperty("zoom", "normal");
-  window.scrollTo(0, 0);
-  // Nudge layout after native/camera UI releases the visual viewport.
+  const body = document.body;
+  const wasLocked = body.dataset.tlCameraLock === "1";
+  const y = wasLocked
+    ? Math.abs(Number.parseInt(body.style.top || "0", 10)) || lockedScrollY
+    : window.scrollY;
+
+  delete body.dataset.tlCameraLock;
+  body.style.removeProperty("position");
+  body.style.removeProperty("top");
+  body.style.removeProperty("left");
+  body.style.removeProperty("right");
+  body.style.removeProperty("width");
+  body.style.removeProperty("overflow");
+  root.style.removeProperty("overflow");
+  root.style.removeProperty("height");
+  root.style.removeProperty("zoom");
+
+  window.scrollTo(0, y);
   requestAnimationFrame(() => {
-    window.scrollTo(0, 0);
-    if (window.visualViewport) {
-      root.style.height = `${window.visualViewport.height}px`;
-      requestAnimationFrame(() => {
-        root.style.height = "";
-      });
-    }
+    window.scrollTo(0, y);
+    window.dispatchEvent(new Event("resize"));
   });
 }

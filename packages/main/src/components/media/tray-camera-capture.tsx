@@ -12,9 +12,10 @@ import { createPortal } from "react-dom";
 
 import {
   TRAY_FRAME_ASPECT,
-  TRAY_FRAME_HEIGHT_CM,
-  TRAY_FRAME_WIDTH_CM,
+  TRAY_FRAME_LONG_CM,
+  TRAY_FRAME_SHORT_CM,
   fitTrayFrameInView,
+  lockMobileViewportForCamera,
   mapCoverFrameToVideoCrop,
   restoreMobileViewportAfterCamera,
   type ViewRect,
@@ -58,7 +59,7 @@ export function TrayCameraCapture({
     if (!stage) return;
     const { width, height } = stage.getBoundingClientRect();
     if (width <= 0 || height <= 0) return;
-    setFrame(fitTrayFrameInView(width, height, 0.07));
+    setFrame(fitTrayFrameInView(width, height, 0.06));
   }, []);
 
   useLayoutEffect(() => {
@@ -77,10 +78,10 @@ export function TrayCameraCapture({
       setError(null);
       setStarting(false);
       setCapturing(false);
-      restoreMobileViewportAfterCamera();
       return;
     }
 
+    lockMobileViewportForCamera();
     let cancelled = false;
     setStarting(true);
     setError(null);
@@ -101,8 +102,10 @@ export function TrayCameraCapture({
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
-            width: { ideal: 1920 },
-            height: { ideal: 1080 },
+            // Prefer portrait sensor stream for upright tray capture.
+            width: { ideal: 1080 },
+            height: { ideal: 1920 },
+            aspectRatio: { ideal: 9 / 16 },
           },
         });
         if (cancelled) {
@@ -138,16 +141,11 @@ export function TrayCameraCapture({
 
   useEffect(() => {
     if (!open) return;
-    const previousOverflow = document.body.style.overflow;
-    document.body.style.overflow = "hidden";
     const onKey = (event: KeyboardEvent) => {
       if (event.key === "Escape") onClose();
     };
     window.addEventListener("keydown", onKey);
-    return () => {
-      document.body.style.overflow = previousOverflow;
-      window.removeEventListener("keydown", onKey);
-    };
+    return () => window.removeEventListener("keydown", onKey);
   }, [open, onClose]);
 
   async function capture() {
@@ -178,7 +176,7 @@ export function TrayCameraCapture({
         outW = Math.max(1, Math.round(outW * scale));
         outH = Math.max(1, Math.round(outH * scale));
       }
-      // Keep exact tray aspect after rounding.
+      // Keep exact vertical tray aspect after rounding.
       outH = Math.max(1, Math.round(outW / TRAY_FRAME_ASPECT));
 
       const canvas = document.createElement("canvas");
@@ -218,7 +216,6 @@ export function TrayCameraCapture({
       });
       onCapture(file);
       onClose();
-      restoreMobileViewportAfterCamera();
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -237,9 +234,10 @@ export function TrayCameraCapture({
       role="dialog"
       aria-modal="true"
       aria-labelledby="tray-camera-title"
-      className="fixed inset-0 z-[80] flex flex-col bg-[#0b121c] text-[#eef3f8]"
+      className="fixed inset-0 z-[80] flex h-[100dvh] max-h-[100dvh] w-full flex-col overflow-hidden overscroll-none bg-[#0b121c] text-[#eef3f8]"
+      style={{ touchAction: "none" }}
     >
-      <header className="relative z-20 flex items-center justify-between gap-3 px-4 pb-3 pt-[max(0.75rem,env(safe-area-inset-top))]">
+      <header className="relative z-20 flex shrink-0 items-center justify-between gap-3 px-4 pb-2 pt-[max(0.75rem,env(safe-area-inset-top))]">
         <div className="min-w-0">
           <p className="text-[0.65rem] font-semibold uppercase tracking-[0.18em] text-[#8fa3b8]">
             TargetLock · Core tray
@@ -258,7 +256,10 @@ export function TrayCameraCapture({
         </button>
       </header>
 
-      <div ref={stageRef} className="relative z-10 min-h-0 flex-1 overflow-hidden">
+      <div
+        ref={stageRef}
+        className="relative z-10 min-h-0 flex-1 overflow-hidden"
+      >
         <video
           ref={videoRef}
           playsInline
@@ -269,7 +270,7 @@ export function TrayCameraCapture({
 
         {frame ? (
           <>
-            {/* Dim mask with clear tray window */}
+            {/* Dim mask — no border boxes; corners alone define the frame */}
             <div
               aria-hidden="true"
               className="pointer-events-none absolute"
@@ -282,29 +283,18 @@ export function TrayCameraCapture({
               }}
             />
 
-            {/* Frame border */}
-            <div
-              aria-hidden="true"
-              className="pointer-events-none absolute rounded-[2px] border border-white/85"
-              style={{
-                left: frame.left,
-                top: frame.top,
-                width: frame.width,
-                height: frame.height,
-                boxShadow: "inset 0 0 0 1px rgb(31 111 235 / 35%)",
-              }}
-            />
-
-            {/* Corner brackets — emphasize top-right start */}
             <CornerBrackets frame={frame} />
 
-            {/* Start-of-tray overlay (top-right) */}
+            {/* Start-of-tray overlay (top-right of vertical frame) */}
             <div
               className="pointer-events-none absolute z-10"
               style={{
-                left: frame.left + frame.width - Math.min(118, frame.width * 0.28),
-                top: frame.top + 8,
-                width: Math.min(110, frame.width * 0.26),
+                left:
+                  frame.left +
+                  frame.width -
+                  Math.min(112, Math.max(88, frame.width * 0.55)),
+                top: frame.top + 10,
+                width: Math.min(108, Math.max(84, frame.width * 0.52)),
               }}
             >
               <div className="rounded-md border border-[#60a5fa]/70 bg-[#0b121c]/78 px-2 py-1.5 shadow-[0_8px_24px_rgb(0_0_0_/45%)] backdrop-blur-[2px]">
@@ -315,22 +305,7 @@ export function TrayCameraCapture({
                   Top-right corner
                 </p>
               </div>
-              <svg
-                viewBox="0 0 48 28"
-                className="ml-auto mt-1 h-5 w-9 text-[#93c5fd]"
-                aria-hidden="true"
-              >
-                <path
-                  d="M4 14h28M26 6l12 8-12 8"
-                  fill="none"
-                  stroke="currentColor"
-                  strokeWidth="2.5"
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                />
-              </svg>
             </div>
-
           </>
         ) : null}
 
@@ -343,12 +318,13 @@ export function TrayCameraCapture({
         )}
       </div>
 
-      <footer className="relative z-20 space-y-3 border-t border-white/10 bg-[#0b121c]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
+      <footer className="relative z-20 shrink-0 space-y-3 border-t border-white/10 bg-[#0b121c]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
         <p className="text-center text-xs leading-relaxed text-[#a9b8c8]">
-          Align the completed tray inside the {TRAY_FRAME_WIDTH_CM} ×{" "}
-          {TRAY_FRAME_HEIGHT_CM} cm frame. Place the{" "}
+          Hold the phone upright. Align the tray in the{" "}
+          {TRAY_FRAME_SHORT_CM} × {TRAY_FRAME_LONG_CM} cm vertical frame (long
+          side top-to-bottom). Place the{" "}
           <span className="font-semibold text-white">start of tray</span> at the
-          top-right mark so every photograph stays consistent.
+          top-right mark.
         </p>
         <div className="flex items-center justify-center gap-8">
           <button
@@ -382,7 +358,8 @@ export function TrayCameraCapture({
 }
 
 function CornerBrackets({ frame }: { frame: ViewRect }) {
-  const arm = Math.min(28, frame.height * 0.22, frame.width * 0.08);
+  // Longer arms along the tall axis so corners read clearly on a vertical tray.
+  const arm = Math.min(36, frame.width * 0.22, frame.height * 0.07);
   const thick = 3;
   const corners = [
     { x: frame.left, y: frame.top, hx: 1, hy: 1, emphasize: false },

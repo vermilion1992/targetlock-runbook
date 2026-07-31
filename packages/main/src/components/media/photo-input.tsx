@@ -1,14 +1,13 @@
 "use client";
 
 import { Camera, ImagePlus, X } from "lucide-react";
-import Image from "next/image";
 import { useEffect, useId, useRef, useState } from "react";
 
 import { TrayCameraCapture } from "@/components/media/tray-camera-capture";
 import {
   MAX_ORIGINAL_IMAGE_BYTES,
-  TRAY_FRAME_HEIGHT_CM,
-  TRAY_FRAME_WIDTH_CM,
+  TRAY_FRAME_LONG_CM,
+  TRAY_FRAME_SHORT_CM,
   restoreMobileViewportAfterCamera,
   validateImageBlob,
 } from "@/infrastructure/media";
@@ -26,7 +25,7 @@ export function PhotoInput({
   file: File | null;
   onFile: (file: File | null) => void;
   required?: boolean;
-  /** Tray mode opens a framed in-app camera (110×35 cm, start top-right). */
+  /** Tray mode opens a framed in-app camera (vertical 35×110 cm, start top-right). */
   mode?: "generic" | "tray";
 }) {
   const generatedId = useId();
@@ -138,17 +137,14 @@ export function PhotoInput({
       {isTray ? (
         <TrayCameraCapture
           open={cameraOpen}
-          onClose={() => {
-            setCameraOpen(false);
-            restoreMobileViewportAfterCamera();
-          }}
+          onClose={() => setCameraOpen(false)}
           onCapture={(captured) => acceptFile(captured)}
         />
       ) : null}
 
       <p id={`${id}-help`} className="text-xs text-[var(--tl-ink-muted)]">
         {isTray
-          ? `Opens a guided camera framed for a ~${TRAY_FRAME_WIDTH_CM} × ${TRAY_FRAME_HEIGHT_CM} cm core tray. Place the start of the tray in the top-right mark. Maximum ${MAX_ORIGINAL_IMAGE_BYTES / 1024 / 1024} MB.`
+          ? `Guided upright camera for a ~${TRAY_FRAME_SHORT_CM} × ${TRAY_FRAME_LONG_CM} cm tray (long side top-to-bottom). Start of tray goes in the top-right mark. Maximum ${MAX_ORIGINAL_IMAGE_BYTES / 1024 / 1024} MB.`
           : `Camera capture is used where supported. Otherwise choose a photograph from this device. Maximum ${MAX_ORIGINAL_IMAGE_BYTES / 1024 / 1024} MB.`}
       </p>
       {error ? (
@@ -162,13 +158,12 @@ export function PhotoInput({
       ) : null}
       {preview !== null && file !== null ? (
         <div className="overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]">
-          <Image
+          {/* Native img avoids Next/Image layout quirks after camera on mobile. */}
+          {/* eslint-disable-next-line @next/next/no-img-element */}
+          <img
             src={preview}
             alt={`Preview of selected ${label.toLocaleLowerCase("en-AU")}`}
-            width={isTray ? 1_100 : 1_200}
-            height={isTray ? 350 : 900}
-            unoptimized
-            className={`w-full object-contain ${isTray ? "max-h-44 bg-[#0b121c]" : "max-h-80"}`}
+            className={`mx-auto w-full object-contain ${isTray ? "max-h-72 bg-[#0b121c]" : "max-h-80"}`}
           />
           <div className="flex items-center justify-between gap-3 p-3">
             <span className="flex min-w-0 items-center gap-2 text-sm text-[var(--tl-ink-muted)]">
