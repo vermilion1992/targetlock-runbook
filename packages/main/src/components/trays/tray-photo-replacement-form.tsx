@@ -142,6 +142,7 @@ export function TrayPhotoReplacementForm({
                 setIsDirty(true);
               }}
               required
+              mode="tray"
             />
             <label className="block">
               <span className="text-sm font-bold">Replacement reason *</span>

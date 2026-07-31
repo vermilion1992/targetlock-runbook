@@ -276,7 +276,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
           <span className="mt-1 block text-xs text-[var(--tl-ink-muted)]">Suggested from completed hole depth; correct it to the physical tray label.</span>
         </label>
         <div className="md:col-span-2">
-          <PhotoInput id="tray-photo" label="Completed-tray photograph" file={photo} onFile={setPhoto} required />
+          <PhotoInput id="tray-photo" label="Completed-tray photograph" file={photo} onFile={setPhoto} required mode="tray" />
         </div>
         <label className="md:col-span-2">
           <span className="text-sm font-bold">Comment (optional)</span>
