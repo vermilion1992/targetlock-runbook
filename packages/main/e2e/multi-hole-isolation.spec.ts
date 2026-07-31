@@ -3,7 +3,7 @@ import { expect, test } from "@playwright/test";
 import { resetPilotBrowserState } from "./helpers/pilot";
 
 const FOREIGN_HOLE = "DDH042";
-const DDH041_RUN_ID = "run-ddh041-233";
+const DDH041_RUN_ID = "run-ddh041-1";
 const foreignSavedRunsKey =
   `targetlock:prototype:v5:hole:${encodeURIComponent(FOREIGN_HOLE)}:saved-runs`;
 
@@ -43,7 +43,7 @@ test("does not merge DDH041 seed runs into another hole runbook", async ({
     page.getByRole("heading", { name: `${FOREIGN_HOLE} runbook` }),
   ).toBeVisible();
   await expect(page.getByText("0 runs", { exact: true })).toBeVisible();
-  await expect(page.getByRole("link", { name: /Run 233/ })).toHaveCount(0);
+  await expect(page.getByRole("link", { name: /Run 1\b/ })).toHaveCount(0);
 });
 
 test("keeps secondary-hole context across casing and global component routes", async ({

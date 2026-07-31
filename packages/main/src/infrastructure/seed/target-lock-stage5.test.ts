@@ -24,12 +24,9 @@ class MemoryStorage implements LocalStorageAdapter {
 
 describe("targetLockStage5Seed", () => {
   it("rejects known seed run IDs under another hole", () => {
-    expect(
-      isSeedRunCompatibleWithHole("DDH041", "run-ddh041-233"),
-    ).toBe(true);
-    expect(
-      isSeedRunCompatibleWithHole("DDH042", "run-ddh041-233"),
-    ).toBe(false);
+    const seedRunId = targetLockStage5Seed.runs[0]?.localId ?? "run-ddh041-1";
+    expect(isSeedRunCompatibleWithHole("DDH041", seedRunId)).toBe(true);
+    expect(isSeedRunCompatibleWithHole("DDH042", seedRunId)).toBe(false);
     expect(isSeedRunCompatibleWithHole("DDH042", "local-run-1")).toBe(true);
   });
 

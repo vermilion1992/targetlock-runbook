@@ -76,9 +76,9 @@ describe("TargetLock Stage 3 seed", () => {
     ).toBe(true);
   });
 
-  it("preserves Stage 2 run and shift continuity", () => {
-    expect(targetLockStage3Seed.runs).toHaveLength(25);
-    expect(targetLockStage3Seed.shifts).toHaveLength(2);
+  it("preserves mid-hole run and shift continuity", () => {
+    expect(targetLockStage3Seed.runs.length).toBeGreaterThan(100);
+    expect(targetLockStage3Seed.shifts.length).toBeGreaterThan(20);
     expect(
       targetLockStage3Seed.runs.every(
         (run) =>
@@ -86,6 +86,9 @@ describe("TargetLock Stage 3 seed", () => {
           run.activeReamerAssignmentId ===
             "assignment-reamer-000912-ddh041",
       ),
+    ).toBe(true);
+    expect(
+      targetLockStage3Seed.shifts.some(({ status }) => status === "OPEN"),
     ).toBe(true);
   });
 });

@@ -358,8 +358,9 @@ export function SignInScreen({
                       {submitting === "demo" ? "Opening demo…" : "Try demo"}
                     </button>
                     <p className="mt-2 text-xs leading-5 text-[var(--tl-ink-muted)]">
-                      Local-only beta sandbox on hole DDH041. Changes stay in
-                      this browser and are never synced to the pilot server.
+                      Local-only beta sandbox on hole DDH041 (~800 m plan /
+                      ~630 m mid-hole). Changes stay in this browser and are
+                      never synced to the pilot server.
                     </p>
                   </>
                 ) : null}

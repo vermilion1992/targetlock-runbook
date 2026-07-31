@@ -1,4 +1,5 @@
 export * from "./report-recipients";
+export * from "./target-lock-ddh041-midhole";
 export * from "./target-lock-stage1";
 export * from "./target-lock-stage2";
 export * from "./target-lock-stage3";

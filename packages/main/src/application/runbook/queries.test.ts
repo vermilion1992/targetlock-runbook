@@ -9,7 +9,15 @@ import {
 import { targetLockStage3Seed } from "@/infrastructure/seed";
 import { getShiftRunGroups } from "./queries";
 
-function correctedLocalSnapshot(run: Run): SavedRunSnapshot {
+function correctedLocalSnapshot(
+  run: Run,
+  overrides: Partial<
+    Pick<
+      SavedRunSnapshot,
+      "rodStringDm" | "measuredStickUpDm" | "holeDepthDm" | "drilledLengthDm"
+    >
+  > = {},
+): SavedRunSnapshot {
   const original: SavedRunOriginalSnapshot = {
     localId: run.localId,
     startedAt: run.startedAt,
@@ -45,17 +53,17 @@ function correctedLocalSnapshot(run: Run): SavedRunSnapshot {
     ...withDefaultRunCorrectionFields(original),
     version: 2,
     status: "corrected",
-    correctionIds: ["correction-run-234-measurements"],
+    correctionIds: ["correction-demo-measurements"],
     originalSnapshot: original,
-    rodStringDm: 6_655,
-    measuredStickUpDm: 3,
-    holeDepthDm: 6_652,
-    drilledLengthDm: 28,
+    rodStringDm: overrides.rodStringDm ?? Number(run.rodStringLength),
+    measuredStickUpDm: overrides.measuredStickUpDm ?? Number(run.measuredStickUp),
+    holeDepthDm: overrides.holeDepthDm ?? Number(run.holeDepth) - 2,
+    drilledLengthDm: overrides.drilledLengthDm ?? Number(run.drilledLength) - 2,
   };
 }
 
 describe("shift-grouped completed Run measurements", () => {
-  it("projects the saved Night Shift values for Runs 233–245", () => {
+  it("projects saved night-shift runs from the mid-hole sandbox", () => {
     const groups = getShiftRunGroups({
       holeId: "DDH041",
       shifts: targetLockStage3Seed.shifts,
@@ -63,52 +71,26 @@ describe("shift-grouped completed Run measurements", () => {
       localRuns: [],
     });
     const night = groups.find(
-      ({ shift }) =>
-        shift.shiftType === "NIGHT" && shift.shiftDate === "2026-07-21",
+      ({ shift }) => shift.shiftType === "NIGHT" && shift.status === "CLOSED",
     );
 
     expect(night).toBeDefined();
-    expect(night?.runs.map(({ runNumber }) => runNumber)).toEqual(
-      Array.from({ length: 13 }, (_, index) => 233 + index),
-    );
-    expect(night?.runs.slice(0, 3)).toMatchObject([
-      {
-        runNumber: 233,
-        shared: true,
-        rodStringDm: 6_625,
-        measuredStickUpDm: 1,
-        holeDepthDm: 6_624,
-        drilledLengthDm: 9,
-        recoveredLengthDm: 9,
-        recoveryPercentage: 100,
-        activeBitSerialNumberSnapshot: "BIT-HQ-002193",
-        activeReamerSerialNumberSnapshot: "REA-HQ-000912",
-      },
-      {
-        runNumber: 234,
-        shared: false,
-        rodStringDm: 6_685,
-        measuredStickUpDm: 31,
-        holeDepthDm: 6_654,
-        drilledLengthDm: 30,
-        recoveredLengthDm: 30,
-        recoveryPercentage: 100,
-      },
-      {
-        runNumber: 235,
-        shared: false,
-        rodStringDm: 6_685,
-        measuredStickUpDm: 1,
-        holeDepthDm: 6_684,
-        drilledLengthDm: 30,
-        recoveredLengthDm: 30,
-        recoveryPercentage: 100,
-      },
-    ]);
+    expect(night!.runs.length).toBeGreaterThan(0);
+    expect(
+      night!.runs.every(
+        (run) =>
+          run.holeDepthDm ===
+            run.rodStringDm - run.measuredStickUpDm &&
+          run.activeBitSerialNumberSnapshot === "BIT-HQ-002193",
+      ),
+    ).toBe(true);
     expect(night?.shift).toMatchObject({
-      startingDepthDm: 6_615,
-      endingDepthDm: 6_984,
+      shiftType: "NIGHT",
+      status: "CLOSED",
     });
+    expect(Number(night!.shift.endingDepthDm)).toBeGreaterThan(
+      Number(night!.shift.startingDepthDm),
+    );
   });
 
   it("does not merge foreign runs when shift identifiers collide", () => {
@@ -126,33 +108,37 @@ describe("shift-grouped completed Run measurements", () => {
   });
 
   it("uses effective corrected measurements without mutating the original snapshot", () => {
-    const run234 = targetLockStage3Seed.runs.find(
-      ({ runNumber }) => runNumber === 234,
+    const sampleRun = targetLockStage3Seed.runs.find(
+      ({ status, completedAt }) => status === "completed" && completedAt !== null,
     )!;
-    const corrected = correctedLocalSnapshot(run234);
-    const night = getShiftRunGroups({
+    const corrected = correctedLocalSnapshot(sampleRun, {
+      rodStringDm: Number(sampleRun.rodStringLength),
+      measuredStickUpDm: Number(sampleRun.measuredStickUp) + 2,
+      holeDepthDm: Number(sampleRun.holeDepth) - 2,
+      drilledLengthDm: Number(sampleRun.drilledLength) - 2,
+    });
+    const group = getShiftRunGroups({
       holeId: "DDH041",
       shifts: targetLockStage3Seed.shifts,
       seedRuns: targetLockStage3Seed.runs,
       localRuns: [corrected],
-    }).find(
-      ({ shift }) =>
-        shift.shiftType === "NIGHT" && shift.shiftDate === "2026-07-21",
+    }).find(({ shift }) => shift.localId === sampleRun.startedShiftId);
+    const effective = group?.runs.find(
+      ({ runNumber }) => runNumber === sampleRun.runNumber,
     );
-    const effective = night?.runs.find(({ runNumber }) => runNumber === 234);
 
     expect(effective).toMatchObject({
       status: "corrected",
-      rodStringDm: 6_655,
-      measuredStickUpDm: 3,
-      holeDepthDm: 6_652,
-      drilledLengthDm: 28,
+      rodStringDm: corrected.rodStringDm,
+      measuredStickUpDm: corrected.measuredStickUpDm,
+      holeDepthDm: corrected.holeDepthDm,
+      drilledLengthDm: corrected.drilledLengthDm,
     });
     expect(corrected.originalSnapshot).toMatchObject({
-      rodStringDm: 6_685,
-      measuredStickUpDm: 31,
-      holeDepthDm: 6_654,
-      drilledLengthDm: 30,
+      rodStringDm: sampleRun.rodStringLength,
+      measuredStickUpDm: sampleRun.measuredStickUp,
+      holeDepthDm: sampleRun.holeDepth,
+      drilledLengthDm: sampleRun.drilledLength,
     });
     expect(effective?.activeBitSerialNumberSnapshot).toBe("BIT-HQ-002193");
     expect(effective?.activeReamerSerialNumberSnapshot).toBe("REA-HQ-000912");
