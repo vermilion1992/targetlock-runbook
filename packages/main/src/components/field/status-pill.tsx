@@ -28,6 +28,8 @@ interface StatusPillProps {
   tone?: StatusTone;
   className?: string;
   live?: boolean;
+  title?: string;
+  "data-testid"?: string;
 }
 
 export function StatusPill({
@@ -35,13 +37,17 @@ export function StatusPill({
   tone = "neutral",
   className,
   live = false,
+  title,
+  "data-testid": testId,
 }: StatusPillProps) {
   return (
     <span
       role={live ? "status" : undefined}
       aria-live={live ? "polite" : undefined}
+      title={title}
+      data-testid={testId}
       className={cn(
-        "inline-flex min-h-7 items-center gap-1.5 rounded-full border px-2.5 py-1 text-xs font-semibold leading-none",
+        "inline-flex min-h-7 items-center gap-1.5 rounded-[var(--tl-radius-md)] border px-2.5 py-1 text-xs font-semibold leading-none",
         toneClasses[tone],
         className,
       )}

@@ -531,100 +531,112 @@ export function TrajectoryR3FViewer({
   ];
 
   return (
-    <div
-      ref={rootRef}
-      className="relative h-[min(72vh,40rem)] min-h-[30rem] overflow-hidden rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] shadow-[var(--tl-shadow-md)]"
-      data-testid="trajectory-r3f-viewer"
-    >
-      <Canvas
-        camera={{ position: [40, 30, 40], fov: 46 }}
-        dpr={[1, 1.75]}
-        gl={{ antialias: true, powerPreference: "high-performance" }}
-      >
-        <TrajectoryScene
-          model={model}
-          verticalScaleMode={verticalScaleMode}
-          orbitLocked={orbitLocked}
-          cameraPreset={cameraPreset}
-          colors={colors}
-          layers={layers}
-          onHoverMarker={setHovered}
-        />
-      </Canvas>
-
+    <div className="space-y-2" data-testid="trajectory-r3f-viewer">
       <div
-        className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-center justify-between gap-2"
+        ref={rootRef}
+        className="relative h-[min(62vh,36rem)] min-h-[22rem] overflow-hidden rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] shadow-[var(--tl-shadow-md)] sm:min-h-[30rem] sm:h-[min(72vh,40rem)]"
       >
-        <div className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/92 px-3 py-2 shadow-[var(--tl-shadow-sm)] backdrop-blur">
-          <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em]">
-            <Layers3 aria-hidden className="size-4 text-[var(--tl-primary)]" />
-            Trajectory model
-          </p>
-          <p className="mt-0.5 text-[0.68rem] text-[var(--tl-ink-muted)]">
-            Equal scale · E / N / RL
-          </p>
+        <Canvas
+          camera={{ position: [40, 30, 40], fov: 46 }}
+          dpr={[1, 1.75]}
+          gl={{ antialias: true, powerPreference: "high-performance" }}
+        >
+          <TrajectoryScene
+            model={model}
+            verticalScaleMode={verticalScaleMode}
+            orbitLocked={orbitLocked}
+            cameraPreset={cameraPreset}
+            colors={colors}
+            layers={layers}
+            onHoverMarker={setHovered}
+          />
+        </Canvas>
+
+        <div className="absolute inset-x-3 top-3 z-10 flex flex-wrap items-center justify-between gap-2">
+          <div className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/92 px-3 py-2 shadow-[var(--tl-shadow-sm)] backdrop-blur">
+            <p className="flex items-center gap-2 text-xs font-bold uppercase tracking-[0.08em]">
+              <Layers3 aria-hidden className="size-4 text-[var(--tl-primary)]" />
+              Trajectory model
+            </p>
+            <p className="mt-0.5 text-[0.68rem] text-[var(--tl-ink-muted)]">
+              Equal scale · E / N / RL
+            </p>
+          </div>
+          <div className="flex rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/92 p-1 shadow-[var(--tl-shadow-sm)] backdrop-blur">
+            {(["PERSPECTIVE", "PLAN", "SECTION"] as const).map((preset) => (
+              <button
+                key={preset}
+                type="button"
+                className={`min-h-9 rounded-[var(--tl-radius-sm)] px-3 text-xs font-bold ${
+                  cameraPreset === preset
+                    ? "bg-[var(--tl-primary)] text-white"
+                    : "text-[var(--tl-ink-muted)]"
+                }`}
+                onClick={() => setCameraPreset(preset)}
+              >
+                {preset === "PERSPECTIVE"
+                  ? "3D"
+                  : preset === "PLAN"
+                    ? "Plan"
+                    : "Section"}
+              </button>
+            ))}
+          </div>
         </div>
-        <div className="flex rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/92 p-1 shadow-[var(--tl-shadow-sm)] backdrop-blur">
-          {(["PERSPECTIVE", "PLAN", "SECTION"] as const).map((preset) => (
-            <button
-              key={preset}
-              type="button"
-              className={`min-h-9 rounded-[var(--tl-radius-sm)] px-3 text-xs font-bold ${
-                cameraPreset === preset
-                  ? "bg-[var(--tl-primary)] text-white"
-                  : "text-[var(--tl-ink-muted)]"
-              }`}
-              onClick={() => setCameraPreset(preset)}
-            >
-              {preset === "PERSPECTIVE" ? "3D" : preset === "PLAN" ? "Plan" : "Section"}
-            </button>
-          ))}
+
+        <div className="pointer-events-none absolute right-3 top-20 z-10 hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/88 p-2 text-[0.65rem] font-bold text-[var(--tl-ink-muted)] shadow-[var(--tl-shadow-sm)] backdrop-blur sm:block">
+          <div className="relative flex size-12 items-center justify-center">
+            <span className="absolute top-0 text-[var(--tl-primary)]">N</span>
+            <span className="absolute right-0">E</span>
+            <Focus aria-hidden className="size-4" />
+          </div>
         </div>
+
+        {hovered ? <HoverTooltip marker={hovered} /> : null}
       </div>
 
       <div
-        className="absolute bottom-3 left-3 z-10 flex max-w-[calc(100%-8rem)] flex-wrap gap-1.5 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/92 p-1.5 shadow-[var(--tl-shadow-sm)] backdrop-blur"
+        className="flex flex-col gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-2 shadow-[var(--tl-shadow-sm)] sm:flex-row sm:items-center sm:justify-between"
         data-testid="trajectory-r3f-legend"
       >
-        <span className="inline-flex min-h-8 items-center gap-2 rounded-[var(--tl-radius-sm)] px-2.5 text-xs font-bold">
-          <span
-            className="size-2 rounded-full"
-            style={{ backgroundColor: colors.actual }}
-          />
-          Actual
-        </span>
-        {layerOptions
-          .filter(({ available }) => available)
-          .map(({ key, label, color }) => (
-            <button
-              key={key}
-              type="button"
-              className={`inline-flex min-h-8 items-center gap-2 rounded-[var(--tl-radius-sm)] px-2.5 text-xs font-bold ${
-                layers[key]
-                  ? "bg-[var(--tl-surface-sunken)] text-[var(--tl-ink)]"
-                  : "text-[var(--tl-ink-muted)] opacity-70"
-              }`}
-              onClick={() => toggleLayer(key)}
-              aria-pressed={layers[key]}
-            >
-              <span
-                className="size-2 rounded-full"
-                style={{ backgroundColor: color }}
-              />
-              {label}
-              {layers[key] ? (
-                <Eye aria-hidden className="size-3" />
-              ) : (
-                <EyeOff aria-hidden className="size-3" />
-              )}
-            </button>
-          ))}
-      </div>
-
-      <div className="absolute bottom-3 right-3 z-10 flex items-center gap-2">
+        <div className="grid grid-cols-2 gap-1.5 sm:flex sm:flex-wrap sm:items-center sm:gap-1.5">
+          <span className="inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] px-2.5 text-xs font-bold sm:flex-none sm:justify-start">
+            <span
+              className="size-2 rounded-full"
+              style={{ backgroundColor: colors.actual }}
+            />
+            Actual
+          </span>
+          {layerOptions
+            .filter(({ available }) => available)
+            .map(({ key, label, color }) => (
+              <button
+                key={key}
+                type="button"
+                className={`inline-flex min-h-9 flex-1 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] px-2.5 text-xs font-bold sm:flex-none sm:justify-start ${
+                  layers[key]
+                    ? "bg-[var(--tl-surface-sunken)] text-[var(--tl-ink)]"
+                    : "text-[var(--tl-ink-muted)] opacity-70"
+                }`}
+                onClick={() => toggleLayer(key)}
+                aria-pressed={layers[key]}
+              >
+                <span
+                  className="size-2 rounded-full"
+                  style={{ backgroundColor: color }}
+                />
+                {label}
+                {layers[key] ? (
+                  <Eye aria-hidden className="size-3" />
+                ) : (
+                  <EyeOff aria-hidden className="size-3" />
+                )}
+              </button>
+            ))}
+        </div>
         <button
           type="button"
-          className="inline-flex min-h-9 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)]/95 px-3 text-xs font-bold text-[var(--tl-ink)] shadow-[var(--tl-shadow-sm)] backdrop-blur"
+          className="inline-flex min-h-9 shrink-0 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 text-xs font-bold text-[var(--tl-ink)] sm:justify-start"
           onClick={() => setOrbitLocked((value) => !value)}
           data-testid="trajectory-r3f-orbit-lock"
           aria-pressed={orbitLocked}
@@ -637,16 +649,6 @@ export function TrajectoryR3FViewer({
           {orbitLocked ? "Unlock view" : "Lock view"}
         </button>
       </div>
-
-      <div className="pointer-events-none absolute right-3 top-20 z-10 hidden rounded-full border border-[var(--tl-border)] bg-[var(--tl-surface)]/88 p-2 text-[0.65rem] font-bold text-[var(--tl-ink-muted)] shadow-[var(--tl-shadow-sm)] backdrop-blur sm:block">
-        <div className="relative flex size-12 items-center justify-center">
-          <span className="absolute top-0 text-[var(--tl-primary)]">N</span>
-          <span className="absolute right-0">E</span>
-          <Focus aria-hidden className="size-4" />
-        </div>
-      </div>
-
-      {hovered ? <HoverTooltip marker={hovered} /> : null}
     </div>
   );
 }

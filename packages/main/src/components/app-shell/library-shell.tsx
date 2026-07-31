@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import type { ReactNode } from "react";
 
+import { DemoModeChip } from "./demo-mode-chip";
 import { TargetLockBrand } from "./target-lock-brand";
 import { ThemeModeControl } from "./theme-mode-control";
 import { OperatorMenu, useOperatorSession } from "@/components/session";
@@ -31,20 +32,11 @@ export function LibraryShell({ children }: { children: ReactNode }) {
               {isStart ? "Field Start" : "Project Library"}
             </span>
           </Link>
+          {runtimeMode === "demo" ? <DemoModeChip /> : null}
           <ThemeModeControl />
           <OperatorMenu />
         </div>
       </header>
-      {runtimeMode === "demo" ? (
-        <div
-          role="status"
-          data-testid="demo-local-only-banner"
-          className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-center text-sm font-semibold text-amber-950"
-        >
-          Demo mode — data is local-only on this device and is not synced to the
-          pilot server.
-        </div>
-      ) : null}
       <main
         id="main-content"
         className="mx-auto w-full max-w-[1440px] px-3 py-5 pb-[max(2rem,env(safe-area-inset-bottom))] sm:px-5 lg:px-8 lg:py-7"

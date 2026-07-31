@@ -70,7 +70,7 @@ export function ConditionTagPicker({
               disabled={disabled || option.disabled}
               onClick={() => toggleOption(option.value)}
               className={cn(
-                "inline-flex min-h-11 max-w-full items-center gap-2 rounded-full border px-4 py-2 text-left text-sm font-semibold transition-colors",
+                "inline-flex min-h-11 max-w-full items-center gap-2 rounded-[var(--tl-radius-md)] border px-4 py-2 text-left text-sm font-semibold transition-colors",
                 selected
                   ? "border-[var(--tl-primary)] bg-[var(--tl-primary-soft)] text-[var(--tl-primary)]"
                   : "border-[var(--tl-border-strong)] bg-[var(--tl-surface)] text-[var(--tl-ink)]",

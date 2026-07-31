@@ -174,7 +174,7 @@ export function TrayDetail({
         {overlaps.length > 0 ? (
           <div className="flex flex-wrap gap-2">
             {overlaps.map((run) => (
-              <Link key={run.localId} href={runbookRoutes.runDetail(holeId, run.localId)} className="inline-flex min-h-11 items-center rounded-full border border-[var(--tl-border-strong)] px-4 font-bold no-underline">
+              <Link key={run.localId} href={runbookRoutes.runDetail(holeId, run.localId)} className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-md)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline">
                 Run {run.runNumber}
               </Link>
             ))}

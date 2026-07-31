@@ -47,45 +47,47 @@ test("Workflow 2 — Plan and setup routes redirect", async ({ page }) => {
   });
 });
 
-test("Workflow 3 — Three views and field details", async ({ page }) => {
+test("Workflow 3 — 3D viewer, legend, and field details", async ({ page }) => {
   await page.goto("/holes/DDH041/trajectory");
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  // R3F is the default viewer; reveal canvas Plan/Section tabs when present.
-  const planSectionToggle = page.getByTestId("trajectory-toggle-plan-section");
-  if (await planSectionToggle.isVisible().catch(() => false)) {
-    await planSectionToggle.click();
-  }
-  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible({
+  await expect(page.getByTestId("trajectory-r3f-viewer")).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByTestId("trajectory-view-plan").click();
-  await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
-  await page.getByTestId("trajectory-view-vertical_section").click();
-  await expect(page.getByTestId("trajectory-vertical-section")).toBeVisible();
-  await page.getByTestId("trajectory-view-view_3d").click();
-  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
+  await expect(page.getByTestId("trajectory-r3f-legend")).toBeVisible();
+  await expect(page.getByTestId("trajectory-r3f-orbit-lock")).toBeVisible();
   await expect(page.getByTestId("trajectory-field-details")).toBeVisible();
-  await expect(
-    page.getByText(/Geometric minimum-curvature guidance/i).first(),
-  ).toBeVisible();
+  await expect(page.getByTestId("trajectory-edit-target")).toHaveCount(0);
+  await expect(page.getByTestId("trajectory-export-image")).toHaveCount(0);
+  await expect(page.getByTestId("trajectory-more-details-toggle")).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("trajectory-toggle-plan-section")).toHaveCount(
+    0,
+  );
 });
 
-test("Workflow 4 — Edit target with entry direction", async ({ page }) => {
+test("Workflow 4 — Seeded mid-hole guidance is within steering envelope", async ({
+  page,
+}) => {
   await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-edit-target")).toBeVisible({
+  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByTestId("trajectory-edit-target").click();
-  await expect(page.getByTestId("set-target-dialog")).toBeVisible();
-  await page.getByTestId("target-md-input").fill("650.0");
-  await page.getByTestId("specify-entry-direction").check();
-  await page.getByTestId("entry-dip-input").fill("-74.0");
-  await page.getByTestId("entry-azimuth-input").fill("145.0");
-  await page.getByRole("button", { name: "Save target" }).click();
-  await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
-  await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
+  await expect(page.getByTestId("trajectory-target-status")).toBeVisible();
+  await expect(page.getByTestId("trajectory-metric-required-dip")).toBeVisible();
+  await expect(
+    page.getByTestId("trajectory-metric-required-dip"),
+  ).not.toContainText(/REVIEW/i);
+  await expect(
+    page.getByTestId("trajectory-metric-required-azimuth"),
+  ).not.toContainText(/REVIEW/i);
+  await expect(page.getByTestId("review-curvature-banner")).toHaveCount(0);
+  await expect(page.getByTestId("target-unreachable-banner")).toHaveCount(0);
+  await expect(
+    page.getByTestId("steering-envelope-review-banner"),
+  ).toHaveCount(0);
 });
 
 test("Workflow 5 — Survey settings interval persistence", async ({ page }) => {

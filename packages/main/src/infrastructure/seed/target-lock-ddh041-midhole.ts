@@ -698,12 +698,12 @@ export const ddh041MidholeSurveys: readonly Survey[] = (() => {
   const maxM = DDH041_DEMO_CURRENT_DEPTH_M;
   for (let depthM = 0; depthM <= maxM; depthM += intervalM) {
     const t = depthM / DDH041_DEMO_PLANNED_DEPTH_M;
-    // Plan-ish curve with small realistic actual offset (not perfect zeros).
+    // Track the demo plan with a small, realistic actual offset so mid-hole
+    // recovery guidance stays gently achievable (not REVIEW_REQUIRED).
     const planDipTenths = Math.round(-600 - t * 140);
     const planAzimuthTenths = Math.round(1_280 + t * 170);
-    const dipTenths = planDipTenths - 3 - Math.round((depthM / 60) % 5);
-    const azimuthTenths =
-      planAzimuthTenths + 4 + Math.round((depthM / 45) % 7);
+    const dipTenths = planDipTenths - 2;
+    const azimuthTenths = planAzimuthTenths + 2;
     const recordedAt = isoAfter(
       "2026-06-16T08:00:00.000Z",
       (depthM / intervalM) * 360,

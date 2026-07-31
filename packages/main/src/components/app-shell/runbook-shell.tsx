@@ -8,6 +8,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 
 import { cn } from "@/lib/utils";
 import { StaleServiceWorkerCleanup } from "@/components/app-shell/stale-service-worker-cleanup";
+import { DemoModeChip } from "@/components/app-shell/demo-mode-chip";
 import { TargetLockBrand } from "@/components/app-shell/target-lock-brand";
 import { ThemeModeControl } from "@/components/app-shell/theme-mode-control";
 import { ConnectivityBadge } from "@/components/field/status-pill";
@@ -159,6 +160,7 @@ export function RunbookShell({ children }: RunbookShellProps) {
           </strong>
         </Link>
 
+        {runtimeMode === "demo" ? <DemoModeChip /> : null}
         <ConnectivityBadge
           mode={browserOnline ? "local" : "offline"}
           compactOnPhone
@@ -166,17 +168,6 @@ export function RunbookShell({ children }: RunbookShellProps) {
         <ThemeModeControl />
         <OperatorMenu compact />
       </header>
-
-      {runtimeMode === "demo" ? (
-        <div
-          role="status"
-          data-testid="demo-local-only-banner"
-          className="border-b border-amber-300 bg-amber-50 px-4 py-2 text-sm font-semibold text-amber-950"
-        >
-          Demo mode — data is local-only on this device and is not synced to the
-          pilot server.
-        </div>
-      ) : null}
 
       {runtimeMode === "pilot" ? (
         <div

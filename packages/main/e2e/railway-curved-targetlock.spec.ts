@@ -94,17 +94,12 @@ test("Railway B — new hole with specified target entry direction", async ({
   });
   await page.goto(`/holes/${holeId}/trajectory`);
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
-  await expect(page.getByTestId("trajectory-edit-target")).toHaveText(
-    /Edit Target/i,
-  );
+  await expect(page.getByTestId("trajectory-edit-target")).toHaveCount(0);
   await expect(page.getByTestId("collar-guidance-banner")).toBeVisible();
-  await page.getByTestId("trajectory-more-details-toggle").click();
-  await expect(page.getByTestId("target-entry-mode")).toContainText(
-    "Specified",
-  );
-  await expect(page.getByTestId("current-trajectory-tracking")).toContainText(
-    /At .+ MD|Unavailable|Review/i,
-  );
+  await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
+  await expect(
+    page.getByText(/Target MD 650\.0 m/i),
+  ).toBeVisible();
 });
 
 test("Railway C — empty collar state then activate with coordinates", async ({
@@ -116,9 +111,7 @@ test("Railway C — empty collar state then activate with coordinates", async ({
     timeout: 30_000,
   });
   await expect(page.getByText("Collar coordinates required")).toBeVisible();
-  await expect(page.getByTestId("trajectory-edit-target")).toHaveText(
-    /Edit Target/i,
-  );
+  await expect(page.getByTestId("trajectory-edit-target")).toHaveCount(0);
 
   await page.getByRole("button", { name: "Add collar coordinates" }).click();
   await expect(page.getByTestId("collar-coordinates-dialog")).toBeVisible();
@@ -134,72 +127,43 @@ test("Railway C — empty collar state then activate with coordinates", async ({
   await expect(page.getByTestId("trajectory-collar-empty-state")).toHaveCount(
     0,
   );
-  await page.getByTestId("trajectory-more-details-toggle").click();
-  await expect(page.getByTestId("target-entry-mode")).toContainText(
-    "Specified",
-  );
+  await expect(page.getByTestId("trajectory-target-status")).toBeVisible();
 });
 
-test("Railway D — DDH041 KPIs, residual, radius, views, projection", async ({
+test("Railway D — DDH041 seeded KPIs, status chip, and 3D viewer", async ({
   page,
 }) => {
   await page.goto("/holes/DDH041/trajectory");
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await expect(page.getByTestId("trajectory-edit-target")).toBeVisible();
-  await page.getByTestId("trajectory-edit-target").click();
-  await expect(page.getByTestId("set-target-dialog")).toBeVisible();
-  await page.getByLabel("Target diameter (m)").fill("6.0");
-  await page.getByTestId("target-md-input").fill("650.0");
-  await page.getByRole("button", { name: "Save target" }).click();
-  await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
 
   await expect(page.getByTestId("current-trajectory-tracking")).toBeVisible();
-  const dipMetric = page.getByTestId("trajectory-metric-required-dip");
-  await expect(dipMetric).toContainText(/REVIEW/i);
   await expect(
-    page.getByTestId("steering-envelope-review-banner"),
-  ).toBeVisible();
+    page.getByTestId("trajectory-metric-required-dip"),
+  ).not.toContainText(/REVIEW/i);
   await expect(
     page.getByTestId("trajectory-metric-projected-miss"),
   ).toBeVisible();
-  await expect(page.getByTestId("trajectory-metric-target")).toContainText(
-    /Distance to Target|Remaining MD/i,
-  );
-
+  await expect(page.getByTestId("trajectory-metric-target")).toBeVisible();
   await expect(page.getByTestId("trajectory-target-status")).toContainText(
     /Projected to (intersect|miss) target/i,
   );
   await expect(page.getByTestId("trajectory-target-status")).toContainText(
-    "radius 3.0 m",
+    "radius 5.0 m",
   );
-  await page.getByTestId("trajectory-more-details-toggle").click();
-  await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "6.0 m / 3.0 m",
+  await expect(page.getByTestId("trajectory-more-details-toggle")).toHaveCount(
+    0,
   );
-  await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "Recommended recovery residual",
-  );
-  await expect(page.getByTestId("target-entry-mode")).toContainText(
-    /Automatic smoothest path|Specified/i,
-  );
-  await expect(
-    page.getByText(/Geometric minimum-curvature guidance/i).first(),
-  ).toBeVisible();
-
+  await expect(page.getByText(/Next-Survey guidance/i)).toHaveCount(0);
   await expect(page.getByTestId("trajectory-r3f-viewer")).toBeVisible();
-  await page.getByTestId("trajectory-toggle-plan-section").click();
-  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
-  await page.getByTestId("trajectory-view-plan").click();
-  await expect(page.getByTestId("trajectory-plan-view")).toBeVisible();
-  await page.getByTestId("trajectory-view-vertical_section").click();
-  await expect(page.getByTestId("trajectory-vertical-section")).toBeVisible();
-  await page.getByTestId("trajectory-view-view_3d").click();
-  await expect(page.getByTestId("trajectory-graphics-viewer")).toBeVisible();
+  await expect(page.getByTestId("trajectory-r3f-legend")).toBeVisible();
+  await expect(page.getByTestId("trajectory-toggle-plan-section")).toHaveCount(
+    0,
+  );
 });
 
-test("Railway E — refresh preserves hole, target, attitude, interval", async ({
+test("Railway E — refresh preserves hole, target MD, and survey interval", async ({
   page,
 }) => {
   await page.goto("/holes/DDH041/survey-settings");
@@ -213,61 +177,38 @@ test("Railway E — refresh preserves hole, target, attitude, interval", async (
   );
 
   await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-edit-target")).toBeVisible({
+  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByTestId("trajectory-edit-target").click();
-  await expect(page.getByTestId("set-target-dialog")).toBeVisible();
-  await page.getByTestId("target-md-input").fill("650.0");
-  await page.getByLabel("Target diameter (m)").fill("6.0");
-  await page.getByTestId("specify-entry-direction").check();
-  await page.getByTestId("entry-dip-input").fill("-74.0");
-  await page.getByTestId("entry-azimuth-input").fill("145.0");
-  await page.getByRole("button", { name: "Save target" }).click();
-  await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
+  await expect(
+    page.getByText(/Latest Survey .+ · Target MD 800\.0 m/i),
+  ).toBeVisible();
 
   await page.reload();
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByTestId("trajectory-more-details-toggle").click();
-  await expect(page.getByTestId("target-entry-mode")).toContainText(
-    "Specified",
-  );
-  await expect(page.getByTestId("trajectory-field-details")).toContainText(
-    "650.0 m",
-  );
   await expect(
-    page.getByText(/Latest Survey .+ · Target MD 650\.0 m/i),
+    page.getByText(/Latest Survey .+ · Target MD 800\.0 m/i),
   ).toBeVisible();
+  await expect(page.getByTestId("trajectory-target-status")).toBeVisible();
 
   await page.goto("/holes/DDH041/survey-settings");
   await expect(page.getByTestId("survey-interval-input")).toHaveValue("30.0");
 });
 
-test("Railway F — impossible target MD is blocked", async ({ page }) => {
+test("Railway F — seeded demo stays reachable (no unreachable banner)", async ({
+  page,
+}) => {
   await page.goto("/holes/DDH041/trajectory");
-  await expect(page.getByTestId("trajectory-edit-target")).toBeVisible({
+  await expect(page.getByTestId("trajectory-dashboard")).toBeVisible({
     timeout: 30_000,
   });
-  await page.getByTestId("trajectory-edit-target").click();
-  await expect(page.getByTestId("set-target-dialog")).toBeVisible();
-
-  // Target MD shallower than latest Survey MD is geometrically impossible.
-  await page.getByTestId("target-md-input").fill("50.0");
-  await page.getByRole("button", { name: "Save target" }).click();
-  await expect(page.getByTestId("set-target-dialog")).toHaveCount(0);
-
-  const unreachable = page.getByTestId("target-unreachable-banner");
-  await expect(unreachable).toBeVisible({ timeout: 30_000 });
-  await expect(unreachable).toContainText(/cannot be reached at the entered MD/i);
+  await expect(page.getByTestId("target-unreachable-banner")).toHaveCount(0);
   await expect(
     page.getByTestId("trajectory-metric-required-dip"),
-  ).not.toContainText(/At .+ MD/i);
-  await expect(page.getByTestId("trajectory-metric-target")).not.toContainText(
-    /Remaining MD\s*-/,
-  );
-  await expect(page.locator("main")).not.toContainText(/Remaining MD\s*-/);
+  ).not.toContainText(/REVIEW/i);
+  await expect(page.getByTestId("trajectory-metric-target")).toBeVisible();
 });
 
 test("Railway G — PDF and Excel downloads are valid files", async ({

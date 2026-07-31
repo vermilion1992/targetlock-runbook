@@ -1,17 +1,15 @@
 "use client";
 
-import { Crosshair, Download, Settings2, Target } from "lucide-react";
-import Link from "next/link";
+import { Crosshair, Target } from "lucide-react";
 
 import type { MiniTargetLockResult } from "@/domain";
-import { runbookRoutes } from "@/components/navigation/runbook-routes";
 
 import { formatMetresValue } from "./trajectory-format";
 
 function ProjectionStatusChip({ result }: { result: MiniTargetLockResult }) {
   if (!result.projection || !result.target) {
     return (
-      <div className="inline-flex items-center gap-2 rounded-full border border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-3 py-2">
+      <div className="inline-flex items-center gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-3 py-2">
         <Target aria-hidden className="size-4 text-[var(--tl-ink-muted)]" />
         <p className="text-sm font-bold">No target configured</p>
       </div>
@@ -23,7 +21,7 @@ function ProjectionStatusChip({ result }: { result: MiniTargetLockResult }) {
     : "border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] text-[var(--tl-warning)]";
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-full border px-3 py-2 ${tone}`}
+      className={`inline-flex items-center gap-2 rounded-[var(--tl-radius-md)] border px-3 py-2 ${tone}`}
       data-testid="trajectory-target-status"
     >
       <Crosshair aria-hidden className="size-4" />
@@ -46,13 +44,9 @@ function ProjectionStatusChip({ result }: { result: MiniTargetLockResult }) {
 export function TrajectoryCockpitHeader({
   holeId,
   result,
-  onExportImage,
-  onEditTarget,
 }: {
   holeId: string;
   result: MiniTargetLockResult;
-  onExportImage: () => void;
-  onEditTarget: () => void;
 }) {
   const latest = result.latestSurvey;
   const north =
@@ -63,10 +57,6 @@ export function TrajectoryCockpitHeader({
         : result.calculationNorthReference === "MAGNETIC"
           ? "Magnetic North"
           : "Azimuth reference";
-
-  const surveySettingsHref = runbookRoutes.surveySettings(holeId, {
-    returnTo: runbookRoutes.trajectory(holeId),
-  });
 
   return (
     <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
@@ -89,33 +79,6 @@ export function TrajectoryCockpitHeader({
       </div>
       <div className="flex flex-col items-start gap-3 lg:items-end">
         <ProjectionStatusChip result={result} />
-        <div className="flex flex-wrap gap-2">
-          <button
-            type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 text-sm font-bold text-white shadow-[var(--tl-shadow-sm)]"
-            onClick={onEditTarget}
-            data-testid="trajectory-edit-target"
-          >
-            <Target aria-hidden className="size-4" />
-            {result.target ? "Edit Target" : "Set Target"}
-          </button>
-          <button
-            type="button"
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-4 text-sm font-bold"
-            onClick={onExportImage}
-            data-testid="trajectory-export-image"
-          >
-            <Download aria-hidden className="size-4" />
-            Export Image
-          </button>
-          <Link
-            href={surveySettingsHref}
-            className="inline-flex min-h-11 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-4 text-sm font-bold"
-          >
-            <Settings2 aria-hidden className="size-4" />
-            Survey Settings
-          </Link>
-        </div>
       </div>
     </header>
   );

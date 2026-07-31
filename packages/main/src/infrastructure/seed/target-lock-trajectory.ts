@@ -23,6 +23,9 @@ function metadata(localId: string) {
 /**
  * Relative-mode demo trajectory fixtures for DDH041 mid-hole sandbox.
  * Clearly labeled as demo — not mine-grid operational coordinates.
+ *
+ * Target sits on the planned endpoint so mid-hole (~630 m) recovery guidance
+ * stays inside a gentle steering envelope (achievable Lift/Drop / Swing).
  */
 export const ddh041TrajectorySeed: TrajectorySeed = {
   coordinateConfiguration: {
@@ -112,9 +115,11 @@ export const ddh041TrajectorySeed: TrajectorySeed = {
     holeId: HOLE_ID,
     name: "Demo relative target",
     coordinateMode: "RELATIVE",
-    eastingDm: 3_200,
-    northingDm: -2_600,
-    rlDm: -6_400,
+    // Planned endpoint (~800 m) in relative E/N/RL — reachable from ~630 m
+    // with gentle DROP / RIGHT next-survey guidance.
+    eastingDm: 2_130,
+    northingDm: -2_177,
+    rlDm: -7_367,
     radiusDm: 50,
     targetMeasuredDepthDm: decimetres(DDH041_DEMO_PLANNED_DEPTH_M * 10),
     attitudeMode: "AUTO_SMOOTH",
