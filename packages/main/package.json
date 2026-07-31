@@ -11,6 +11,7 @@
     "pilot:migrate": "node scripts/pilot-migrate.mjs",
     "pilot:migrate:check": "node scripts/pilot-migrate.mjs --check",
     "pilot:bootstrap": "node scripts/pilot-bootstrap.mjs",
+    "pilot:reset-password": "node scripts/pilot-reset-password.mjs",
     "test:pilot-db": "node scripts/pilot-test-database.mjs",
     "test:pilot-scripts": "node --test scripts/*.test.mjs",
     "typecheck": "tsc --noEmit --incremental false -p tsconfig.production.json",
