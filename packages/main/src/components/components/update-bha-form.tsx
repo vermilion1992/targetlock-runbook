@@ -221,8 +221,8 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
         title={hasExistingSetup ? "Update BHA" : "Initial BHA setup"}
         description={
           hasExistingSetup
-            ? "Update the BHA measurements or optional component details. This change will be retained in the hole timeline."
-            : "Enter the full BHA length and constant stick-up required before drilling. Component details can be added later."
+            ? "Update assembly measurements or BHA components."
+            : "Enter the full BHA length and constant stick-up required before drilling."
         }
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
@@ -274,17 +274,7 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
           </div>
         </SectionPanel>
 
-        <details
-          className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] shadow-[var(--tl-shadow-sm)]"
-        >
-          <summary className="min-h-12 cursor-pointer px-4 py-3 font-bold text-[var(--tl-ink)] sm:px-5">
-            Optional component details
-          </summary>
-          <div className="border-t border-[var(--tl-border)] p-4 sm:p-5">
-            <p className="mb-5 text-sm text-[var(--tl-ink-muted)]">
-              Add bit, reamer and barrel styles or serial numbers now, or return
-              later.
-            </p>
+        <SectionPanel title="BHA components">
           <div className="grid gap-5 md:grid-cols-2">
             <div>
               <FieldLabel htmlFor="bit-style">Bit style / type</FieldLabel>
@@ -418,8 +408,7 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
               />
             </div>
           </div>
-          </div>
-        </details>
+        </SectionPanel>
 
         {hasExistingSetup ? (
           <label className="block space-y-1 text-sm">

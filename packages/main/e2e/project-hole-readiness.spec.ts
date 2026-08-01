@@ -158,7 +158,7 @@ test("phone sign-in starts a project-owned hole and resumes it safely", async ({
   ).toBeVisible();
   await page.getByRole("textbox", { name: "Full BHA length" }).fill("6.0");
   await page.getByRole("textbox", { name: "Constant stick-up" }).fill("1.0");
-  await expect(page.getByText("Optional component details")).toBeVisible();
+  await expect(page.getByText("BHA components")).toBeVisible();
   await page.getByRole("button", { name: "Save initial setup" }).click();
 
   await expect(page).toHaveURL(

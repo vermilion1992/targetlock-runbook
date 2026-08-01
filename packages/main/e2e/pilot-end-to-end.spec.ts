@@ -105,14 +105,9 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
 
   // 8. Advance casing
   await page.goto("/holes/DDH041/casing");
-  await page.getByRole("link", { name: "View casing detail" }).first().click();
-  await page.getByRole("link", { name: "Advance casing" }).click();
   await page.getByRole("textbox", { name: "New end depth" }).fill("19.0");
-  await page
-    .getByRole("textbox", { name: "Advance reason" })
-    .fill("Pilot collar stabilisation.");
   await page.getByRole("button", { name: "Save advance" }).click();
-  await expect(page.getByText("Casing advance was saved.")).toBeVisible();
+  await expect(page.getByText("Casing advanced.")).toBeVisible();
 
   // 9. Change bit
   await page.goto("/holes/DDH041/components/bit/change");

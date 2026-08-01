@@ -48,8 +48,9 @@ test("photographs the suggested next tray and persists image metadata", async ({
 }) => {
   await page.goto("/holes/DDH041/trays/new");
   await expect(page.getByRole("textbox", { name: "Tray number" })).toHaveValue("112");
-  await expect(page.getByRole("textbox", { name: "Start depth" })).toHaveValue("661.6");
-  await expect(page.getByRole("textbox", { name: "End depth" })).toHaveValue("698.4");
+  await expect(page.getByRole("textbox", { name: "Start depth" })).toHaveCount(0);
+  await expect(page.getByRole("textbox", { name: "End depth" })).toHaveCount(0);
+  await expect(page.getByText("Final partial tray")).toHaveCount(0);
   await uploadTrayPhoto(page);
   await page.getByRole("button", { name: "SAVE TRAY" }).click();
   await expect(page.getByText("Tray photograph verified and saved locally.")).toBeVisible();

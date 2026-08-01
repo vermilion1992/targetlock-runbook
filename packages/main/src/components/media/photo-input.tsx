@@ -6,8 +6,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { TrayCameraCapture } from "@/components/media/tray-camera-capture";
 import {
   MAX_ORIGINAL_IMAGE_BYTES,
-  TRAY_FRAME_LONG_CM,
-  TRAY_FRAME_SHORT_CM,
   restoreMobileViewportAfterCamera,
   validateImageBlob,
 } from "@/infrastructure/media";
@@ -126,7 +124,7 @@ export function PhotoInput({
         capture={isTray ? undefined : "environment"}
         required={required && file === null}
         className="sr-only"
-        aria-describedby={`${id}-help${error ? ` ${id}-error` : ""}`}
+        aria-describedby={`${error ? `${id}-error` : ""}${!isTray ? ` ${id}-help` : ""}`.trim() || undefined}
         onChange={(event) => {
           const selected = event.currentTarget.files?.[0] ?? null;
           acceptFile(selected);
@@ -142,11 +140,12 @@ export function PhotoInput({
         />
       ) : null}
 
-      <p id={`${id}-help`} className="text-xs text-[var(--tl-ink-muted)]">
-        {isTray
-          ? `Guided upright camera for a ~${TRAY_FRAME_SHORT_CM} × ${TRAY_FRAME_LONG_CM} cm tray (long side top-to-bottom). Start of tray goes in the top-right mark. Maximum ${MAX_ORIGINAL_IMAGE_BYTES / 1024 / 1024} MB.`
-          : `Camera capture is used where supported. Otherwise choose a photograph from this device. Maximum ${MAX_ORIGINAL_IMAGE_BYTES / 1024 / 1024} MB.`}
-      </p>
+      {isTray ? null : (
+        <p id={`${id}-help`} className="text-xs text-[var(--tl-ink-muted)]">
+          Camera capture is used where supported. Otherwise choose a photograph
+          from this device. Maximum {MAX_ORIGINAL_IMAGE_BYTES / 1024 / 1024} MB.
+        </p>
+      )}
       {error ? (
         <p
           id={`${id}-error`}

@@ -51,7 +51,7 @@ test("keeps secondary-hole context across casing and global component routes", a
 }) => {
   await page.goto(`/holes/${FOREIGN_HOLE}/casing`);
   await expect(
-    page.getByRole("heading", { name: "Casing history" }),
+    page.getByRole("heading", { name: `${FOREIGN_HOLE} casing` }),
   ).toBeVisible();
 
   await page.goto(`/components/new?holeId=${FOREIGN_HOLE}`);

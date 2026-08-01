@@ -19,20 +19,11 @@ import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { resolveOperationActor } from "@/components/session/operation-actor";
 import { useOperatorSession } from "@/components/session";
 import {
-  parseMetreInput,
   suggestTrayValues,
   type Decimetres,
   type Tray,
   type TrayValidationIssue,
 } from "@/domain";
-
-function optionalDepth(
-  value: string,
-): { readonly ok: true; readonly value?: Decimetres } | { readonly ok: false } {
-  if (!value.trim()) return { ok: true };
-  const result = parseMetreInput(value);
-  return result.ok ? { ok: true, value: result.value } : { ok: false };
-}
 
 export function TrayForm({ holeId }: { holeId: string }) {
   const router = useRouter();
@@ -41,11 +32,14 @@ export function TrayForm({ holeId }: { holeId: string }) {
   const operationId = useRef<string | null>(null);
   const [trays, setTrays] = useState<readonly Tray[]>([]);
   const [currentDepth, setCurrentDepth] = useState<Decimetres | null>(null);
+  const [suggestedStartDepthDm, setSuggestedStartDepthDm] = useState<
+    Decimetres | undefined
+  >();
+  const [suggestedEndDepthDm, setSuggestedEndDepthDm] = useState<
+    Decimetres | undefined
+  >();
   const [trayNumber, setTrayNumber] = useState("");
-  const [startDepth, setStartDepth] = useState("");
-  const [endDepth, setEndDepth] = useState("");
   const [comment, setComment] = useState("");
-  const [isFinalPartial, setIsFinalPartial] = useState(false);
   const [photo, setPhoto] = useState<File | null>(null);
   const [shiftId, setShiftId] = useState<string | undefined>();
   const [user, setUser] = useState({
@@ -76,12 +70,8 @@ export function TrayForm({ holeId }: { holeId: string }) {
         setCurrentDepth(state.currentDepthDm);
         const suggestions = suggestTrayValues(records, state.currentDepthDm);
         setTrayNumber(String(suggestions.trayNumber));
-        setStartDepth(
-          suggestions.startDepthDm === undefined
-            ? ""
-            : (suggestions.startDepthDm / 10).toFixed(1),
-        );
-        setEndDepth((suggestions.endDepthDm / 10).toFixed(1));
+        setSuggestedStartDepthDm(suggestions.startDepthDm);
+        setSuggestedEndDepthDm(suggestions.endDepthDm);
         setShiftId(state.activeShift?.localId);
         if (runtimeMode === "demo" && state.activeShift) {
           setUser({
@@ -101,21 +91,15 @@ export function TrayForm({ holeId }: { holeId: string }) {
 
   async function save(confirmWarnings: boolean): Promise<void> {
     const number = Number(trayNumber);
-    const start = optionalDepth(startDepth);
-    const end = optionalDepth(endDepth);
     if (!Number.isInteger(number) || number <= 0) {
       setError("Tray number must be a positive whole number.");
-      return;
-    }
-    if (!start.ok || !end.ok) {
-      setError("Tray depths must use non-negative 0.1 m increments.");
       return;
     }
     if (photo === null) {
       setError("Choose a completed-tray photograph before saving.");
       return;
     }
-    if (currentDepth === null) {
+    if (currentDepth === null || suggestedEndDepthDm === undefined) {
       setError("Current completed hole depth is unavailable.");
       return;
     }
@@ -151,10 +135,10 @@ export function TrayForm({ holeId }: { holeId: string }) {
           holeId,
           shiftId,
           trayNumber: number,
-          startDepthDm: start.value,
-          endDepthDm: end.value,
+          startDepthDm: suggestedStartDepthDm,
+          endDepthDm: suggestedEndDepthDm,
           comment: comment.trim() || undefined,
-          isFinalPartial,
+          isFinalPartial: false,
           original: photo,
           originalFilename: photo.name,
           capturedAt: new Date().toISOString(),
@@ -198,7 +182,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
       <StagePageHeader
         eyebrow="Trays"
         title="Photograph completed tray"
-        description={`Save a completed core tray for ${holeId}. Runs remain separate and overlap is derived from depth.`}
+        description={`Save a completed core tray for ${holeId}.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
       />
 
@@ -228,7 +212,10 @@ export function TrayForm({ holeId }: { holeId: string }) {
                   VIEW EXISTING
                 </Link>
                 <Link
-                  href={runbookRoutes.replaceTrayPhoto(holeId, duplicateTray.localId)}
+                  href={runbookRoutes.replaceTrayPhoto(
+                    holeId,
+                    duplicateTray.localId,
+                  )}
                   className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
                 >
                   REPLACE PHOTOGRAPH
@@ -244,13 +231,24 @@ export function TrayForm({ holeId }: { holeId: string }) {
                 SAVE ANYWAY
               </button>
             )}
-            <button type="button" onClick={() => setWarnings([])} className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold">
+            <button
+              type="button"
+              onClick={() => setWarnings([])}
+              className="min-h-11 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold"
+            >
               CHECK ENTRY
             </button>
           </div>
         </div>
       ) : null}
-      {error ? <p role="alert" className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4 font-bold">{error}</p> : null}
+      {error ? (
+        <p
+          role="alert"
+          className="rounded-[var(--tl-radius-md)] border border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] p-4 font-bold"
+        >
+          {error}
+        </p>
+      ) : null}
 
       <form
         onSubmit={submit}
@@ -258,40 +256,52 @@ export function TrayForm({ holeId }: { holeId: string }) {
         className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 md:grid-cols-2"
       >
         <div className="md:col-span-2">
-          <p className="text-xs font-bold uppercase text-[var(--tl-ink-muted)]">Hole</p>
+          <p className="text-xs font-bold uppercase text-[var(--tl-ink-muted)]">
+            Hole
+          </p>
           <p className="mt-1 text-xl font-bold">{holeId}</p>
         </div>
-        <label>
+        <label className="md:col-span-2">
           <span className="text-sm font-bold">Tray number *</span>
-          <input required inputMode="numeric" value={trayNumber} onChange={(event) => setTrayNumber(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-lg" />
-        </label>
-        <div className="hidden md:block" />
-        <label>
-          <span className="text-sm font-bold">Start depth (m)</span>
-          <input inputMode="decimal" value={startDepth} onChange={(event) => setStartDepth(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-lg" />
-        </label>
-        <label>
-          <span className="text-sm font-bold">End depth (m)</span>
-          <input inputMode="decimal" value={endDepth} onChange={(event) => setEndDepth(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-lg" />
-          <span className="mt-1 block text-xs text-[var(--tl-ink-muted)]">Suggested from completed hole depth; correct it to the physical tray label.</span>
+          <input
+            required
+            inputMode="numeric"
+            value={trayNumber}
+            onChange={(event) => setTrayNumber(event.target.value)}
+            className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-lg"
+          />
         </label>
         <div className="md:col-span-2">
-          <PhotoInput id="tray-photo" label="Completed-tray photograph" file={photo} onFile={setPhoto} required mode="tray" />
+          <PhotoInput
+            id="tray-photo"
+            label="Completed-tray photograph"
+            file={photo}
+            onFile={setPhoto}
+            required
+            mode="tray"
+          />
         </div>
         <label className="md:col-span-2">
           <span className="text-sm font-bold">Comment (optional)</span>
-          <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={3} className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3" />
+          <textarea
+            value={comment}
+            onChange={(event) => setComment(event.target.value)}
+            rows={3}
+            className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
+          />
         </label>
-        <label className="flex min-h-12 items-center gap-3 md:col-span-2">
-          <input type="checkbox" checked={isFinalPartial} onChange={(event) => setIsFinalPartial(event.target.checked)} className="size-5" />
-          <span className="font-bold">Final partial tray</span>
-        </label>
-        <button type="submit" disabled={saving} className="tl-action-primary flex min-h-14 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] px-5 font-bold text-white disabled:opacity-60 md:col-span-2">
+        <button
+          type="submit"
+          disabled={saving}
+          className="tl-action-primary flex min-h-14 items-center justify-center gap-2 rounded-[var(--tl-radius-md)] px-5 font-bold text-white disabled:opacity-60 md:col-span-2"
+        >
           <Save aria-hidden="true" className="size-5" />
           {saving ? "SAVING PHOTO AND TRAY…" : "SAVE TRAY"}
         </button>
         <p aria-live="polite" className="sr-only">
-          {saving ? "Photograph save in progress. The tray is not complete until local media is verified." : ""}
+          {saving
+            ? "Photograph save in progress. The tray is not complete until local media is verified."
+            : ""}
         </p>
       </form>
       {discardDialog}
