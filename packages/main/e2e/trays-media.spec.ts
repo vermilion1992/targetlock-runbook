@@ -56,7 +56,7 @@ test("photographs the suggested next tray and persists image metadata", async ({
   const trayCard = page.locator("article").filter({ hasText: "Current tray" });
   await expect(trayCard).toContainText("112");
 
-  await page.getByRole("link", { name: "View library" }).click();
+  await page.goto("/holes/DDH041/trays");
   const trayLink = page.getByRole("link", { name: /Tray 112/ });
   await expect(trayLink).toBeVisible();
   await page.reload();

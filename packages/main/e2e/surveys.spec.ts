@@ -42,7 +42,7 @@ test("adds a survey and updates dashboard, history and timeline after refresh", 
   const latest = page.locator("article").filter({ hasText: "Latest survey" });
   await expect(latest).toContainText("450.0 m");
 
-  await page.getByRole("link", { name: "View history" }).click();
+  await page.goto("/holes/DDH041/surveys");
   await expect(page.getByRole("heading", { name: "DDH041 surveys" })).toBeVisible();
   await expect(page.getByText("450.0 m", { exact: true }).first()).toBeVisible();
   await page.goto("/holes/DDH041/timeline");

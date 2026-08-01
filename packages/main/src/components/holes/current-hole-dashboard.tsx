@@ -38,6 +38,7 @@ import { formatOptionalMetres } from "@/components/holes/hole-analytics-format";
 import { formatRecoveryTenths } from "@/components/shifts/shift-analytics-format";
 import { BhaBarrelSetupDisplay } from "@/components/components/bha-barrel-setup-display";
 import {
+  cardActionOutline,
   cardActionPrimary,
   cardActionSecondary,
   cardActionWarning,
@@ -220,6 +221,26 @@ export function CurrentHoleDashboard({
     totalDrilled > 0
       ? calculateRecoveryPercentage(totalDrilled, totalRecovered)
       : null;
+
+  const activeCasingStrings = (state?.casingStrings ?? []).filter(
+    ({ status }) => status === "ACTIVE",
+  );
+  const primaryCasing =
+    [...activeCasingStrings].sort(
+      (left, right) =>
+        Number(right.currentEndDepthDm) - Number(left.currentEndDepthDm),
+    )[0] ?? null;
+  const secondaryCasingLine =
+    activeCasingStrings.length > 1
+      ? activeCasingStrings
+          .filter(({ localId }) => localId !== primaryCasing?.localId)
+          .map(
+            (casing) =>
+              `${casing.casingSize} to ${formatMetres(casing.currentEndDepthDm)}`,
+          )
+          .join(" · ")
+      : null;
+  const hasAnyCasing = (state?.casingStrings.length ?? 0) > 0;
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -530,7 +551,7 @@ export function CurrentHoleDashboard({
 
       <section aria-labelledby="primary-actions-heading">
         <h2 id="primary-actions-heading" className="sr-only">Primary actions</h2>
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className={holeLocked ? "grid gap-3 sm:grid-cols-2" : "grid gap-3"}>
           {loadingState ? (
             <div
               aria-disabled="true"
@@ -596,11 +617,7 @@ export function CurrentHoleDashboard({
                 COMPLETED HOLES LIST
               </span>
             </Link>
-          ) : (
-            <Link href={runbookRoutes.addTray(holeId)} className="flex min-h-16 items-center justify-between rounded-[var(--tl-radius-md)] border-2 border-[var(--tl-primary)] px-5 py-4 font-bold text-[var(--tl-primary)] no-underline">
-              <span className="flex items-center gap-3"><Camera aria-hidden="true" className="size-6" />PHOTOGRAPH COMPLETED TRAY</span>
-            </Link>
-          )}
+          ) : null}
         </div>
         {!holeLocked && (!activeShift || lifecycleBlocked) ? (
           <p id="run-disabled-reason" className="mt-2 text-sm text-[var(--tl-ink-muted)]">
@@ -610,16 +627,6 @@ export function CurrentHoleDashboard({
               ? drillingReadiness.blockers.map(({ message }) => message).join(" ")
               : "Start or accept a shift before recording the next run."}
           </p>
-        ) : null}
-        {!holeLocked ? (
-          <div className="mt-3">
-            <Link
-              href={runbookRoutes.completeHole(holeId)}
-              className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-            >
-              Open final hole review
-            </Link>
-          </div>
         ) : null}
       </section>
 
@@ -654,12 +661,10 @@ export function CurrentHoleDashboard({
           ) : (
             <p className="mt-3 text-[var(--tl-ink-muted)]">No survey recorded.</p>
           )}
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href={runbookRoutes.addSurvey(holeId)} className={cardActionPrimary}>
+          <div className="mt-4">
+            <Link href={runbookRoutes.addSurvey(holeId)} className={cardActionOutline}>
+              <Compass aria-hidden="true" className="size-6" />
               Add survey
-            </Link>
-            <Link href={runbookRoutes.surveys(holeId)} className={cardActionSecondary}>
-              View history
             </Link>
           </div>
         </article>
@@ -684,12 +689,10 @@ export function CurrentHoleDashboard({
           ) : (
             <p className="mt-3 text-[var(--tl-ink-muted)]">No completed tray recorded.</p>
           )}
-          <div className="mt-4 grid grid-cols-2 gap-3">
-            <Link href={runbookRoutes.addTray(holeId)} className={cardActionPrimary}>
+          <div className="mt-4">
+            <Link href={runbookRoutes.addTray(holeId)} className={cardActionOutline}>
+              <Camera aria-hidden="true" className="size-6" />
               Photograph tray
-            </Link>
-            <Link href={runbookRoutes.trays(holeId)} className={cardActionSecondary}>
-              View library
             </Link>
           </div>
         </article>
@@ -741,69 +744,74 @@ export function CurrentHoleDashboard({
             />
           </div>
           <div className="mt-4">
-            <Link
-              href={runbookRoutes.trajectory(holeId)}
-              className={cardActionPrimary}
-            >
+            <Link href={runbookRoutes.trajectory(holeId)} className={cardActionOutline}>
+              <Compass aria-hidden="true" className="size-6" />
               View trajectory
             </Link>
           </div>
         </section>
       ) : null}
 
-      <article className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5">
-        <div className="flex items-center gap-2">
-          <Cylinder aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
-          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-            Casing
-          </h2>
-        </div>
-        {state?.casingStrings.some(({ status }) => status === "ACTIVE") ? (
-          <ul className="mt-3 space-y-1">
-            {state.casingStrings
-              .filter(({ status }) => status === "ACTIVE")
-              .map((casing) => (
-                <li key={casing.localId} className="font-bold text-[var(--tl-ink)]">
-                  {casing.casingSize} to {formatMetres(casing.currentEndDepthDm)}
-                </li>
-              ))}
-          </ul>
-        ) : (
-          <p className="mt-3 font-bold text-[var(--tl-ink)]">No casing recorded</p>
-        )}
-        <div className="mt-4">
-          <Link
-            href={
-              state?.casingStrings.length
-                ? runbookRoutes.casing(holeId)
-                : runbookRoutes.addCasing(holeId)
-            }
-            className={cardActionPrimary}
-          >
-            {state?.casingStrings.length ? "Update casing" : "Add casing"}
-          </Link>
-        </div>
-      </article>
+      <section aria-label="Casing and BHA" className="grid gap-4 lg:grid-cols-2">
+        <article className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5">
+          <div className="flex items-center gap-2">
+            <Cylinder aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
+            <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+              Casing
+            </h2>
+          </div>
+          {primaryCasing ? (
+            <div className="mt-3">
+              <MetricDisplay
+                label="Active casing"
+                value={`${primaryCasing.casingSize} to ${formatMetres(primaryCasing.currentEndDepthDm)}`}
+                emphasis="strong"
+                supportingText={
+                  secondaryCasingLine
+                    ? `Also active: ${secondaryCasingLine}`
+                    : undefined
+                }
+              />
+            </div>
+          ) : (
+            <p className="mt-3 font-bold text-[var(--tl-ink)]">No casing recorded</p>
+          )}
+          <div className="mt-4">
+            <Link
+              href={
+                hasAnyCasing
+                  ? runbookRoutes.casing(holeId)
+                  : runbookRoutes.addCasing(holeId)
+              }
+              className={cardActionOutline}
+            >
+              <Cylinder aria-hidden="true" className="size-6" />
+              {hasAnyCasing ? "Update casing" : "Add casing"}
+            </Link>
+          </div>
+        </article>
 
-      <article
-        className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5"
-        data-testid="bha-overview-card"
-      >
-        <div className="flex items-center gap-2">
-          <Drill aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
-          <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
-            Bottom hole assembly
-          </h2>
-        </div>
-        <div className="mt-3">
-          <BhaBarrelSetupDisplay setup={state?.bhaSetup ?? null} />
-        </div>
-        <div className="mt-4">
-          <Link href={runbookRoutes.updateBha(holeId)} className={cardActionPrimary}>
-            Update BHA
-          </Link>
-        </div>
-      </article>
+        <article
+          className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5"
+          data-testid="bha-overview-card"
+        >
+          <div className="flex items-center gap-2">
+            <Drill aria-hidden="true" className="size-5 text-[var(--tl-primary)]" />
+            <h2 className="text-xs font-bold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)]">
+              Bottom hole assembly
+            </h2>
+          </div>
+          <div className="mt-3">
+            <BhaBarrelSetupDisplay setup={state?.bhaSetup ?? null} />
+          </div>
+          <div className="mt-4">
+            <Link href={runbookRoutes.updateBha(holeId)} className={cardActionOutline}>
+              <Drill aria-hidden="true" className="size-6" />
+              Update BHA
+            </Link>
+          </div>
+        </article>
+      </section>
 
       <LocalPrototypeNotice />
     </div>

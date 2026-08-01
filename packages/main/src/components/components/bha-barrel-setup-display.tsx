@@ -55,7 +55,7 @@ export function BhaBarrelSetupDisplay({
           emphasis="strong"
         />
       </div>
-      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid grid-cols-2 gap-3">
         <SlotRow
           label="Bit"
           primary={setup.bitStyle?.trim() || "Style not set"}

@@ -158,6 +158,42 @@ describe("calculateShiftAnalytics — production", () => {
     expect(dayAnalytics.totalDrilledDm).toBe(0);
   });
 
+  it("open Shift metres use live ending depth even with zero completed Runs", () => {
+    // Demo asymmetry: in-progress seed depth can sit ahead of shift start
+    // (e.g. 627 m start → 630 m live) so metres > 0 while runs remain 0.
+    const open = makeShift({
+      localId: "shift-open",
+      status: "OPEN",
+      startingDepthDm: metresToDecimetres(627),
+    });
+    const analytics = calculateShiftAnalytics({
+      shift: open,
+      runs: [
+        makeRun({
+          localId: "open-run",
+          runNumber: 1,
+          startedShiftId: "shift-open",
+          completedShiftId: null,
+          status: "in_progress",
+          drilledLengthDm: 30,
+          holeDepthDm: metresToDecimetres(630),
+          previousCompletedDepthDm: metresToDecimetres(627),
+          completedAt: null,
+        }),
+      ],
+      surveys: [],
+      trays: [],
+      casingEvents: [],
+      componentAssignments: [],
+      corrections: [],
+      liveEndingDepthDm: metresToDecimetres(630),
+    });
+
+    expect(analytics.metresCompletedDm).toBe(metresToDecimetres(3));
+    expect(analytics.completedRunCount).toBe(0);
+    expect(analytics.endingDepthDm).toBe(metresToDecimetres(630));
+  });
+
   it("excludes voided Runs and includes corrected Runs", () => {
     const shift = makeShift({ localId: "shift-1" });
     const runs: ShiftAnalyticsRun[] = [

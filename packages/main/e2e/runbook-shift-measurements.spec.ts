@@ -108,7 +108,7 @@ test("closed Night Shift uses completed-Run measurements and bit-only columns", 
   });
 });
 
-test("closed Shift Run cards retain all measurements at approved widths", async ({
+test("closed Shift phone table uses compact columns without page scroll", async ({
   page,
 }, testInfo) => {
   for (const width of [360, 390, 430, 768, 1024] as const) {
@@ -122,23 +122,34 @@ test("closed Shift Run cards retain all measurements at approved widths", async 
       if ((await nightDetails.getAttribute("open")) === null) {
         await nightDetails.locator("summary").click();
       }
-      const run233 = nightDetails
-        .getByTestId("shift-run-card")
-        .filter({ hasText: "Run 233" });
+      const table = nightDetails.getByTestId("shift-runs-table-mobile");
+      await expect(table).toBeVisible();
+      await expect(table.getByRole("columnheader")).toHaveText([
+        "Run",
+        "R/S",
+        "S/U",
+        "HD",
+        "D",
+        "R",
+      ]);
+      const run233 = table.locator("tr").filter({
+        has: page.getByRole("link", { name: "233", exact: true }),
+      });
       await expect(run233).toBeVisible();
-      for (const label of [
-        "Rod string",
-        "Stick up",
-        "Hole depth",
-        "Drilled",
-        "Recovered",
-        "Recovery",
-        "Bit",
-      ]) {
-        await expect(run233.getByText(label, { exact: true })).toBeVisible();
-      }
-      await expect(run233).toContainText("BIT-HQ-002193");
-      await expect(run233).not.toContainText("REA-HQ-000912");
+      await expectRunMeasurements(run233, [
+        "662.5 m",
+        "0.1 m",
+        "662.4 m",
+        "0.9 m",
+      ]);
+      await expect(table).not.toContainText("BIT-HQ-002193");
+      await expect(table).not.toContainText("REA-HQ-000912");
+      expect(
+        await table.evaluate(
+          (element) => element.scrollWidth <= element.clientWidth + 1,
+        ),
+        `${width}px compact table must fit without horizontal scroll`,
+      ).toBe(true);
       if (width === 390) {
         await page.screenshot({
           path: testInfo.outputPath("runbook-night-shift-phone.png"),
