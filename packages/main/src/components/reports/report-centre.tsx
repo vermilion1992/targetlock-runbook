@@ -25,10 +25,7 @@ import {
 import { MetricDisplay } from "@/components/field/metric-display";
 import { StatusPill } from "@/components/field/status-pill";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
@@ -925,8 +922,6 @@ export function ReportCentre({ holeId }: { holeId: string }) {
           </div>
         </div>
       ) : null}
-
-      <LocalPrototypeNotice />
-    </div>
+</div>
   );
 }

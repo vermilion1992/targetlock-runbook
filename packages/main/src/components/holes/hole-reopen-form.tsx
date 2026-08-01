@@ -19,10 +19,7 @@ import {
   defaultCompletionActor,
   holeStatusLabel,
 } from "@/components/holes/completion-support";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
@@ -211,8 +208,6 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
           </p>
         </SectionPanel>
       )}
-
-      <LocalPrototypeNotice />
       {discardDialog}
     </div>
   );

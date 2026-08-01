@@ -15,10 +15,7 @@ import {
   completionReasonLabel,
   holeStatusLabel,
 } from "@/components/holes/completion-support";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
@@ -192,9 +189,7 @@ export function CompletedHolesList() {
           </p>
         ) : null}
       </div>
-
-      <LocalPrototypeNotice />
-    </div>
+</div>
   );
 }
 

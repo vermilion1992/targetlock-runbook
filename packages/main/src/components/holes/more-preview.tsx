@@ -15,10 +15,7 @@ import {
 } from "lucide-react";
 import Link from "next/link";
 
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 
 interface MoreItem {
@@ -256,8 +253,6 @@ export function MorePreview({ holeId }: { holeId: string }) {
         title="Hole management"
         items={holeManagement}
       />
-
-      <LocalPrototypeNotice />
-    </div>
+</div>
   );
 }

@@ -1,7 +1,5 @@
-import { HardDrive, Save } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { StatusPill } from "@/components/field/status-pill";
 import { RunbookPageBackLink } from "@/components/navigation/runbook-page-back-link";
 import type { RunbookBackTarget } from "@/components/navigation/runbook-page-back";
 
@@ -59,32 +57,5 @@ export function StagePageHeader({
         {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
     </header>
-  );
-}
-
-export function LocalPrototypeNotice() {
-  return (
-    <aside
-      aria-label="Prototype data status"
-      className="flex flex-col gap-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-primary-soft)] p-4 sm:flex-row sm:items-center sm:justify-between"
-    >
-      <div className="flex gap-3">
-        <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-[var(--tl-surface)] text-[var(--tl-primary)]">
-          <Save aria-hidden="true" className="size-5" />
-        </span>
-        <div>
-          <p className="font-bold text-[var(--tl-ink)]">
-            Drafts auto-save on this browser
-          </p>
-          <p className="mt-0.5 text-sm leading-5 text-[var(--tl-ink-muted)]">
-            Local pilot only. Nothing is synced or sent to a remote service.
-          </p>
-        </div>
-      </div>
-      <StatusPill tone="info" className="self-start sm:self-auto">
-        <HardDrive aria-hidden="true" className="size-3.5" />
-        Local-only
-      </StatusPill>
-    </aside>
   );
 }

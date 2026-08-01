@@ -6,10 +6,7 @@ import { useRef, useState, type FormEvent } from "react";
 
 import { createBrowserRunbookServices } from "@/application/runbook";
 import { SectionPanel } from "@/components/field/section-panel";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { Input } from "@/components/ui/input";
@@ -184,10 +181,7 @@ export function ProjectOnboardingForm() {
         description="Add the project and its first rig together so the field team can start a hole immediately."
         backTarget={cancelBackTarget("/projects", { onNavigate: requestLeave })}
       />
-
-      <LocalPrototypeNotice />
-
-      <form
+<form
         onSubmit={handleSubmit}
         onChange={() => {
           setIsDirty(true);

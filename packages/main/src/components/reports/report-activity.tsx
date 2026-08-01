@@ -14,10 +14,7 @@ import {
 } from "@/application/runbook";
 import { StatusPill } from "@/components/field/status-pill";
 import { formatFieldDateTime } from "@/components/holes/prototype-format";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { useOperatorSession } from "@/components/session";
@@ -464,8 +461,6 @@ export function ReportActivity({ holeId }: { holeId: string }) {
           </tbody>
         </table>
       </div>
-
-      <LocalPrototypeNotice />
-    </div>
+</div>
   );
 }

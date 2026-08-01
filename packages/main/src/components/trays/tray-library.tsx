@@ -1,26 +1,18 @@
 "use client";
 
-import { Camera, Images, Search } from "lucide-react";
+import { Camera, Images, MoveRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
-import {
-  createBrowserRunbookServices,
-  getCurrentHoleState,
-} from "@/application/runbook";
+import { createBrowserRunbookServices } from "@/application/runbook";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { StatusPill } from "@/components/field/status-pill";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { LocalMediaImage } from "@/components/media/local-media-image";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   calculateTrayStatistics,
-  decimetres,
   formatMetres,
-  type Decimetres,
   type Photo,
   type Tray,
 } from "@/domain";
@@ -35,8 +27,6 @@ function depthRange(tray: Tray): string {
 export function TrayLibrary({ holeId }: { holeId: string }) {
   const [trays, setTrays] = useState<readonly Tray[]>([]);
   const [photos, setPhotos] = useState<ReadonlyMap<string, Photo>>(new Map());
-  const [replacementCount, setReplacementCount] = useState(0);
-  const [currentDepth, setCurrentDepth] = useState<Decimetres | null>(null);
   const [search, setSearch] = useState("");
   const [error, setError] = useState<string | null>(null);
 
@@ -50,17 +40,10 @@ export function TrayLibrary({ holeId }: { holeId: string }) {
     }
     void Promise.all([
       services.trays.listByHole(holeId),
-      services.audits.listByHole(holeId),
       services.trays.recoverInterruptedOperations(holeId),
-      getCurrentHoleState(holeId, services.currentState),
     ])
-      .then(async ([records, audits, , state]) => {
+      .then(async ([records]) => {
         setTrays(records);
-        setCurrentDepth(state.currentDepthDm);
-        setReplacementCount(
-          audits.filter(({ action }) => action === "tray_photograph_replaced")
-            .length,
-        );
         const photoRecords = await Promise.all(
           records.map(({ primaryPhotoId }) =>
             services.photos.getById(primaryPhotoId, holeId),
@@ -93,15 +76,7 @@ export function TrayLibrary({ holeId }: { holeId: string }) {
         tray.comment?.toLocaleLowerCase("en-AU").includes(query),
     );
   }, [search, trays]);
-  const statistics = calculateTrayStatistics(trays, replacementCount);
-  const deepestTrayEnd = trays.reduce(
-    (deepest, tray) => Math.max(deepest, tray.endDepthDm ?? 0),
-    0,
-  );
-  const uncoveredInterval =
-    currentDepth === null
-      ? null
-      : decimetres(Math.max(0, Number(currentDepth) - deepestTrayEnd));
+  const statistics = calculateTrayStatistics(trays, 0);
 
   return (
     <div className="space-y-5 sm:space-y-6">
@@ -109,33 +84,36 @@ export function TrayLibrary({ holeId }: { holeId: string }) {
         eyebrow="Trays"
         title={`${holeId} tray library`}
         description="Completed core-tray photographs stored locally and searchable by tray number or depth."
-        action={
-          <Link
-            href={runbookRoutes.addTray(holeId)}
-            className="tl-action-primary inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] px-4 font-bold text-white no-underline"
-          >
-            <Camera aria-hidden="true" className="size-5" />
-            Photograph tray
-          </Link>
-        }
       />
       {error ? <p role="alert">{error}</p> : null}
-      <section aria-label="Tray statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+      <Link
+        href={runbookRoutes.addTray(holeId)}
+        className="tl-action-primary flex min-h-16 w-full items-center justify-between gap-3 rounded-[var(--tl-radius-md)] px-5 py-4 text-base font-bold text-white no-underline shadow-[var(--tl-shadow-sm)]"
+      >
+        <span className="flex items-center gap-3">
+          <Camera aria-hidden="true" className="size-6" />
+          PHOTOGRAPH TRAY
+        </span>
+        <MoveRight aria-hidden="true" className="size-5" />
+      </Link>
+      <section
+        aria-label="Tray statistics"
+        className="grid grid-cols-2 gap-3"
+      >
         <MetricDisplay label="Total trays" value={statistics.totalTrays} />
-        <MetricDisplay label="Latest tray" value={statistics.latestTrayNumber ?? "—"} emphasis="strong" />
         <MetricDisplay
-          label="Core awaiting tray"
-          value={uncoveredInterval === null ? "—" : formatMetres(uncoveredInterval)}
-        />
-        <MetricDisplay
-          label="Duplicate tray numbers"
-          value={statistics.duplicateNumberConflicts}
+          label="Latest tray"
+          value={statistics.latestTrayNumber ?? "—"}
+          emphasis="strong"
         />
       </section>
       <label className="block max-w-xl">
         <span className="text-sm font-bold">Search tray number or depth</span>
         <span className="relative mt-2 block">
-          <Search aria-hidden="true" className="absolute left-3 top-3.5 size-4 text-[var(--tl-ink-muted)]" />
+          <Search
+            aria-hidden="true"
+            className="absolute left-3 top-3.5 size-4 text-[var(--tl-ink-muted)]"
+          />
           <input
             type="search"
             value={search}
@@ -185,7 +163,6 @@ export function TrayLibrary({ holeId }: { holeId: string }) {
           </p>
         ) : null}
       </section>
-      <LocalPrototypeNotice />
     </div>
   );
 }

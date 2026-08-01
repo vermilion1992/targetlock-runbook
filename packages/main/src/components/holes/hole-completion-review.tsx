@@ -34,10 +34,7 @@ import {
   holeStatusLabel,
 } from "@/components/holes/completion-support";
 import { HoleLockedPanel } from "@/components/holes/hole-locked-panel";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
@@ -275,7 +272,6 @@ export function HoleCompletionReview({
             </div>
           </SectionPanel>
         ) : null}
-        <LocalPrototypeNotice />
       </div>
     );
   }
@@ -745,8 +741,6 @@ export function HoleCompletionReview({
           </FieldActionButton>
         </div>
       </SectionPanel>
-
-      <LocalPrototypeNotice />
       {discardDialog}
     </div>
   );

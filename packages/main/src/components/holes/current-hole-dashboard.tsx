@@ -29,10 +29,7 @@ import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { holeStatusLabel } from "@/components/holes/completion-support";
 import { HoleLockedPanel } from "@/components/holes/hole-locked-panel";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatOptionalMetres } from "@/components/holes/hole-analytics-format";
 import { formatRecoveryTenths } from "@/components/shifts/shift-analytics-format";
@@ -812,8 +809,6 @@ export function CurrentHoleDashboard({
           </div>
         </article>
       </section>
-
-      <LocalPrototypeNotice />
     </div>
   );
 }

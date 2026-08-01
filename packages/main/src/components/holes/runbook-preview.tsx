@@ -10,10 +10,7 @@ import {
   type ShiftRunGroup,
 } from "@/application/runbook";
 import { StatusPill } from "@/components/field/status-pill";
-import {
-  LocalPrototypeNotice,
-  StagePageHeader,
-} from "@/components/holes/stage-page-header";
+import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import {
   decimetresToMetres,
@@ -360,7 +357,6 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
           </section>
         ))}
       </div>
-      <LocalPrototypeNotice />
-    </div>
+</div>
   );
 }
