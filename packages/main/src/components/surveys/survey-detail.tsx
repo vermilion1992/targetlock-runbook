@@ -77,7 +77,7 @@ export function SurveyDetail({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 4 · survey detail"
+        eyebrow="Surveys"
         title={`Survey — ${formatMetres(survey.depthDm)}`}
         description="The searchable runbook values and immutable correction history."
         backTarget={namedBackTarget(runbookRoutes.surveys(holeId), "Surveys")}

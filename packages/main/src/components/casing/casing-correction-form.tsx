@@ -211,7 +211,7 @@ export function CasingCorrectionForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · casing control"
+        eyebrow="Casing"
         title="Correct casing"
         description="Append a correction while retaining every original casing event."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

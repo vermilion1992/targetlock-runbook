@@ -247,7 +247,7 @@ export function RunDetail({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · run and component ownership"
+        eyebrow="Runs"
         title={`Run ${run.runNumber}`}
         description={
           isVoid

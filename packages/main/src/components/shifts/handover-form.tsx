@@ -167,7 +167,7 @@ export function HandoverForm({
     return (
       <div className="space-y-5">
         <StagePageHeader
-          eyebrow="Stage 2 · handover"
+          eyebrow="Shifts"
           title="No pending handover"
           description={`There is no handover awaiting acceptance for ${holeId}.`}
           backTarget={cancelBackTarget(parentHref)}
@@ -189,7 +189,7 @@ export function HandoverForm({
       className="space-y-5 sm:space-y-6"
     >
       <StagePageHeader
-        eyebrow="Stage 2 · run continuity"
+        eyebrow="Runs"
         title={`${shiftTypeLabel(pending.shiftType).toUpperCase()} HANDOVER`}
         description={`Outgoing driller: ${pending.primaryDrillerNameSnapshot}`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

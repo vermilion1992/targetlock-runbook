@@ -12,24 +12,16 @@ export function backAriaLabel(
   return target.ariaLabel?.trim() || `Back to ${target.label}`;
 }
 
-/** Phone short label; desktop uses the "Back to …" prefix for named parents. */
+/**
+ * Visible back label: parent name (or Cancel). Arrow is rendered separately.
+ * Keep full "Back to …" in aria-label via backAriaLabel.
+ */
 export function backVisibleLabel(label: string): {
   short: string;
   long: string;
 } {
   const trimmed = label.trim() || "Back";
-  const normalized = trimmed.toLowerCase();
-  if (
-    normalized === "cancel" ||
-    normalized.startsWith("back ") ||
-    normalized.startsWith("back to ")
-  ) {
-    return { short: trimmed, long: trimmed };
-  }
-  return {
-    short: trimmed,
-    long: `Back to ${trimmed}`,
-  };
+  return { short: trimmed, long: trimmed };
 }
 
 export function namedBackTarget(

@@ -209,7 +209,7 @@ export function CasingAdvanceForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · casing control"
+        eyebrow="Casing"
         title="Advance casing"
         description="Extend an active casing string and append a permanent advance event."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

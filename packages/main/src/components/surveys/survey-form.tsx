@@ -200,7 +200,7 @@ export function SurveyForm({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 4 · survey record"
+        eyebrow="Surveys"
         title="Add survey"
         description={`Fast manual survey entry for ${holeId}. Values remain exactly as entered; no reference conversion or trajectory calculation is performed.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

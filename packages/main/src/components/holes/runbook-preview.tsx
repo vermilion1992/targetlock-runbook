@@ -15,7 +15,12 @@ import {
   StagePageHeader,
 } from "@/components/holes/stage-page-header";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import { formatMetres, formatRecoveryPercentage } from "@/domain";
+import {
+  decimetresToMetres,
+  formatMetres,
+  formatRecoveryPercentage,
+  type Decimetres,
+} from "@/domain";
 import { targetLockStage3Seed } from "@/infrastructure/seed";
 import { getBrowserRuntimeMode } from "@/infrastructure/sync";
 
@@ -31,15 +36,19 @@ export const RUNBOOK_SHIFT_TABLE_HEADERS = [
   "Bit",
 ] as const;
 
-/** Compact phone columns — no horizontal scroll. */
+/** Compact phone columns — no horizontal scroll, no unit suffix. */
 export const RUNBOOK_SHIFT_MOBILE_TABLE_HEADERS = [
-  { key: "run", label: "Run", title: "Run", align: "left" },
-  { key: "rs", label: "R/S", title: "Rod string", align: "right" },
-  { key: "su", label: "S/U", title: "Stick up", align: "right" },
-  { key: "hd", label: "HD", title: "Hole depth", align: "right" },
-  { key: "d", label: "D", title: "Drilled", align: "right" },
-  { key: "r", label: "R", title: "Recovered", align: "right" },
+  { key: "run", label: "Run", title: "Run" },
+  { key: "rs", label: "R/S", title: "Rod string" },
+  { key: "su", label: "S/U", title: "Stick up" },
+  { key: "hd", label: "HD", title: "Hole depth" },
+  { key: "d", label: "D", title: "Drilled" },
+  { key: "r", label: "R", title: "Recovered" },
 ] as const;
+
+function formatMetresCompact(value: Decimetres): string {
+  return decimetresToMetres(value).toFixed(1);
+}
 
 const RIGHT_ALIGNED_RUNBOOK_HEADERS = new Set([
   "Rod string",
@@ -126,7 +135,7 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · shift-grouped runbook"
+        eyebrow="Runbook"
         title={`${holeId} runbook`}
         description="Runs remain continuous and are grouped under the shift that completed them."
         action={
@@ -151,8 +160,11 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
             key={group.shift.localId}
             aria-labelledby={`shift-group-${group.shift.localId}`}
           >
-            <details open={groupIndex === 0} className="group md:hidden">
-              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
+            <details
+              open={groupIndex === 0}
+              className="group overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] md:hidden"
+            >
+              <summary className="flex min-h-14 cursor-pointer list-none items-center justify-between gap-3 border-b border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-3 py-3">
                 <span>
                   <strong
                     id={`shift-group-${group.shift.localId}`}
@@ -171,82 +183,72 @@ export function RunbookPreview({ holeId }: { holeId: string }) {
                   className="size-5 shrink-0 transition-transform group-open:rotate-180"
                 />
               </summary>
-              <div className="mt-3 overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]">
-                <table
-                  className="w-full table-fixed border-collapse text-left text-sm"
-                  data-testid="shift-runs-table-mobile"
-                >
-                  <colgroup>
-                    <col className="w-[18%]" />
-                    <col className="w-[16.4%]" />
-                    <col className="w-[16.4%]" />
-                    <col className="w-[16.4%]" />
-                    <col className="w-[16.4%]" />
-                    <col className="w-[16.4%]" />
-                  </colgroup>
-                  <thead className="bg-[var(--tl-surface-raised)] text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
-                    <tr>
-                      {RUNBOOK_SHIFT_MOBILE_TABLE_HEADERS.map((header) => (
-                        <th
-                          key={header.key}
-                          title={header.title}
-                          scope="col"
-                          className={`px-1.5 py-2.5 ${header.align === "right" ? "text-right" : ""}`}
-                        >
-                          {header.label}
-                        </th>
-                      ))}
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {group.runs.map((run) => (
-                      <tr
-                        key={run.id}
-                        className="border-t border-[var(--tl-border)]"
-                        data-testid="shift-run-row-mobile"
+              <table
+                className="w-full table-fixed border-collapse text-left text-sm"
+                data-testid="shift-runs-table-mobile"
+              >
+                <colgroup>
+                  <col className="w-[14%]" />
+                  <col className="w-[17.2%]" />
+                  <col className="w-[17.2%]" />
+                  <col className="w-[17.2%]" />
+                  <col className="w-[17.2%]" />
+                  <col className="w-[17.2%]" />
+                </colgroup>
+                <thead className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+                  <tr>
+                    {RUNBOOK_SHIFT_MOBILE_TABLE_HEADERS.map((header) => (
+                      <th
+                        key={header.key}
+                        title={header.title}
+                        scope="col"
+                        className="px-2 py-2 text-left"
                       >
-                        <th scope="row" className="px-1.5 py-2.5 font-bold">
-                          <Link
-                            href={runbookRoutes.runDetail(holeId, run.id)}
-                            className="text-[var(--tl-primary)] no-underline"
-                          >
-                            {run.runNumber}
-                          </Link>
-                          <RunStatusMarks run={run} />
-                        </th>
-                        <td className="px-1.5 py-2.5 text-right tl-tabular">
-                          {formatMetres(run.rodStringDm)}
-                        </td>
-                        <td className="px-1.5 py-2.5 text-right tl-tabular">
-                          {formatMetres(run.measuredStickUpDm)}
-                        </td>
-                        <td className="px-1.5 py-2.5 text-right tl-tabular">
-                          {formatMetres(run.holeDepthDm)}
-                        </td>
-                        <td className="px-1.5 py-2.5 text-right tl-tabular">
-                          {formatMetres(run.drilledLengthDm)}
-                        </td>
-                        <td className="px-1.5 py-2.5 text-right tl-tabular">
-                          {formatMetres(run.recoveredLengthDm)}
-                        </td>
-                      </tr>
+                        {header.label}
+                      </th>
                     ))}
-                  </tbody>
-                </table>
-                {group.shift.handoverNote ? (
-                  <p className="border-t border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-3 text-sm">
-                    {group.shift.handoverNote}
-                  </p>
-                ) : null}
-                <div className="border-t border-[var(--tl-border)] px-3 py-2">
-                  <Link
-                    href={runbookRoutes.shiftDetail(holeId, group.shift.localId)}
-                    className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
-                  >
-                    Shift detail
-                  </Link>
-                </div>
-              </div>
+                  </tr>
+                </thead>
+                <tbody>
+                  {group.runs.map((run) => (
+                    <tr
+                      key={run.id}
+                      className="border-t border-[var(--tl-border)]"
+                      data-testid="shift-run-row-mobile"
+                    >
+                      <th scope="row" className="px-2 py-2 text-left font-bold">
+                        <Link
+                          href={runbookRoutes.runDetail(holeId, run.id)}
+                          className="text-[var(--tl-primary)] no-underline"
+                        >
+                          {run.runNumber}
+                        </Link>
+                        <RunStatusMarks run={run} />
+                      </th>
+                      <td className="px-2 py-2 text-left tl-tabular">
+                        {formatMetresCompact(run.rodStringDm)}
+                      </td>
+                      <td className="px-2 py-2 text-left tl-tabular">
+                        {formatMetresCompact(run.measuredStickUpDm)}
+                      </td>
+                      <td className="px-2 py-2 text-left tl-tabular">
+                        {formatMetresCompact(run.holeDepthDm)}
+                      </td>
+                      <td className="px-2 py-2 text-left tl-tabular">
+                        {formatMetresCompact(run.drilledLengthDm)}
+                      </td>
+                      <td className="px-2 py-2 text-left tl-tabular">
+                        {formatMetresCompact(run.recoveredLengthDm)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+              {group.shift.handoverNote ? (
+                <p className="border-t border-[var(--tl-border)] bg-[var(--tl-surface-raised)] p-3 text-sm">
+                  {group.shift.handoverNote}
+                </p>
+              ) : null}
             </details>
 
             <div className="hidden overflow-hidden rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] md:block">

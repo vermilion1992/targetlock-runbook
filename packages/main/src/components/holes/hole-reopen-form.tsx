@@ -120,7 +120,7 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 5 · reopen"
+        eyebrow="Holes"
         title={`Reopen ${holeId}`}
         description="Restores the hole to Active without opening a shift or assigning components."
         backTarget={cancelBackTarget(parentHref, {

@@ -14,10 +14,10 @@ describe("runbook page back labels", () => {
     );
   });
 
-  it("uses short phone and long desktop labels", () => {
+  it("uses the parent name for visible labels", () => {
     expect(backVisibleLabel("More")).toEqual({
       short: "More",
-      long: "Back to More",
+      long: "More",
     });
     expect(backVisibleLabel("Cancel")).toEqual({
       short: "Cancel",

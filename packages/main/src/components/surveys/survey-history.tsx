@@ -97,7 +97,7 @@ export function SurveyHistory({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 4 · survey history"
+        eyebrow="Surveys"
         title={`${holeId} surveys`}
         description="Repository-backed manual survey records, ordered deepest and latest first."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}

@@ -196,7 +196,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 4 · local media"
+        eyebrow="Trays"
         title="Photograph completed tray"
         description={`Save a completed core tray for ${holeId}. Runs remain separate and overlap is derived from depth.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

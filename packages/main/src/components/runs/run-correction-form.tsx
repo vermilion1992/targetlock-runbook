@@ -309,7 +309,7 @@ export function RunCorrectionForm({
     return (
       <div className="space-y-4">
         <StagePageHeader
-          eyebrow="Run correction"
+          eyebrow="Runs"
           title={`Correct Run ${run.runNumber}`}
           description={`${holeId} is completed and locked.`}
           backTarget={cancelBackTarget(parentHref)}
@@ -338,7 +338,7 @@ export function RunCorrectionForm({
   return (
     <div className="space-y-5">
       <StagePageHeader
-        eyebrow="Audited correction"
+        eyebrow="Runs"
         title={`Correct Run ${run.runNumber}`}
         description="Correct source values. Calculated R/S, depth, drilled and recovery stay derived."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

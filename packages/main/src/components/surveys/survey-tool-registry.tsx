@@ -122,7 +122,7 @@ export function SurveyToolRegistry({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5">
       <StagePageHeader
-        eyebrow="Stage 4 · reusable survey tools"
+        eyebrow="Surveys"
         title="Survey tools"
         description="A lightweight local registry for tool and serial inheritance. Calibration and maintenance remain outside V1."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}

@@ -736,7 +736,7 @@ export function RecordRunForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 2 · shift-owned run capture"
+        eyebrow="Runs"
         title={`Record run ${context.runNumber}`}
         description="Complete the field measurements below. Derived values come only from the shared TargetLock domain functions."
         backTarget={namedBackTarget(

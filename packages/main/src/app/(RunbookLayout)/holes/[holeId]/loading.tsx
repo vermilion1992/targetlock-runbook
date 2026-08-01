@@ -5,7 +5,7 @@ export default function HoleLoading() {
     <StatePanel
       state="loading"
       title="Loading field view"
-      description="Preparing the locally available Stage 1 seed data."
+      description="Preparing this hole’s runbook data on this device."
     />
   );
 }

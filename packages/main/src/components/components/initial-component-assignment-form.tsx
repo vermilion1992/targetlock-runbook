@@ -154,7 +154,7 @@ export function InitialComponentAssignmentForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · initial assignment"
+        eyebrow="Components"
         title={`Assign initial ${componentType.toLocaleLowerCase("en-AU")}`}
         description={`Select an available or serviceable ${componentType.toLocaleLowerCase("en-AU")}. Its assignment starts at the current completed depth.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

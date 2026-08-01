@@ -95,7 +95,7 @@ export function CasingHistory({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · casing control"
+        eyebrow="Casing"
         title="Casing history"
         description={`Current casing strings and their permanent event history for ${holeId}. Corrections add events; they never replace the original record.`}
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}

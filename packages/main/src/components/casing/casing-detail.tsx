@@ -156,7 +156,7 @@ export function CasingDetail({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · casing control"
+        eyebrow="Casing"
         title={casing?.label || (casing ? `${casing.casingSize} casing` : "Casing detail")}
         description="Current projection, lifecycle actions, and permanent event history."
         backTarget={namedBackTarget(runbookRoutes.casing(holeId), "Casing")}

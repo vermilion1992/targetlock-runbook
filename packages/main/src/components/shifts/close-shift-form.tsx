@@ -168,7 +168,7 @@ export function CloseShiftForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Shift close"
+        eyebrow="Shifts"
         title={`Close ${shift.shiftType === "DAY" ? "Day" : "Night"} Shift`}
         description={`${shift.shiftDate} · ${shift.primaryDrillerNameSnapshot}`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

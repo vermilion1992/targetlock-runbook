@@ -137,13 +137,15 @@ test("closed Shift phone table uses compact columns without page scroll", async 
       });
       await expect(run233).toBeVisible();
       await expectRunMeasurements(run233, [
-        "662.5 m",
-        "0.1 m",
-        "662.4 m",
-        "0.9 m",
+        "662.5",
+        "0.1",
+        "662.4",
+        "0.9",
       ]);
+      await expect(run233).not.toContainText(" m");
       await expect(table).not.toContainText("BIT-HQ-002193");
       await expect(table).not.toContainText("REA-HQ-000912");
+      await expect(nightDetails.getByText("Shift detail")).toHaveCount(0);
       expect(
         await table.evaluate(
           (element) => element.scrollWidth <= element.clientWidth + 1,

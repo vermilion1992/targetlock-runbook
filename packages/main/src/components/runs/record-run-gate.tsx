@@ -92,7 +92,7 @@ export function RecordRunGate({
     return (
       <div className="space-y-5">
         <StagePageHeader
-          eyebrow="Stage 2 · run ownership"
+          eyebrow="Runs"
           title="Active shift required"
           description="Runs cannot be created anonymously or without a shift owner."
         />

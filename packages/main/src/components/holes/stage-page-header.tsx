@@ -24,22 +24,30 @@ export function StagePageHeader({
   actions,
 }: StagePageHeaderProps) {
   const trailing = actions ?? action;
+  const showMetaRow = Boolean(eyebrow?.trim()) || Boolean(backTarget);
 
   return (
-    <header className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-      <div className="min-w-0 space-y-2">
-        {backTarget ? (
-          <div className="-ml-1">
-            <RunbookPageBackLink target={backTarget} />
-          </div>
-        ) : null}
-        <div className="min-w-0">
-          {eyebrow ? (
-            <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--tl-primary)]">
+    <header className="space-y-3">
+      {showMetaRow ? (
+        <div className="flex items-center justify-between gap-3">
+          {eyebrow?.trim() ? (
+            <p className="min-w-0 text-xs font-bold uppercase tracking-[0.1em] text-[var(--tl-primary)]">
               {eyebrow}
             </p>
+          ) : (
+            <span className="min-w-0" />
+          )}
+          {backTarget ? (
+            <RunbookPageBackLink
+              target={backTarget}
+              className="-mr-1 shrink-0"
+            />
           ) : null}
-          <h1 className="mt-1 text-2xl font-bold tracking-[-0.03em] text-[var(--tl-ink)] sm:text-3xl">
+        </div>
+      ) : null}
+      <div className="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
+        <div className="min-w-0">
+          <h1 className="text-2xl font-bold tracking-[-0.03em] text-[var(--tl-ink)] sm:text-3xl">
             {title}
           </h1>
           {description ? (
@@ -48,8 +56,8 @@ export function StagePageHeader({
             </p>
           ) : null}
         </div>
+        {trailing ? <div className="shrink-0">{trailing}</div> : null}
       </div>
-      {trailing ? <div className="shrink-0">{trailing}</div> : null}
     </header>
   );
 }

@@ -106,7 +106,7 @@ export function TrayLibrary({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 4 · completed trays"
+        eyebrow="Trays"
         title={`${holeId} tray library`}
         description="Completed core-tray photographs stored locally and searchable by tray number or depth."
         action={

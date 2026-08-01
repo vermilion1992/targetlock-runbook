@@ -85,7 +85,7 @@ export function ShiftDetail({
   return (
     <div className="space-y-5 sm:space-y-6" data-testid="shift-detail">
       <StagePageHeader
-        eyebrow="Stage 2 · shift detail"
+        eyebrow="Shifts"
         title={`${shift.shiftType === "DAY" ? "Day Shift" : "Night Shift"} — ${shift.shiftDate}`}
         description={`Primary driller: ${shift.primaryDrillerNameSnapshot}`}
         backTarget={namedBackTarget(runbookRoutes.shifts(holeId), "Shifts")}

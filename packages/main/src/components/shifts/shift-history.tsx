@@ -79,7 +79,7 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 2 · local history"
+        eyebrow="Shifts"
         title={`${holeId} shifts`}
         description="Day and Night Shift snapshots, handovers, shared runs, and runbook-focused statistics."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}

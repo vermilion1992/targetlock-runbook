@@ -170,7 +170,7 @@ export function HoleComponentSummary({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · downhole setup"
+        eyebrow="Components"
         title={`${holeId} bottom hole assembly`}
         description="Active barrel setup (bit, front reamer, barrel, rear reamer), full BHA size, constant stick-up, and assignment history."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}

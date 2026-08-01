@@ -189,7 +189,7 @@ export function StartShiftForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 2 · shift continuity"
+        eyebrow="Shifts"
         title="Start runbook shift"
         description={`Assign the shift that will own new runs for ${holeId}.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

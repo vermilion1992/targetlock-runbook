@@ -281,7 +281,7 @@ export function ChangeComponentForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · exact-depth change"
+        eyebrow="Components"
         title={`Change ${typeLabel}`}
         description={`Close the outgoing ${typeLabel.toLocaleLowerCase("en-AU")} and activate its replacement at one exact depth. Completed runs and current depth are loaded from this browser.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

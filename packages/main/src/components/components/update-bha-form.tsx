@@ -217,7 +217,7 @@ export function UpdateBhaForm({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Bottom hole assembly"
+        eyebrow="Components"
         title={hasExistingSetup ? "Update BHA" : "Initial BHA setup"}
         description={
           hasExistingSetup

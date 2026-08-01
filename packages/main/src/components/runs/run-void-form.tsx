@@ -223,7 +223,7 @@ export function RunVoidForm({
     return (
       <div className="space-y-4">
         <StagePageHeader
-          eyebrow="Void run"
+          eyebrow="Runs"
           title={`Void Run ${run.runNumber}`}
           description={`${holeId} is completed and locked.`}
           backTarget={cancelBackTarget(parentHref)}
@@ -244,7 +244,7 @@ export function RunVoidForm({
   return (
     <div className="space-y-5">
       <StagePageHeader
-        eyebrow="Audited void"
+        eyebrow="Runs"
         title={`Void Run ${run.runNumber}`}
         description="The run remains in audit history but is excluded from operational calculations."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

@@ -114,7 +114,7 @@ export function TrayPhotoReplacementForm({
   return (
     <div className="space-y-5">
       <StagePageHeader
-        eyebrow="Stage 4 · recoverable media operation"
+        eyebrow="Trays"
         title={`Replace tray ${tray?.trayNumber ?? ""} photograph`}
         description="The current photograph remains active until the new original and preview are safely stored."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

@@ -175,7 +175,7 @@ export function AddComponentForm({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · bottom hole assembly"
+        eyebrow="Components"
         title={`Add ${titleCase(type)} serial`}
         description="Record an available bit or reamer serial, then assign it to the hole from the BHA page."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

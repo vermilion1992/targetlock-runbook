@@ -187,7 +187,7 @@ export function CasingInstallForm({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 3 · casing control"
+        eyebrow="Casing"
         title="Add casing"
         description={`Record a new casing string for ${holeId}. The install becomes the first immutable event in its history.`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

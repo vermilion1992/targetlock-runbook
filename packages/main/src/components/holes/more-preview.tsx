@@ -231,7 +231,7 @@ export function MorePreview({ holeId }: { holeId: string }) {
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="More tools"
+        eyebrow="More"
         title="More runbook tools"
         description="Hole planning, records, analysis, and management tools for this hole."
       />

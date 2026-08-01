@@ -129,7 +129,7 @@ export function TrayDetail({
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
-        eyebrow="Stage 4 · tray detail"
+        eyebrow="Trays"
         title={`Tray ${tray.trayNumber}`}
         description={`${holeId} · ${range(tray)}`}
         backTarget={namedBackTarget(runbookRoutes.trays(holeId), "Trays")}

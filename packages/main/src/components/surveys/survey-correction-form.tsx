@@ -133,7 +133,7 @@ export function SurveyCorrectionForm({
   return (
     <div className="space-y-5">
       <StagePageHeader
-        eyebrow="Stage 4 · audited correction"
+        eyebrow="Surveys"
         title="Correct survey"
         description="The original values remain available in correction and audit history."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}

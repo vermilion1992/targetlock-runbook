@@ -141,7 +141,7 @@ export function TrayCorrectionForm({
   return (
     <div className="space-y-5">
       <StagePageHeader
-        eyebrow="Stage 4 · audited correction"
+        eyebrow="Trays"
         title="Edit tray details"
         description="Depth and number corrections retain their previous values and reason."
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
