@@ -66,6 +66,17 @@ test("restores the phone viewport after closing the core camera", async ({
       page.evaluate(() => document.body.dataset.tlCameraLock ?? null),
     )
     .toBe("1");
+  const guide = page.getByTestId("tray-guide-aperture");
+  const startMarker = page.getByTestId("tray-start-marker");
+  await expect(guide).toHaveCSS("border-top-width", "0px");
+  await expect(startMarker).toBeVisible();
+  const guideBox = await guide.boundingBox();
+  const markerBox = await startMarker.boundingBox();
+  if (!guideBox || !markerBox) {
+    throw new Error("Tray camera guide did not produce measurable bounds.");
+  }
+  expect(markerBox.x).toBeGreaterThan(guideBox.x + guideBox.width);
+  expect(markerBox.height).toBeGreaterThan(markerBox.width);
 
   await page.getByRole("button", { name: "Close camera" }).click();
   await expect(

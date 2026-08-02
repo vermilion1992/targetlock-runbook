@@ -1,6 +1,6 @@
 "use client";
 
-import { ArrowDown, Camera, X } from "lucide-react";
+import { Camera, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -362,7 +362,8 @@ export function TrayCameraCapture({
             {/* Dim outside the full-tray guide while keeping the feed visible. */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute rounded-sm border border-white/70"
+              data-testid="tray-guide-aperture"
+              className="pointer-events-none absolute"
               style={{
                 boxShadow: `0 0 0 9999px rgb(8 14 24 / 58%)`,
                 left: frame.left,
@@ -374,16 +375,16 @@ export function TrayCameraCapture({
 
             <CornerBrackets frame={frame} />
 
-            {/* Small unobtrusive marker; unlike the old card it does not hide the tray. */}
+            {/* Keep the vertical start marker outside the top-right bracket. */}
             <div
-              className="pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-bl-md bg-[#2563eb]/90 px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-white shadow-md"
+              data-testid="tray-start-marker"
+              className="pointer-events-none absolute z-10 origin-top-left rotate-90 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-[#60a5fa] [text-shadow:0_1px_3px_rgb(0_0_0_/_90%)]"
               style={{
-                left: frame.left + frame.width,
-                top: frame.top,
-                transform: "translateX(-100%)",
+                left: frame.left + frame.width + 24,
+                top: frame.top + 8,
               }}
             >
-              Start <ArrowDown aria-hidden="true" className="size-3" />
+              Start
             </div>
           </>
         ) : null}
