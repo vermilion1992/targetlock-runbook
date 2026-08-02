@@ -70,14 +70,14 @@ export function PhotoInput({
   const isTray = mode === "tray";
 
   return (
-    <div className="space-y-2">
+    <div className="min-w-0 space-y-2">
       <span className="block text-sm font-bold text-[var(--tl-ink)]">
         {label}
         {required ? " *" : ""}
       </span>
 
       {isTray ? (
-        <div className="grid gap-2 sm:grid-cols-2">
+        <div className="grid min-w-0 gap-2 sm:grid-cols-2">
           <button
             type="button"
             onClick={() => setCameraOpen(true)}
@@ -145,23 +145,23 @@ export function PhotoInput({
         </p>
       ) : null}
       {preview !== null && file !== null ? (
-        <div className="overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]">
+        <div className="min-w-0 max-w-full overflow-hidden rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)]">
           {/* Native img avoids Next/Image layout quirks after camera on mobile. */}
           {/* eslint-disable-next-line @next/next/no-img-element */}
           <img
             src={preview}
             alt={`Preview of selected ${label.toLocaleLowerCase("en-AU")}`}
-            className={`mx-auto w-full object-contain ${isTray ? "max-h-72 bg-[#0b121c]" : "max-h-80"}`}
+            className={`mx-auto block h-auto w-full max-w-full object-contain ${isTray ? "max-h-72 bg-[#0b121c]" : "max-h-80"}`}
           />
-          <div className="flex items-center justify-between gap-3 p-3">
-            <span className="flex min-w-0 items-center gap-2 text-sm text-[var(--tl-ink-muted)]">
+          <div className="flex min-w-0 items-center justify-between gap-3 p-3">
+            <span className="flex min-w-0 flex-1 items-center gap-2 text-sm text-[var(--tl-ink-muted)]">
               <ImagePlus aria-hidden="true" className="size-4 shrink-0" />
               <span className="truncate">{file.name}</span>
             </span>
             <button
               type="button"
               onClick={() => acceptFile(null)}
-              className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 font-bold"
+              className="inline-flex min-h-11 shrink-0 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 font-bold"
             >
               <X aria-hidden="true" className="size-4" />
               Remove

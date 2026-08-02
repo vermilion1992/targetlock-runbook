@@ -4,6 +4,9 @@ const tinyPng = Buffer.from(
   "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII=",
   "base64",
 );
+const tallTrayImage = Buffer.from(
+  '<svg xmlns="http://www.w3.org/2000/svg" width="2000" height="4000" viewBox="0 0 2000 4000"><rect width="2000" height="4000" fill="#172433"/></svg>',
+);
 
 async function reset(page: Page) {
   await page.goto("/holes/DDH041/current");
@@ -86,6 +89,23 @@ test("restores the phone viewport after closing the core camera", async ({
     page.getByRole("textbox", { name: "Tray number" }),
   ).toBeInViewport();
   expect(before.scrollWidth).toBeLessThanOrEqual(390);
+});
+
+test("keeps a full-size tray preview within the phone viewport", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 360, height: 844 });
+  await page.goto("/holes/DDH041/trays/new");
+  await expectNoHorizontalOverflow(page, "tray form before photo preview");
+  await page.locator('input[type="file"]').setInputFiles({
+    name: "tray-2026-08-02T14-09-41-952Z.svg",
+    mimeType: "image/svg+xml",
+    buffer: tallTrayImage,
+  });
+
+  await expect(page.getByAltText(/Preview of selected/i)).toBeVisible();
+  await expectNoHorizontalOverflow(page, "full-size tray photo preview");
+  await expect(page.getByRole("button", { name: "Remove" })).toBeInViewport();
 });
 
 test("photographs the suggested next tray and persists image metadata", async ({

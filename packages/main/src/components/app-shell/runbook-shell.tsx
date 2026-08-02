@@ -141,7 +141,7 @@ export function RunbookShell({ children }: RunbookShellProps) {
       >
         Skip to main content
       </a>
-      <header className="tl-safe-top sticky top-0 z-40 flex min-h-[var(--tl-header-height)] items-center gap-1.5 border-b border-[var(--tl-border)] bg-[var(--tl-surface)] px-2 shadow-[var(--tl-shadow-sm)] sm:gap-3 sm:px-4">
+      <header className="tl-safe-top sticky top-0 z-40 flex min-h-[var(--tl-header-height)] items-center gap-1 border-b border-[var(--tl-border)] bg-[var(--tl-surface)] px-1 shadow-[var(--tl-shadow-sm)] sm:gap-3 sm:px-4">
         <TargetLockBrand
           href="/start"
           ariaLabel="TargetLock field start"
@@ -149,7 +149,7 @@ export function RunbookShell({ children }: RunbookShellProps) {
 
         <Link
           href="/start"
-          className="min-w-0 flex-1 border-l border-[var(--tl-border)] pl-2 text-[var(--tl-ink)] no-underline sm:pl-3"
+          className="min-w-0 flex-1 border-l border-[var(--tl-border)] pl-2 text-[var(--tl-ink)] no-underline max-[374px]:hidden sm:pl-3"
           aria-label={`Current hole ${holeId}`}
         >
           <span className="hidden text-[0.6875rem] font-semibold uppercase tracking-[0.08em] text-[var(--tl-ink-muted)] sm:block">

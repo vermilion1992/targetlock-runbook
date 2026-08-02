@@ -253,15 +253,15 @@ export function TrayForm({ holeId }: { holeId: string }) {
       <form
         onSubmit={submit}
         onChange={() => setIsDirty(true)}
-        className="grid gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 md:grid-cols-2"
+        className="grid min-w-0 grid-cols-[minmax(0,1fr)] gap-5 rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)] sm:p-5 md:grid-cols-2"
       >
-        <div className="md:col-span-2">
+        <div className="min-w-0 md:col-span-2">
           <p className="text-xs font-bold uppercase text-[var(--tl-ink-muted)]">
             Hole
           </p>
           <p className="mt-1 text-xl font-bold">{holeId}</p>
         </div>
-        <label className="md:col-span-2">
+        <label className="min-w-0 md:col-span-2">
           <span className="text-sm font-bold">Tray number *</span>
           <input
             required
@@ -271,7 +271,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
             className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3 text-lg"
           />
         </label>
-        <div className="md:col-span-2">
+        <div className="min-w-0 md:col-span-2">
           <PhotoInput
             id="tray-photo"
             label="Completed-tray photograph"
@@ -281,7 +281,7 @@ export function TrayForm({ holeId }: { holeId: string }) {
             mode="tray"
           />
         </div>
-        <label className="md:col-span-2">
+        <label className="min-w-0 md:col-span-2">
           <span className="text-sm font-bold">Comment (optional)</span>
           <textarea
             value={comment}
