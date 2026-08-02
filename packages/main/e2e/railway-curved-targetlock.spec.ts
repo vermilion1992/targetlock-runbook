@@ -144,13 +144,13 @@ test("Railway D — DDH041 seeded KPIs, status chip, and 3D viewer", async ({
   ).not.toContainText(/REVIEW/i);
   await expect(
     page.getByTestId("trajectory-metric-projected-miss"),
-  ).toBeVisible();
-  await expect(page.getByTestId("trajectory-metric-target")).toBeVisible();
+  ).toHaveCount(0);
+  await expect(page.getByTestId("trajectory-metric-target")).toHaveCount(0);
   await expect(page.getByTestId("trajectory-target-status")).toContainText(
-    /Projected to (intersect|miss) target/i,
+    /On target|Near miss|Projected miss/i,
   );
-  await expect(page.getByTestId("trajectory-target-status")).toContainText(
-    "radius 5.0 m",
+  await expect(page.getByTestId("trajectory-target-status")).not.toContainText(
+    /radius/i,
   );
   await expect(page.getByTestId("trajectory-more-details-toggle")).toHaveCount(
     0,
@@ -208,7 +208,7 @@ test("Railway F — seeded demo stays reachable (no unreachable banner)", async 
   await expect(
     page.getByTestId("trajectory-metric-required-dip"),
   ).not.toContainText(/REVIEW/i);
-  await expect(page.getByTestId("trajectory-metric-target")).toBeVisible();
+  await expect(page.getByTestId("trajectory-metric-target")).toHaveCount(0);
 });
 
 test("Railway G — PDF and Excel downloads are valid files", async ({

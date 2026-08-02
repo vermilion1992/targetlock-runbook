@@ -1,13 +1,13 @@
 "use client";
 
-import { Layers3, Plus, Save } from "lucide-react";
-import Link from "next/link";
+import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
 
 import {
   advanceCasing,
   createBrowserRunbookServices,
   getCasingHistory,
+  installCasing,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
 import { MetreInput } from "@/components/field/metre-input";
@@ -28,14 +28,15 @@ import {
 
 import {
   CasingNotice,
-  CasingStatusPill,
   completedHoleDepth,
   createCasingId,
   defaultCasingActor,
   formatCasingDepth,
-  formatCasingLength,
   type CasingHistoryRecord,
 } from "./casing-support";
+
+const PILOT_CASING_SIZES = ["PQ", "HQ"] as const;
+type PilotCasingSize = (typeof PILOT_CASING_SIZES)[number];
 
 function bumpMetres(current: string, metres: 3 | 6): string {
   const parsed = parseMetreInput(current);
@@ -45,22 +46,79 @@ function bumpMetres(current: string, metres: 3 | 6): string {
   ).toFixed(1);
 }
 
+function normalizeSize(value: string): string {
+  return value.trim().toLocaleUpperCase("en-AU");
+}
+
+function recordForSize(
+  records: readonly CasingHistoryRecord[],
+  size: PilotCasingSize,
+): CasingHistoryRecord | undefined {
+  return records.find(
+    ({ casing }) =>
+      normalizeSize(casing.casingSize) === size &&
+      (casing.status === "ACTIVE" || casing.status === "COMPLETED"),
+  );
+}
+
+function activeRecordForSize(
+  records: readonly CasingHistoryRecord[],
+  size: PilotCasingSize,
+): CasingHistoryRecord | undefined {
+  return records.find(
+    ({ casing }) =>
+      normalizeSize(casing.casingSize) === size && casing.status === "ACTIVE",
+  );
+}
+
+function defaultSelectedSize(
+  records: readonly CasingHistoryRecord[],
+): PilotCasingSize {
+  const active = records
+    .filter(({ casing }) => casing.status === "ACTIVE")
+    .slice()
+    .sort(
+      (left, right) =>
+        Number(right.casing.currentEndDepthDm) -
+        Number(left.casing.currentEndDepthDm),
+    );
+  for (const size of ["HQ", "PQ"] as const) {
+    if (
+      active.some(({ casing }) => normalizeSize(casing.casingSize) === size)
+    ) {
+      return size;
+    }
+  }
+  return "PQ";
+}
+
+function depthSeedForSize(
+  records: readonly CasingHistoryRecord[],
+  size: PilotCasingSize,
+): string {
+  const record = activeRecordForSize(records, size) ?? recordForSize(records, size);
+  if (record) {
+    return decimetresToMetres(record.casing.currentEndDepthDm).toFixed(1);
+  }
+  return "";
+}
+
 export function CasingHistory({ holeId }: { holeId: string }) {
   const [records, setRecords] = useState<readonly CasingHistoryRecord[]>([]);
   const [holeDepth, setHoleDepth] = useState<Decimetres | null>(null);
+  const [selectedSize, setSelectedSize] = useState<PilotCasingSize>("PQ");
   const [newDepth, setNewDepth] = useState("");
   const [depthError, setDepthError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [sizeInitialized, setSizeInitialized] = useState(false);
 
-  async function reload() {
+  async function reload(preferredSize?: PilotCasingSize) {
     const services = createBrowserRunbookServices();
     if (services === null) {
-      setError(
-        "Browser storage is unavailable. Casing cannot be loaded.",
-      );
+      setError("Browser storage is unavailable. Casing cannot be loaded.");
       setLoading(false);
       return;
     }
@@ -68,14 +126,10 @@ export function CasingHistory({ holeId }: { holeId: string }) {
     const history = await getCasingHistory(holeId, services);
     setHoleDepth(depth);
     setRecords(history);
-    const active = history.find(({ casing }) => casing.status === "ACTIVE");
-    if (active) {
-      setNewDepth(
-        decimetresToMetres(active.casing.currentEndDepthDm).toFixed(1),
-      );
-    } else {
-      setNewDepth("");
-    }
+    const nextSize = preferredSize ?? defaultSelectedSize(history);
+    setSelectedSize(nextSize);
+    setNewDepth(depthSeedForSize(history, nextSize));
+    setSizeInitialized(true);
   }
 
   useEffect(() => {
@@ -101,37 +155,113 @@ export function CasingHistory({ holeId }: { holeId: string }) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- load once per hole
   }, [holeId]);
 
-  const activeRecord = records.find(({ casing }) => casing.status === "ACTIVE");
-  const otherRecords = records.filter(
-    ({ casing }) => casing.localId !== activeRecord?.casing.localId,
+  const installedRows = PILOT_CASING_SIZES.map((size) => {
+    const record =
+      activeRecordForSize(records, size) ?? recordForSize(records, size);
+    return record ? { size, record } : null;
+  }).filter((row): row is { size: PilotCasingSize; record: CasingHistoryRecord } =>
+    row !== null,
   );
-  const parsedDepth = parseMetreInput(newDepth);
-  const changeDm =
-    activeRecord &&
-    parsedDepth.ok &&
-    parsedDepth.value > activeRecord.casing.currentEndDepthDm
-      ? Number(parsedDepth.value) - Number(activeRecord.casing.currentEndDepthDm)
-      : null;
 
-  async function saveAdvance() {
+  const selectedActive = activeRecordForSize(records, selectedSize);
+  const selectedInstalled = Boolean(
+    selectedActive ?? recordForSize(records, selectedSize),
+  );
+
+  function selectSize(size: PilotCasingSize) {
+    setSelectedSize(size);
+    setNewDepth(depthSeedForSize(records, size));
+    setDepthError(null);
+    setNotice(null);
+    setError(null);
+  }
+
+  async function saveCasing() {
     setError(null);
     setNotice(null);
     setDepthError(null);
-    if (!activeRecord || holeDepth === null) {
-      setError("No active casing is available to advance.");
+
+    if (holeDepth === null) {
+      setError("Current hole depth is unavailable. Casing was not saved.");
       return;
     }
+
     const parsed = parseMetreInput(newDepth);
     if (!parsed.ok) {
-      setDepthError("Enter the new end depth to 0.1 m precision.");
+      setDepthError("Enter the casing depth to 0.1 m precision.");
       return;
     }
-    if (parsed.value <= activeRecord.casing.currentEndDepthDm) {
-      setDepthError("New end depth must be deeper than the current end.");
+
+    const services = createBrowserRunbookServices();
+    if (services === null) {
+      setError("Browser storage is unavailable. Casing was not saved.");
       return;
     }
+
+    const actor = defaultCasingActor();
+    const now = new Date().toISOString();
+    const active = activeRecordForSize(records, selectedSize);
+
+    if (active) {
+      if (parsed.value <= active.casing.currentEndDepthDm) {
+        setDepthError("Casing depth must be deeper than the current end.");
+        return;
+      }
+      const validation = validateCasingRange(
+        active.casing.startDepthDm,
+        parsed.value,
+        holeDepth,
+      );
+      if (!validation.ok) {
+        setDepthError(validation.reason);
+        return;
+      }
+      if (validation.requiresDepthConfirmation) {
+        setDepthError(
+          `Casing depth is deeper than completed hole depth (${formatMetres(holeDepth)}).`,
+        );
+        return;
+      }
+
+      setSaving(true);
+      try {
+        await advanceCasing(
+          {
+            operationId: createCasingId("advance-casing"),
+            casingStringId: active.casing.localId,
+            holeId,
+            newEndDepthDm: parsed.value,
+            currentHoleDepthDm: holeDepth,
+            recordedByUserId: actor.userId,
+            recordedByNameSnapshot: actor.userName,
+            recordedAt: now,
+            expectedVersion: active.casing.version,
+          },
+          services,
+        );
+        setNotice(`${selectedSize} casing updated.`);
+        await reload(selectedSize);
+      } catch (cause) {
+        setError(
+          cause instanceof Error ? cause.message : "Casing was not saved.",
+        );
+      } finally {
+        setSaving(false);
+      }
+      return;
+    }
+
+    const existing = recordForSize(records, selectedSize);
+    if (existing && existing.casing.status !== "ACTIVE") {
+      setError(
+        `${selectedSize} casing exists but is not active. Use casing detail to change status before adding depth.`,
+      );
+      return;
+    }
+
+    const startDepthDm = decimetres(0);
     const validation = validateCasingRange(
-      activeRecord.casing.startDepthDm,
+      startDepthDm,
       parsed.value,
       holeDepth,
     );
@@ -141,39 +271,37 @@ export function CasingHistory({ holeId }: { holeId: string }) {
     }
     if (validation.requiresDepthConfirmation) {
       setDepthError(
-        `New end is deeper than completed hole depth (${formatMetres(holeDepth)}). Use Advance on the detail page if you need to confirm that.`,
+        `Casing depth is deeper than completed hole depth (${formatMetres(holeDepth)}).`,
       );
-      return;
-    }
-
-    const services = createBrowserRunbookServices();
-    if (services === null) {
-      setError("Browser storage is unavailable. The advance was not saved.");
       return;
     }
 
     setSaving(true);
     try {
-      const actor = defaultCasingActor();
-      await advanceCasing(
+      const casingId = createCasingId(
+        `casing-${holeId.toLocaleLowerCase("en-AU")}-${selectedSize.toLocaleLowerCase("en-AU")}`,
+      );
+      await installCasing(
         {
-          operationId: createCasingId("advance-casing"),
-          casingStringId: activeRecord.casing.localId,
+          operationId: createCasingId("install-casing"),
+          casingStringId: casingId,
           holeId,
-          newEndDepthDm: parsed.value,
+          casingSize: selectedSize,
+          startDepthDm,
+          endDepthDm: parsed.value,
           currentHoleDepthDm: holeDepth,
+          installedAt: now,
+          recordedAt: now,
           recordedByUserId: actor.userId,
           recordedByNameSnapshot: actor.userName,
-          recordedAt: new Date().toISOString(),
-          expectedVersion: activeRecord.casing.version,
         },
         services,
       );
-      setNotice("Casing advanced.");
-      await reload();
+      setNotice(`${selectedSize} casing added.`);
+      await reload(selectedSize);
     } catch (cause) {
       setError(
-        cause instanceof Error ? cause.message : "The advance was not saved.",
+        cause instanceof Error ? cause.message : "Casing was not saved.",
       );
     } finally {
       setSaving(false);
@@ -185,204 +313,119 @@ export function CasingHistory({ holeId }: { holeId: string }) {
       <StagePageHeader
         eyebrow="Casing"
         title={`${holeId} casing`}
-        description="Current casing size and depth. Advance with +3 m / +6 m or type a new end depth."
+        description="Add PQ or HQ casing to depth."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
-        action={
-          <Link
-            href={runbookRoutes.addCasing(holeId)}
-            className="tl-action-primary inline-flex min-h-12 items-center justify-center gap-2 rounded-[var(--tl-radius-sm)] px-4 font-bold text-white no-underline"
-          >
-            <Plus aria-hidden="true" className="size-5" />
-            {activeRecord ? "Change size" : "Add casing"}
-          </Link>
-        }
       />
 
       {error ? <CasingNotice tone="error">{error}</CasingNotice> : null}
       {notice ? <CasingNotice tone="success">{notice}</CasingNotice> : null}
 
-      {!loading && !activeRecord && !error ? (
-        <section className="rounded-[var(--tl-radius-lg)] border border-dashed border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-8 text-center">
-          <Layers3
-            aria-hidden="true"
-            className="mx-auto size-9 text-[var(--tl-ink-muted)]"
-          />
-          <h2 className="mt-3 text-lg font-bold text-[var(--tl-ink)]">
-            No active casing
-          </h2>
-          <p className="mt-1 text-sm text-[var(--tl-ink-muted)]">
-            Add the first casing string for this hole.
-          </p>
-          <Link
-            href={runbookRoutes.addCasing(holeId)}
-            className="mt-5 inline-flex min-h-12 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-5 font-bold text-white no-underline"
-          >
-            Add casing
-          </Link>
-        </section>
-      ) : null}
-
-      {activeRecord ? (
-        <>
-          <SectionPanel
-            title="Current casing"
-            description={activeRecord.casing.label || undefined}
-            action={<CasingStatusPill status={activeRecord.casing.status} />}
-          >
-            <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-              <MetricDisplay
-                label="Size"
-                value={activeRecord.casing.casingSize}
-                emphasis="strong"
-              />
-              <MetricDisplay
-                label="Current end"
-                value={formatCasingDepth(activeRecord.casing.currentEndDepthDm)}
-                emphasis="strong"
-              />
-              <MetricDisplay
-                label="Length"
-                value={formatCasingLength(
-                  activeRecord.casing.startDepthDm,
-                  activeRecord.casing.currentEndDepthDm,
-                )}
-              />
-              <MetricDisplay
-                label="Hole depth"
-                value={
-                  holeDepth === null ? "—" : formatCasingDepth(holeDepth)
-                }
-              />
-            </div>
-          </SectionPanel>
-
-          <SectionPanel title="Advance casing">
-            <div className="space-y-4">
-              <div className="grid gap-3 sm:grid-cols-3">
+      {!loading && installedRows.length > 0 ? (
+        <SectionPanel title="Current casing">
+          <div className="space-y-3">
+            {installedRows.map(({ size, record }) => (
+              <div
+                key={record.casing.localId}
+                className="grid grid-cols-2 gap-3"
+              >
+                <MetricDisplay label="Size" value={size} emphasis="strong" />
                 <MetricDisplay
-                  label="Previous end"
-                  value={formatCasingDepth(
-                    activeRecord.casing.currentEndDepthDm,
-                  )}
-                />
-                <MetricDisplay
-                  label="New end"
-                  value={
-                    parsedDepth.ok ? formatMetres(parsedDepth.value) : "—"
-                  }
+                  label="Casing depth"
+                  value={formatCasingDepth(record.casing.currentEndDepthDm)}
                   emphasis="strong"
                 />
-                <MetricDisplay
-                  label="Change"
-                  value={
-                    changeDm === null
-                      ? "—"
-                      : `+${(changeDm / 10).toFixed(1)} m`
-                  }
-                />
               </div>
-
-              <MetreInput
-                label="New end depth"
-                value={newDepth}
-                onValueChange={(value) => {
-                  setNewDepth(value);
-                  setDepthError(null);
-                  setNotice(null);
-                }}
-                min={0}
-                required
-                error={depthError ?? undefined}
-                disabled={loading || saving}
-              />
-
-              <div className="flex flex-wrap gap-2">
-                <button
-                  type="button"
-                  disabled={loading || saving}
-                  onClick={() => {
-                    setNewDepth(bumpMetres(newDepth, 3));
-                    setDepthError(null);
-                  }}
-                  className="inline-flex min-h-12 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold disabled:opacity-60"
-                >
-                  +3 m
-                </button>
-                <button
-                  type="button"
-                  disabled={loading || saving}
-                  onClick={() => {
-                    setNewDepth(bumpMetres(newDepth, 6));
-                    setDepthError(null);
-                  }}
-                  className="inline-flex min-h-12 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold disabled:opacity-60"
-                >
-                  +6 m
-                </button>
-              </div>
-
-              <FieldActionButton
-                type="button"
-                disabled={loading || saving}
-                busy={saving}
-                onClick={() => void saveAdvance()}
-                fullWidth
-              >
-                <Save aria-hidden="true" className="size-5" />
-                {saving ? "Saving…" : "Save advance"}
-              </FieldActionButton>
-            </div>
-          </SectionPanel>
-        </>
-      ) : null}
-
-      {otherRecords.length > 0 ? (
-        <SectionPanel title="Other strings">
-          <ul className="space-y-3">
-            {otherRecords.map(({ casing }) => (
-              <li
-                key={casing.localId}
-                className="flex flex-wrap items-center justify-between gap-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-4 py-3"
-              >
-                <div>
-                  <p className="font-bold text-[var(--tl-ink)]">
-                    {casing.casingSize}
-                    {casing.label ? ` · ${casing.label}` : ""}
-                  </p>
-                  <p className="text-sm text-[var(--tl-ink-muted)]">
-                    {formatCasingDepth(casing.startDepthDm)}–
-                    {formatCasingDepth(casing.currentEndDepthDm)}
-                  </p>
-                </div>
-                <div className="flex items-center gap-3">
-                  <CasingStatusPill status={casing.status} />
-                  <Link
-                    href={runbookRoutes.casingDetail(holeId, casing.localId)}
-                    className="font-bold text-[var(--tl-primary)] no-underline"
-                  >
-                    Open
-                  </Link>
-                </div>
-              </li>
             ))}
-          </ul>
+          </div>
         </SectionPanel>
       ) : null}
 
-      {activeRecord ? (
-        <p className="text-sm text-[var(--tl-ink-muted)]">
-          <Link
-            href={runbookRoutes.casingDetail(
-              holeId,
-              activeRecord.casing.localId,
-            )}
-            className="font-bold text-[var(--tl-primary)]"
+      <SectionPanel
+        title="Add casing"
+        description={
+          selectedInstalled
+            ? `Add depth to ${selectedSize}.`
+            : `Install ${selectedSize} to the entered depth.`
+        }
+      >
+        <div className="space-y-4">
+          <div
+            role="group"
+            aria-label="Casing size"
+            className="grid grid-cols-2 gap-2"
           >
-            Open casing detail
-          </Link>{" "}
-          for lifecycle changes.
-        </p>
-      ) : null}
+            {PILOT_CASING_SIZES.map((size) => {
+              const selected = sizeInitialized && selectedSize === size;
+              return (
+                <button
+                  key={size}
+                  type="button"
+                  disabled={loading || saving}
+                  aria-pressed={selected}
+                  onClick={() => selectSize(size)}
+                  className={
+                    selected
+                      ? "inline-flex min-h-12 items-center justify-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 font-bold text-white disabled:opacity-60"
+                      : "inline-flex min-h-12 items-center justify-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold disabled:opacity-60"
+                  }
+                >
+                  {size}
+                </button>
+              );
+            })}
+          </div>
+
+          <MetreInput
+            label="Casing depth"
+            value={newDepth}
+            onValueChange={(value) => {
+              setNewDepth(value);
+              setDepthError(null);
+              setNotice(null);
+            }}
+            min={0}
+            required
+            error={depthError ?? undefined}
+            disabled={loading || saving}
+          />
+
+          <div className="grid grid-cols-2 gap-2">
+            <button
+              type="button"
+              disabled={loading || saving}
+              onClick={() => {
+                setNewDepth(bumpMetres(newDepth, 3));
+                setDepthError(null);
+              }}
+              className="inline-flex min-h-12 items-center justify-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold disabled:opacity-60"
+            >
+              +3 m
+            </button>
+            <button
+              type="button"
+              disabled={loading || saving}
+              onClick={() => {
+                setNewDepth(bumpMetres(newDepth, 6));
+                setDepthError(null);
+              }}
+              className="inline-flex min-h-12 items-center justify-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-4 font-bold disabled:opacity-60"
+            >
+              +6 m
+            </button>
+          </div>
+
+          <FieldActionButton
+            type="button"
+            disabled={loading || saving}
+            busy={saving}
+            onClick={() => void saveCasing()}
+            fullWidth
+          >
+            <Save aria-hidden="true" className="size-5" />
+            {saving ? "Saving…" : "Add casing"}
+          </FieldActionButton>
+        </div>
+      </SectionPanel>
     </div>
   );
 }

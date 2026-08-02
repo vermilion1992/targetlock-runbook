@@ -7,10 +7,11 @@ export const TRAY_FRAME_WIDTH_CM = TRAY_FRAME_LONG_CM;
 export const TRAY_FRAME_HEIGHT_CM = TRAY_FRAME_SHORT_CM;
 
 /**
- * Capture frame width/height with the phone upright and the tray long axis
- * running vertically (35 cm across × 110 cm tall).
+ * Photograph guide width/height with the phone upright. The guide deliberately
+ * includes breathing room around the physical tray, matching a clear full-tray
+ * field photograph rather than cropping tightly to the nominal 35 × 110 cm.
  */
-export const TRAY_FRAME_ASPECT = TRAY_FRAME_SHORT_CM / TRAY_FRAME_LONG_CM;
+export const TRAY_FRAME_ASPECT = 1 / 2;
 
 export interface ViewRect {
   readonly left: number;
@@ -24,6 +25,32 @@ export interface SourceCropRect {
   readonly sy: number;
   readonly sw: number;
   readonly sh: number;
+}
+
+/** Rectangle occupied by an object-contain video inside the camera stage. */
+export function fitContainedMediaInView(
+  mediaWidth: number,
+  mediaHeight: number,
+  viewWidth: number,
+  viewHeight: number,
+): ViewRect {
+  if (
+    mediaWidth <= 0 ||
+    mediaHeight <= 0 ||
+    viewWidth <= 0 ||
+    viewHeight <= 0
+  ) {
+    throw new Error("Camera preview dimensions are invalid.");
+  }
+  const scale = Math.min(viewWidth / mediaWidth, viewHeight / mediaHeight);
+  const width = mediaWidth * scale;
+  const height = mediaHeight * scale;
+  return {
+    left: (viewWidth - width) / 2,
+    top: (viewHeight - height) / 2,
+    width,
+    height,
+  };
 }
 
 /**
@@ -67,16 +94,46 @@ export function mapCoverFrameToVideoCrop(
   return { sx, sy, sw, sh };
 }
 
-/** Largest vertical tray frame that fits inside the padded viewport. */
-export function fitTrayFrameInView(
+/**
+ * Maps a stage frame onto source video pixels when the complete video is
+ * rendered with object-fit: contain. This avoids the implicit zoom/crop caused
+ * by object-cover on phones whose camera stream has a different aspect ratio.
+ */
+export function mapContainedFrameToVideoCrop(
+  videoWidth: number,
+  videoHeight: number,
   viewWidth: number,
   viewHeight: number,
+  frame: ViewRect,
+): SourceCropRect {
+  const preview = fitContainedMediaInView(
+    videoWidth,
+    videoHeight,
+    viewWidth,
+    viewHeight,
+  );
+  const scale = preview.width / videoWidth;
+  let sx = (frame.left - preview.left) / scale;
+  let sy = (frame.top - preview.top) / scale;
+  let sw = frame.width / scale;
+  let sh = frame.height / scale;
+
+  sx = Math.max(0, Math.min(sx, videoWidth - 1));
+  sy = Math.max(0, Math.min(sy, videoHeight - 1));
+  sw = Math.max(1, Math.min(sw, videoWidth - sx));
+  sh = Math.max(1, Math.min(sh, videoHeight - sy));
+  return { sx, sy, sw, sh };
+}
+
+/** Largest vertical tray guide that fits inside the supplied preview bounds. */
+export function fitTrayFrameInRect(
+  bounds: ViewRect,
   paddingRatio = 0.08,
 ): ViewRect {
-  const padX = viewWidth * paddingRatio;
-  const padY = viewHeight * paddingRatio;
-  const availW = Math.max(1, viewWidth - padX * 2);
-  const availH = Math.max(1, viewHeight - padY * 2);
+  const padX = bounds.width * paddingRatio;
+  const padY = bounds.height * paddingRatio;
+  const availW = Math.max(1, bounds.width - padX * 2);
+  const availH = Math.max(1, bounds.height - padY * 2);
   let width = availW;
   let height = width / TRAY_FRAME_ASPECT;
   if (height > availH) {
@@ -84,53 +141,108 @@ export function fitTrayFrameInView(
     width = height * TRAY_FRAME_ASPECT;
   }
   return {
-    left: (viewWidth - width) / 2,
-    top: (viewHeight - height) / 2,
+    left: bounds.left + (bounds.width - width) / 2,
+    top: bounds.top + (bounds.height - height) / 2,
     width,
     height,
   };
 }
 
-let lockedScrollY = 0;
+/** Largest vertical tray guide that fits inside the padded viewport. */
+export function fitTrayFrameInView(
+  viewWidth: number,
+  viewHeight: number,
+  paddingRatio = 0.08,
+): ViewRect {
+  return fitTrayFrameInRect(
+    { left: 0, top: 0, width: viewWidth, height: viewHeight },
+    paddingRatio,
+  );
+}
+
+interface MobileViewportLock {
+  readonly scrollX: number;
+  readonly scrollY: number;
+  readonly body: Readonly<Record<string, string>>;
+  readonly root: Readonly<Record<string, string>>;
+}
+
+const BODY_LOCK_PROPERTIES = [
+  "position",
+  "top",
+  "left",
+  "right",
+  "width",
+  "overflow",
+  "overscroll-behavior",
+] as const;
+const ROOT_LOCK_PROPERTIES = [
+  "overflow",
+  "height",
+  "zoom",
+  "overscroll-behavior",
+] as const;
+
+let mobileViewportLock: MobileViewportLock | null = null;
+
+function snapshotProperties(
+  style: CSSStyleDeclaration,
+  properties: readonly string[],
+): Readonly<Record<string, string>> {
+  return Object.fromEntries(
+    properties.map((property) => [property, style.getPropertyValue(property)]),
+  );
+}
+
+function restoreProperties(
+  style: CSSStyleDeclaration,
+  snapshot: Readonly<Record<string, string>>,
+): void {
+  for (const [property, value] of Object.entries(snapshot)) {
+    if (value) style.setProperty(property, value);
+    else style.removeProperty(property);
+  }
+}
 
 /** Lock document scroll while the in-app camera is open (avoids mobile viewport jump). */
 export function lockMobileViewportForCamera(): void {
   if (typeof window === "undefined" || typeof document === "undefined") return;
-  lockedScrollY = window.scrollY || window.pageYOffset || 0;
+  if (mobileViewportLock !== null) return;
   const body = document.body;
+  const root = document.documentElement;
+  const scrollX = window.scrollX || window.pageXOffset || 0;
+  const scrollY = window.scrollY || window.pageYOffset || 0;
+  mobileViewportLock = {
+    scrollX,
+    scrollY,
+    body: snapshotProperties(body.style, BODY_LOCK_PROPERTIES),
+    root: snapshotProperties(root.style, ROOT_LOCK_PROPERTIES),
+  };
   body.dataset.tlCameraLock = "1";
   body.style.position = "fixed";
-  body.style.top = `-${lockedScrollY}px`;
+  body.style.top = `-${scrollY}px`;
   body.style.left = "0";
   body.style.right = "0";
-  body.style.width = "100%";
+  body.style.width = "auto";
   body.style.overflow = "hidden";
-  document.documentElement.style.overflow = "hidden";
+  body.style.overscrollBehavior = "none";
+  root.style.overflow = "hidden";
+  root.style.overscrollBehavior = "none";
 }
 
 export function restoreMobileViewportAfterCamera(): void {
   if (typeof window === "undefined" || typeof document === "undefined") return;
+  const snapshot = mobileViewportLock;
+  if (snapshot === null) return;
+  // Clear first so repeated close/capture cleanup is harmless.
+  mobileViewportLock = null;
   const root = document.documentElement;
   const body = document.body;
-  const wasLocked = body.dataset.tlCameraLock === "1";
-  const y = wasLocked
-    ? Math.abs(Number.parseInt(body.style.top || "0", 10)) || lockedScrollY
-    : window.scrollY;
-
   delete body.dataset.tlCameraLock;
-  body.style.removeProperty("position");
-  body.style.removeProperty("top");
-  body.style.removeProperty("left");
-  body.style.removeProperty("right");
-  body.style.removeProperty("width");
-  body.style.removeProperty("overflow");
-  root.style.removeProperty("overflow");
-  root.style.removeProperty("height");
-  root.style.removeProperty("zoom");
-
-  window.scrollTo(0, y);
+  restoreProperties(body.style, snapshot.body);
+  restoreProperties(root.style, snapshot.root);
+  window.scrollTo(snapshot.scrollX, snapshot.scrollY);
   requestAnimationFrame(() => {
-    window.scrollTo(0, y);
-    window.dispatchEvent(new Event("resize"));
+    window.scrollTo(snapshot.scrollX, snapshot.scrollY);
   });
 }

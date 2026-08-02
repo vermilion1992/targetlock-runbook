@@ -136,6 +136,11 @@ export interface ActualTrajectoryConfiguration extends SyncMetadata {
   readonly maximumTurnPer30mTenths?: number;
   /** Changes smaller than this are presented as HOLD, in tenths of a degree. */
   readonly guidanceDeadbandTenths?: number;
+  /**
+   * Outside-target miss distance treated as near miss (amber), in decimetres.
+   * Inside target is green; beyond this limit is red.
+   */
+  readonly nearMissOutsideTargetDm?: Decimetres;
 }
 
 export type TrajectorySurveySelectionReason =

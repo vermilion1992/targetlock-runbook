@@ -18,6 +18,7 @@ import { resolveSafeReturnPath } from "@/components/navigation/resolve-safe-retu
 import {
   convertAzimuthDegrees,
   DEFAULT_GUIDANCE_DEADBAND_DEG,
+  DEFAULT_NEAR_MISS_OUTSIDE_TARGET_M,
   DEFAULT_STEERING_LIMITS,
   parseAzimuthInput,
   parseDipInput,
@@ -50,6 +51,9 @@ export function SurveySettingsForm({
   const [surveyAzimuthRef, setSurveyAzimuthRef] =
     useState<NorthReference>("GRID");
   const [defaultIntervalM, setDefaultIntervalM] = useState("30.0");
+  const [nearMissOutsideTargetM, setNearMissOutsideTargetM] = useState(
+    DEFAULT_NEAR_MISS_OUTSIDE_TARGET_M.toFixed(1),
+  );
   const [maximumDogleg, setMaximumDogleg] = useState(
     DEFAULT_STEERING_LIMITS.maximumDoglegPer30mDegrees.toFixed(1),
   );
@@ -126,6 +130,13 @@ export function SurveySettingsForm({
           } else {
             setDefaultIntervalM("");
           }
+          setNearMissOutsideTargetM(
+            (
+              setup.actualConfiguration.nearMissOutsideTargetDm === undefined
+                ? DEFAULT_NEAR_MISS_OUTSIDE_TARGET_M
+                : Number(setup.actualConfiguration.nearMissOutsideTargetDm) / 10
+            ).toFixed(1),
+          );
           setMaximumDogleg(
             (
               (setup.actualConfiguration.maximumDoglegPer30mTenths ??
@@ -320,6 +331,20 @@ export function SurveySettingsForm({
         preferredSurveyIntervalDm = Number(interval.value);
       }
 
+      const nearMissParsed = parseMetreInput(nearMissOutsideTargetM);
+      if (
+        !nearMissParsed.ok ||
+        Number(nearMissParsed.value) < 0 ||
+        Number(nearMissParsed.value) > 1_000
+      ) {
+        setMessage(
+          "Near miss must be between 0.0 m and 100.0 m outside the target.",
+        );
+        setBusy(false);
+        return;
+      }
+      const nearMissOutsideTargetDm = Number(nearMissParsed.value);
+
       const envelopeValues = [
         ["Maximum dogleg", maximumDogleg],
         ["Maximum lift", maximumLift],
@@ -360,6 +385,7 @@ export function SurveySettingsForm({
           collarNorthReference: collarRef,
           preferredSurveyNorthReference: surveyAzimuthRef,
           preferredSurveyIntervalDm,
+          nearMissOutsideTargetDm,
           maximumDoglegPer30mTenths: Math.round(
             Number(maximumDogleg) * 10,
           ),
@@ -470,6 +496,31 @@ export function SurveySettingsForm({
           Dip convention: −90° down, 0° horizontal, +90° up (display only —
           not casually editable).
         </p>
+      </section>
+
+      <section
+        className="space-y-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4"
+        data-testid="target-alert-settings"
+      >
+        <div>
+          <h2 className="text-lg font-semibold">Target alerts</h2>
+          <p className="mt-1 max-w-3xl text-sm text-[var(--tl-ink-muted)]">
+            Trajectory banner: green inside the target, amber up to this
+            outside distance, red beyond it. Target diameter is set on the
+            target itself (typically ~6 m).
+          </p>
+        </div>
+        <label className="block max-w-xs space-y-1 text-sm">
+          <span className="font-medium">Near miss (m outside)</span>
+          <input
+            aria-label="Near miss (m outside)"
+            inputMode="decimal"
+            className="min-h-11 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] px-3 tabular-nums"
+            value={nearMissOutsideTargetM}
+            onChange={(event) => setNearMissOutsideTargetM(event.target.value)}
+            data-testid="near-miss-input"
+          />
+        </label>
       </section>
 
       <section

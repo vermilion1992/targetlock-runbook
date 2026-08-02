@@ -70,13 +70,13 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   await expect(page.getByText(/Draft saved locally/)).toBeVisible();
   await page.getByRole("link", { name: "Back to Overview" }).click();
 
-  // 6. Close and hand over to Night Shift
+  // 6. End shift and hand over to Night Shift
   await page.getByRole("link", { name: "Close shift" }).click();
   await expect(page.getByText("Run 248 is in progress")).toBeVisible();
   await page
     .getByRole("textbox", { name: "Handover note" })
     .fill("PilotLock pilot handover with shared run 248.");
-  await page.getByRole("button", { name: "Close and hand over" }).click();
+  await page.getByRole("button", { name: "End shift" }).click();
   await expect(
     page.getByRole("heading", { name: "DAY SHIFT HANDOVER" }),
   ).toBeVisible();
@@ -103,11 +103,12 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   await expect(page).toHaveURL(/\/runs\/local-run-/);
   await expect(page.getByText("Shared between shifts")).toBeVisible();
 
-  // 8. Advance casing
+  // 8. Add casing (extend PQ)
   await page.goto("/holes/DDH041/casing");
-  await page.getByRole("textbox", { name: "New end depth" }).fill("19.0");
-  await page.getByRole("button", { name: "Save advance" }).click();
-  await expect(page.getByText("Casing advanced.")).toBeVisible();
+  await page.getByRole("button", { name: "PQ", exact: true }).click();
+  await page.getByRole("textbox", { name: "Casing depth" }).fill("19.0");
+  await page.getByRole("button", { name: "Add casing" }).click();
+  await expect(page.getByText("PQ casing updated.")).toBeVisible();
 
   // 9. Change bit
   await page.goto("/holes/DDH041/components/bit/change");
@@ -154,6 +155,9 @@ test("TargetLock Runbook V1 complete local pilot workflow", async ({
   // 14. Close final Shift
   await page.goto("/holes/DDH041/current");
   await page.getByRole("link", { name: "Close shift" }).click();
+  await page
+    .getByText("Hole finished — close without handover")
+    .click();
   await page.getByRole("button", { name: "Close as final shift" }).click();
   await expect(
     page.getByText("Final shift closed. Continue with final hole review when ready."),

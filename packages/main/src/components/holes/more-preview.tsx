@@ -120,7 +120,7 @@ export function MorePreview({ holeId }: { holeId: string }) {
     {
       id: "casing",
       label: "Casing",
-      description: "Advance the current string or change casing size.",
+      description: "Add PQ or HQ casing to depth.",
       icon: Cylinder,
       href: runbookRoutes.casing(holeId),
     },

@@ -160,6 +160,7 @@ describe("buildFieldTrajectoryViewModel", () => {
       },
       warnings: [],
       sourceVersions: [],
+      nearMissOutsideTargetM: 3,
     };
 
     const model = buildFieldTrajectoryViewModel(result);
@@ -300,6 +301,7 @@ describe("buildFieldTrajectoryViewModel", () => {
       projection: null,
       warnings: [],
       sourceVersions: [],
+      nearMissOutsideTargetM: 3,
     };
 
     const model = buildFieldTrajectoryViewModel(result);

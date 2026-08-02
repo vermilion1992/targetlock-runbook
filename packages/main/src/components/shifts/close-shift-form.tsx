@@ -14,9 +14,7 @@ import {
   type ShiftCloseReadiness,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
-import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
-import { StatusPill } from "@/components/field/status-pill";
 import {
   createCompletionOperationId,
   defaultCompletionActor,
@@ -25,7 +23,7 @@ import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
-import { formatMetres, type RunbookShift, type ShiftAnalytics } from "@/domain";
+import { type RunbookShift, type ShiftAnalytics } from "@/domain";
 import { CloseShiftAnalyticsPreview } from "./shift-analytics-panels";
 
 export function CloseShiftForm({
@@ -160,7 +158,6 @@ export function CloseShiftForm({
     );
   }
 
-  const state = readiness.state;
   const canCloseFinally =
     readiness.mustResolve.length === 0 &&
     readiness.unfinishedRunNumber === undefined;
@@ -169,10 +166,9 @@ export function CloseShiftForm({
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
         eyebrow="Shifts"
-        title={`Close ${shift.shiftType === "DAY" ? "Day" : "Night"} Shift`}
+        title={`End ${shift.shiftType === "DAY" ? "Day" : "Night"} Shift`}
         description={`${shift.shiftDate} · ${shift.primaryDrillerNameSnapshot}`}
         backTarget={cancelBackTarget(parentHref, { onNavigate: requestLeave })}
-        action={<StatusPill tone="warning">Open</StatusPill>}
       />
 
       {message ? (
@@ -186,52 +182,6 @@ export function CloseShiftForm({
       ) : null}
 
       {analytics ? <CloseShiftAnalyticsPreview analytics={analytics} /> : null}
-
-      <SectionPanel
-        title="Ending hole state"
-        description="Reconstructed from the latest valid local records."
-      >
-        <div className="grid grid-cols-2 gap-3 md:grid-cols-4">
-          <MetricDisplay
-            label="Starting depth"
-            value={formatMetres(shift.startingDepthDm)}
-          />
-          <MetricDisplay
-            label="Ending depth"
-            value={formatMetres(state.currentDepthDm)}
-            emphasis="strong"
-          />
-          <MetricDisplay label="Rod number" value={state.currentRodNumber} />
-          <MetricDisplay
-            label="Current R/S"
-            value={formatMetres(state.currentRodStringDm)}
-          />
-          <MetricDisplay
-            label="Stick-up"
-            value={
-              state.measuredStickUpDm === undefined
-                ? "Not entered"
-                : formatMetres(state.measuredStickUpDm)
-            }
-          />
-          <MetricDisplay
-            label="Last completed run"
-            value={state.lastCompletedRunNumber}
-          />
-          <MetricDisplay
-            label="Current tray"
-            value={state.currentTrayNumber ?? "—"}
-          />
-          <MetricDisplay
-            label="Latest survey"
-            value={
-              state.latestSurveyDepthDm === undefined
-                ? "—"
-                : formatMetres(state.latestSurveyDepthDm)
-            }
-          />
-        </div>
-      </SectionPanel>
 
       {readiness.mustResolve.length > 0 ? (
         <SectionPanel
@@ -254,7 +204,7 @@ export function CloseShiftForm({
       {readiness.mayHandOver.length > 0 ? (
         <SectionPanel
           title="May hand over"
-          description="These legitimate unfinished items will continue under the incoming shift."
+          description="These unfinished items continue under the incoming shift."
         >
           <ul className="space-y-2" aria-live="polite">
             {readiness.mayHandOver.map((warning) => (
@@ -285,7 +235,7 @@ export function CloseShiftForm({
       >
         <SectionPanel
           title="Handover note"
-          description="Optional operational context for the incoming shift."
+          description="Optional context for the incoming shift."
         >
           <label htmlFor="handover-note" className="sr-only">
             Handover note
@@ -295,39 +245,41 @@ export function CloseShiftForm({
             value={note}
             onChange={(event) => setNote(event.target.value)}
             maxLength={2_000}
-            rows={5}
+            rows={4}
             placeholder="For example: core slightly broken near the end of the last run."
             className="w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3 text-base"
           />
         </SectionPanel>
-        <div className="grid gap-3 sm:grid-cols-2">
-          <FieldActionButton
-            type="submit"
-            fieldSize="major"
-            fullWidth
-            busy={saving}
-            disabled={readiness.mustResolve.length > 0}
-          >
-            <LogOut aria-hidden="true" className="size-5" /> Close and hand over
-          </FieldActionButton>
-        </div>
+        <FieldActionButton
+          type="submit"
+          fieldSize="major"
+          fullWidth
+          busy={saving}
+          disabled={readiness.mustResolve.length > 0}
+        >
+          <LogOut aria-hidden="true" className="size-5" /> End shift
+        </FieldActionButton>
       </form>
 
-      <SectionPanel
-        title="Close as final shift"
-        description="Use this when drilling is finished and no incoming shift will continue the hole. This closes the shift without handover so final hole review can proceed."
-      >
+      <details className="rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4">
+        <summary className="min-h-11 cursor-pointer list-none font-bold text-[var(--tl-ink)] [&::-webkit-details-marker]:hidden">
+          Hole finished — close without handover
+        </summary>
+        <p className="mt-3 text-sm text-[var(--tl-ink-muted)]">
+          Use only when drilling is finished and no incoming shift will
+          continue. Closes this shift so final hole review can proceed.
+        </p>
         {!canCloseFinally ? (
-          <p role="status" className="text-sm text-[var(--tl-ink-muted)]">
+          <p role="status" className="mt-3 text-sm text-[var(--tl-ink-muted)]">
             Finish or hand over any unfinished run before closing as the final
             shift.
           </p>
         ) : null}
-        <div className="mt-3">
+        <div className="mt-4">
           <FieldActionButton
             type="button"
             variant="secondary"
-            fieldSize="major"
+            fieldSize="large"
             busy={saving}
             disabled={!canCloseFinally}
             onClick={() => void submitFinalClose()}
@@ -335,7 +287,7 @@ export function CloseShiftForm({
             <Flag aria-hidden="true" className="size-5" /> Close as final shift
           </FieldActionButton>
         </div>
-      </SectionPanel>
+      </details>
       {discardDialog}
     </div>
   );

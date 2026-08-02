@@ -6,7 +6,6 @@ import { useEffect, useId, useRef, useState } from "react";
 import { TrayCameraCapture } from "@/components/media/tray-camera-capture";
 import {
   MAX_ORIGINAL_IMAGE_BYTES,
-  restoreMobileViewportAfterCamera,
   validateImageBlob,
 } from "@/infrastructure/media";
 
@@ -23,7 +22,7 @@ export function PhotoInput({
   file: File | null;
   onFile: (file: File | null) => void;
   required?: boolean;
-  /** Tray mode opens a framed in-app camera (vertical 35×110 cm, start top-right). */
+  /** Tray mode opens a full-tray in-app camera guide, start at top-right. */
   mode?: "generic" | "tray";
 }) {
   const generatedId = useId();
@@ -39,15 +38,6 @@ export function PhotoInput({
     },
     [preview],
   );
-
-  useEffect(() => {
-    if (file === null) {
-      setPreview((current) => {
-        if (current !== null) URL.revokeObjectURL(current);
-        return null;
-      });
-    }
-  }, [file]);
 
   function acceptFile(selected: File | null) {
     if (selected === null) {
@@ -67,7 +57,6 @@ export function PhotoInput({
         return URL.createObjectURL(selected);
       });
       onFile(selected);
-      restoreMobileViewportAfterCamera();
     } catch (caught) {
       setError(
         caught instanceof Error
@@ -95,7 +84,7 @@ export function PhotoInput({
             className="flex min-h-14 cursor-pointer items-center justify-center gap-3 rounded-[var(--tl-radius-md)] border-2 border-dashed border-[var(--tl-primary)] bg-[var(--tl-primary-soft)] px-4 py-3 font-bold text-[var(--tl-primary)]"
           >
             <Camera aria-hidden="true" className="size-6" />
-            FRAME TRAY PHOTO
+            TAKE CORE PHOTO
           </button>
           <button
             type="button"

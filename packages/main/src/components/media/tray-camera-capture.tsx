@@ -1,6 +1,6 @@
 "use client";
 
-import { Camera, X } from "lucide-react";
+import { ArrowDown, Camera, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -12,17 +12,80 @@ import { createPortal } from "react-dom";
 
 import {
   TRAY_FRAME_ASPECT,
-  TRAY_FRAME_LONG_CM,
-  TRAY_FRAME_SHORT_CM,
-  fitTrayFrameInView,
+  fitContainedMediaInView,
+  fitTrayFrameInRect,
   lockMobileViewportForCamera,
-  mapCoverFrameToVideoCrop,
+  mapContainedFrameToVideoCrop,
   restoreMobileViewportAfterCamera,
+  type SourceCropRect,
   type ViewRect,
 } from "@/infrastructure/media/tray-camera";
 
-const CAPTURE_JPEG_QUALITY = 0.92;
-const CAPTURE_MAX_LONG_EDGE = 2400;
+const CAPTURE_JPEG_QUALITY = 0.8;
+const CAPTURE_MAX_LONG_EDGE = 2000;
+
+interface BrowserImageCapture {
+  takePhoto(): Promise<Blob>;
+}
+
+type BrowserImageCaptureConstructor = new (
+  track: MediaStreamTrack,
+) => BrowserImageCapture;
+
+async function applyContinuousFocusWhenAvailable(
+  track: MediaStreamTrack,
+): Promise<void> {
+  try {
+    const capabilities = track.getCapabilities?.() as MediaTrackCapabilities & {
+      focusMode?: readonly string[];
+    };
+    if (!capabilities.focusMode?.includes("continuous")) return;
+    await track.applyConstraints({
+      advanced: [{ focusMode: "continuous" }],
+    } as unknown as MediaTrackConstraints);
+  } catch {
+    // Focus constraints vary by browser; the camera remains usable without it.
+  }
+}
+
+async function takeHighResolutionStill(
+  track: MediaStreamTrack | undefined,
+): Promise<ImageBitmap | null> {
+  if (!track || typeof window === "undefined") return null;
+  const ImageCaptureApi = (
+    window as unknown as {
+      ImageCapture?: BrowserImageCaptureConstructor;
+    }
+  ).ImageCapture;
+  if (!ImageCaptureApi || typeof createImageBitmap !== "function") return null;
+  try {
+    const blob = await new ImageCaptureApi(track).takePhoto();
+    return await createImageBitmap(blob);
+  } catch {
+    // Safari and some Android browsers expose only the video-frame fallback.
+    return null;
+  }
+}
+
+function mapCropToSource(
+  crop: SourceCropRect,
+  fromWidth: number,
+  fromHeight: number,
+  toWidth: number,
+  toHeight: number,
+): SourceCropRect | null {
+  const fromAspect = fromWidth / fromHeight;
+  const toAspect = toWidth / toHeight;
+  // A native still may come back in a different sensor orientation. Only use
+  // it when normalized preview coordinates map reliably.
+  if (Math.abs(Math.log(fromAspect / toAspect)) > 0.12) return null;
+  return {
+    sx: (crop.sx / fromWidth) * toWidth,
+    sy: (crop.sy / fromHeight) * toHeight,
+    sw: (crop.sw / fromWidth) * toWidth,
+    sh: (crop.sh / fromHeight) * toHeight,
+  };
+}
 
 export function TrayCameraCapture({
   open,
@@ -40,11 +103,6 @@ export function TrayCameraCapture({
   const [error, setError] = useState<string | null>(null);
   const [starting, setStarting] = useState(false);
   const [capturing, setCapturing] = useState(false);
-  const [mounted, setMounted] = useState(false);
-
-  useEffect(() => {
-    setMounted(true);
-  }, []);
 
   const stopStream = useCallback(() => {
     streamRef.current?.getTracks().forEach((track) => track.stop());
@@ -59,7 +117,17 @@ export function TrayCameraCapture({
     if (!stage) return;
     const { width, height } = stage.getBoundingClientRect();
     if (width <= 0 || height <= 0) return;
-    setFrame(fitTrayFrameInView(width, height, 0.06));
+    const video = videoRef.current;
+    const previewBounds =
+      video && video.videoWidth > 0 && video.videoHeight > 0
+        ? fitContainedMediaInView(
+            video.videoWidth,
+            video.videoHeight,
+            width,
+            height,
+          )
+        : { left: 0, top: 0, width, height };
+    setFrame(fitTrayFrameInRect(previewBounds, 0.045));
   }, []);
 
   useLayoutEffect(() => {
@@ -73,20 +141,15 @@ export function TrayCameraCapture({
   }, [open, measureFrame]);
 
   useEffect(() => {
-    if (!open) {
-      stopStream();
-      setError(null);
-      setStarting(false);
-      setCapturing(false);
-      return;
-    }
+    if (!open) return;
 
     lockMobileViewportForCamera();
     let cancelled = false;
-    setStarting(true);
-    setError(null);
 
     async function startCamera() {
+      if (cancelled) return;
+      setStarting(true);
+      setError(null);
       if (!navigator.mediaDevices?.getUserMedia) {
         if (!cancelled) {
           setError(
@@ -102,10 +165,9 @@ export function TrayCameraCapture({
           audio: false,
           video: {
             facingMode: { ideal: "environment" },
-            // Prefer portrait sensor stream for upright tray capture.
-            width: { ideal: 1080 },
-            height: { ideal: 1920 },
-            aspectRatio: { ideal: 9 / 16 },
+            // Ask for detail without forcing a sensor aspect/orientation.
+            width: { ideal: 1920 },
+            height: { ideal: 1080 },
           },
         });
         if (cancelled) {
@@ -113,6 +175,8 @@ export function TrayCameraCapture({
           return;
         }
         streamRef.current = stream;
+        const videoTrack = stream.getVideoTracks()[0];
+        if (videoTrack) await applyContinuousFocusWhenAvailable(videoTrack);
         const video = videoRef.current;
         if (video) {
           video.srcObject = stream;
@@ -130,7 +194,7 @@ export function TrayCameraCapture({
       }
     }
 
-    void startCamera();
+    void Promise.resolve().then(startCamera);
 
     return () => {
       cancelled = true;
@@ -158,9 +222,10 @@ export function TrayCameraCapture({
     }
 
     setCapturing(true);
+    let stillToClose: ImageBitmap | null = null;
     try {
       const stageRect = stage.getBoundingClientRect();
-      const crop = mapCoverFrameToVideoCrop(
+      const previewCrop = mapContainedFrameToVideoCrop(
         video.videoWidth,
         video.videoHeight,
         stageRect.width,
@@ -168,15 +233,37 @@ export function TrayCameraCapture({
         frame,
       );
 
-      let outW = Math.round(crop.sw);
-      let outH = Math.round(crop.sh);
+      let source: CanvasImageSource = video;
+      let sourceCrop = previewCrop;
+      const still = await takeHighResolutionStill(
+        streamRef.current?.getVideoTracks()[0],
+      );
+      if (still) {
+        const stillCrop = mapCropToSource(
+          previewCrop,
+          video.videoWidth,
+          video.videoHeight,
+          still.width,
+          still.height,
+        );
+        if (stillCrop) {
+          source = still;
+          sourceCrop = stillCrop;
+          stillToClose = still;
+        } else {
+          still.close();
+        }
+      }
+
+      let outW = Math.round(sourceCrop.sw);
+      let outH = Math.round(sourceCrop.sh);
       const longEdge = Math.max(outW, outH);
       if (longEdge > CAPTURE_MAX_LONG_EDGE) {
         const scale = CAPTURE_MAX_LONG_EDGE / longEdge;
         outW = Math.max(1, Math.round(outW * scale));
         outH = Math.max(1, Math.round(outH * scale));
       }
-      // Keep exact vertical tray aspect after rounding.
+      // Keep the full-tray guide aspect exact after rounding.
       outH = Math.max(1, Math.round(outW / TRAY_FRAME_ASPECT));
 
       const canvas = document.createElement("canvas");
@@ -187,11 +274,11 @@ export function TrayCameraCapture({
         throw new Error("Image capture is not available in this browser.");
       }
       context.drawImage(
-        video,
-        crop.sx,
-        crop.sy,
-        crop.sw,
-        crop.sh,
+        source,
+        sourceCrop.sx,
+        sourceCrop.sy,
+        sourceCrop.sw,
+        sourceCrop.sh,
         0,
         0,
         outW,
@@ -223,11 +310,12 @@ export function TrayCameraCapture({
           : "Could not capture the tray photograph.",
       );
     } finally {
+      stillToClose?.close();
       setCapturing(false);
     }
   }
 
-  if (!mounted || !open) return null;
+  if (!open || typeof document === "undefined") return null;
 
   return createPortal(
     <div
@@ -243,7 +331,7 @@ export function TrayCameraCapture({
             TargetLock · Core tray
           </p>
           <h2 id="tray-camera-title" className="truncate text-lg font-bold tracking-tight">
-            Frame photograph
+            Take core photo
           </h2>
         </div>
         <button
@@ -265,17 +353,18 @@ export function TrayCameraCapture({
           playsInline
           muted
           autoPlay
-          className="absolute inset-0 h-full w-full object-cover"
+          onLoadedMetadata={measureFrame}
+          className="absolute inset-0 h-full w-full bg-black object-contain"
         />
 
         {frame ? (
           <>
-            {/* Dim mask — no border boxes; corners alone define the frame */}
+            {/* Dim outside the full-tray guide while keeping the feed visible. */}
             <div
               aria-hidden="true"
-              className="pointer-events-none absolute"
+              className="pointer-events-none absolute rounded-sm border border-white/70"
               style={{
-                boxShadow: `0 0 0 9999px rgb(8 14 24 / 72%)`,
+                boxShadow: `0 0 0 9999px rgb(8 14 24 / 58%)`,
                 left: frame.left,
                 top: frame.top,
                 width: frame.width,
@@ -285,26 +374,16 @@ export function TrayCameraCapture({
 
             <CornerBrackets frame={frame} />
 
-            {/* Start-of-tray overlay (top-right of vertical frame) */}
+            {/* Small unobtrusive marker; unlike the old card it does not hide the tray. */}
             <div
-              className="pointer-events-none absolute z-10"
+              className="pointer-events-none absolute z-10 inline-flex items-center gap-1 rounded-bl-md bg-[#2563eb]/90 px-2 py-1 text-[0.62rem] font-bold uppercase tracking-[0.14em] text-white shadow-md"
               style={{
-                left:
-                  frame.left +
-                  frame.width -
-                  Math.min(112, Math.max(88, frame.width * 0.55)),
-                top: frame.top + 10,
-                width: Math.min(108, Math.max(84, frame.width * 0.52)),
+                left: frame.left + frame.width,
+                top: frame.top,
+                transform: "translateX(-100%)",
               }}
             >
-              <div className="rounded-md border border-[#60a5fa]/70 bg-[#0b121c]/78 px-2 py-1.5 shadow-[0_8px_24px_rgb(0_0_0_/45%)] backdrop-blur-[2px]">
-                <p className="text-[0.58rem] font-semibold uppercase tracking-[0.16em] text-[#93c5fd]">
-                  Tray start
-                </p>
-                <p className="mt-0.5 text-[0.7rem] font-bold leading-tight text-white">
-                  Top-right corner
-                </p>
-              </div>
+              Start <ArrowDown aria-hidden="true" className="size-3" />
             </div>
           </>
         ) : null}
@@ -320,11 +399,9 @@ export function TrayCameraCapture({
 
       <footer className="relative z-20 shrink-0 space-y-3 border-t border-white/10 bg-[#0b121c]/95 px-4 pb-[max(1rem,env(safe-area-inset-bottom))] pt-3 backdrop-blur-md">
         <p className="text-center text-xs leading-relaxed text-[#a9b8c8]">
-          Hold the phone upright. Align the tray in the{" "}
-          {TRAY_FRAME_SHORT_CM} × {TRAY_FRAME_LONG_CM} cm vertical frame (long
-          side top-to-bottom). Place the{" "}
-          <span className="font-semibold text-white">start of tray</span> at the
-          top-right mark.
+          Hold the phone upright. Fit the{" "}
+          <span className="font-semibold text-white">entire tray</span> inside
+          the guide with a small margin. Keep the start at the top-right.
         </p>
         <div className="flex items-center justify-center gap-8">
           <button
@@ -358,9 +435,8 @@ export function TrayCameraCapture({
 }
 
 function CornerBrackets({ frame }: { frame: ViewRect }) {
-  // Longer arms along the tall axis so corners read clearly on a vertical tray.
-  const arm = Math.min(36, frame.width * 0.22, frame.height * 0.07);
-  const thick = 3;
+  const arm = Math.min(44, Math.max(28, frame.width * 0.2));
+  const thick = 4;
   const corners = [
     { x: frame.left, y: frame.top, hx: 1, hy: 1, emphasize: false },
     {
@@ -400,19 +476,19 @@ function CornerBrackets({ frame }: { frame: ViewRect }) {
             height: arm,
             borderTop:
               corner.hy > 0
-                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "white"}`
+                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "#f8fafc"}`
                 : undefined,
             borderBottom:
               corner.hy < 0
-                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "white"}`
+                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "#f8fafc"}`
                 : undefined,
             borderLeft:
               corner.hx > 0
-                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "white"}`
+                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "#f8fafc"}`
                 : undefined,
             borderRight:
               corner.hx < 0
-                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "white"}`
+                ? `${thick}px solid ${corner.emphasize ? "#60a5fa" : "#f8fafc"}`
                 : undefined,
             boxShadow: corner.emphasize
               ? "0 0 12px rgb(96 165 251 / 55%)"

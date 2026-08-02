@@ -46,6 +46,8 @@ import type {
 
 export const DEFAULT_TARGET_DIAMETER_M = 6;
 export const DEFAULT_GUIDANCE_DEADBAND_DEG = 0.2;
+/** Outside-target miss treated as amber before red alert. */
+export const DEFAULT_NEAR_MISS_OUTSIDE_TARGET_M = 3;
 
 export type MiniTargetLockBlockCode =
   | "MISSING_COORDINATE_CONFIGURATION"
@@ -139,6 +141,8 @@ export interface MiniTargetLockResult {
   readonly directToTarget: MiniTargetLockDirectToTarget | null;
   readonly requiredChange: MiniTargetLockRequiredChange | null;
   readonly projection: MiniTargetLockProjection | null;
+  /** Outside-target distance treated as near miss (amber). */
+  readonly nearMissOutsideTargetM: number;
   readonly warnings: readonly TrajectoryWarning[];
   readonly sourceVersions: readonly TrajectorySourceVersion[];
 }
@@ -225,6 +229,15 @@ function buildCollar(
   };
 }
 
+function resolveNearMissOutsideTargetM(
+  actualConfiguration: ActualTrajectoryConfiguration | null | undefined,
+): number {
+  if (actualConfiguration?.nearMissOutsideTargetDm === undefined) {
+    return DEFAULT_NEAR_MISS_OUTSIDE_TARGET_M;
+  }
+  return decimetresToMetres(actualConfiguration.nearMissOutsideTargetDm);
+}
+
 function blockedResult(
   holeId: string,
   blockCode: MiniTargetLockBlockCode,
@@ -234,6 +247,7 @@ function blockedResult(
   extras: {
     readonly target?: MiniTargetLockTarget | null;
     readonly surveyIntervalM?: number | null;
+    readonly nearMissOutsideTargetM?: number;
   } = {},
 ): MiniTargetLockResult {
   return {
@@ -253,6 +267,8 @@ function blockedResult(
     directToTarget: null,
     requiredChange: null,
     projection: null,
+    nearMissOutsideTargetM:
+      extras.nearMissOutsideTargetM ?? DEFAULT_NEAR_MISS_OUTSIDE_TARGET_M,
     warnings,
     sourceVersions,
   };
@@ -449,6 +465,9 @@ export function calculateMiniTargetLock(
     input.actualConfiguration?.preferredSurveyIntervalDm === undefined
       ? null
       : decimetresToMetres(input.actualConfiguration.preferredSurveyIntervalDm);
+  const nearMissOutsideTargetM = resolveNearMissOutsideTargetM(
+    input.actualConfiguration,
+  );
 
   if (!input.coordinateConfiguration) {
     return blockedResult(
@@ -457,7 +476,7 @@ export function calculateMiniTargetLock(
       "Hole coordinate configuration is required before trajectory calculation.",
       warnings,
       sourceVersions,
-      { target: resolvedTarget, surveyIntervalM },
+      { target: resolvedTarget, surveyIntervalM, nearMissOutsideTargetM },
     );
   }
 
@@ -480,7 +499,7 @@ export function calculateMiniTargetLock(
         : coordinateBlock.message,
       [coordinateBlock],
       sourceVersions,
-      { target: resolvedTarget, surveyIntervalM },
+      { target: resolvedTarget, surveyIntervalM, nearMissOutsideTargetM },
     );
   }
 
@@ -497,7 +516,7 @@ export function calculateMiniTargetLock(
       "Collar direction is required before trajectory calculation.",
       warnings,
       sourceVersions,
-      { target: resolvedTarget, surveyIntervalM },
+      { target: resolvedTarget, surveyIntervalM, nearMissOutsideTargetM },
     );
   }
 
@@ -525,7 +544,7 @@ export function calculateMiniTargetLock(
       mineGridBlock.message,
       [mineGridBlock],
       sourceVersions,
-      { target: resolvedTarget, surveyIntervalM },
+      { target: resolvedTarget, surveyIntervalM, nearMissOutsideTargetM },
     );
   }
 
@@ -736,6 +755,7 @@ export function calculateMiniTargetLock(
       directToTarget,
       requiredChange,
       projection,
+      nearMissOutsideTargetM,
       warnings,
       sourceVersions,
     };
@@ -750,7 +770,7 @@ export function calculateMiniTargetLock(
       message,
       warnings,
       sourceVersions,
-      { target: resolvedTarget, surveyIntervalM },
+      { target: resolvedTarget, surveyIntervalM, nearMissOutsideTargetM },
     );
   }
 }

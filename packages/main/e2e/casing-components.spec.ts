@@ -58,15 +58,16 @@ test("advances casing and retains immutable history after refresh", async ({
 }) => {
   await page.goto("/holes/DDH041/casing");
   await expect(page.getByRole("heading", { name: "DDH041 casing" })).toBeVisible();
-  await page.getByRole("textbox", { name: "New end depth" }).fill("19.0");
-  await page.getByRole("button", { name: "Save advance" }).click();
-  await expect(page.getByText("Casing advanced.")).toBeVisible();
+  await page.getByRole("button", { name: "PQ", exact: true }).click();
+  await page.getByRole("textbox", { name: "Casing depth" }).fill("19.0");
+  await page.getByRole("button", { name: "Add casing" }).click();
+  await expect(page.getByText("PQ casing updated.")).toBeVisible();
   await expect(page.getByText("19.0 m", { exact: true }).first()).toBeVisible();
 
   await page.reload();
   await expect(page.getByText("19.0 m", { exact: true }).first()).toBeVisible();
 
-  await page.getByRole("link", { name: "Open casing detail" }).click();
+  await page.goto("/holes/DDH041/casing/casing-pq-ddh041");
   const advanceEvent = page.locator("li").filter({ hasText: "Advance" }).first();
   await expect(advanceEvent).toContainText("18.0 m");
   await expect(advanceEvent).toContainText("19.0 m");

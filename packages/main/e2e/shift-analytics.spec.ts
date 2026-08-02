@@ -60,17 +60,17 @@ test("Workflow 1 — Shift close summary", async ({ page }) => {
 
   await openCloseShift(page);
   const analytics = page.getByTestId("shift-close-analytics");
-  await expect(analytics.getByText("SHIFT BREAKDOWN")).toBeVisible();
+  await expect(analytics.getByText("Shift summary")).toBeVisible();
   await expect(analytics.getByText("Metres completed")).toBeVisible();
   await expect(analytics.getByText("Runs completed")).toBeVisible();
   await expect(analytics.getByText("Average Run")).toBeVisible();
   await expect(analytics.getByText("Median Run")).toBeVisible();
-  await expect(analytics.getByText("Weighted recovery")).toBeVisible();
-  await expect(analytics.getByText("ROD ACTIVITY")).toBeVisible();
-  await expect(analytics.getByText("3.0 m rods added")).toBeVisible();
-  await expect(analytics.getByText("SHIFT RECORDS")).toBeVisible();
+  await expect(analytics.getByText("Weighted recovery")).toHaveCount(0);
+  await expect(analytics.getByText("ROD ACTIVITY")).toHaveCount(0);
+  await expect(analytics.getByText("SHIFT RECORDS")).toHaveCount(0);
+  await expect(analytics.getByText("Core recovered")).toHaveCount(0);
 
-  await page.getByRole("button", { name: "Close and hand over" }).click();
+  await page.getByRole("button", { name: "End shift" }).click();
   await expect(
     page.getByRole("heading", { name: /DAY SHIFT HANDOVER/i }),
   ).toBeVisible();
@@ -93,7 +93,7 @@ test("Workflow 2 — Shared Run credited to completing Shift", async ({
   await page.getByRole("link", { name: "Back to Overview" }).click();
 
   await page.getByRole("link", { name: "Close shift" }).click();
-  await page.getByRole("button", { name: "Close and hand over" }).click();
+  await page.getByRole("button", { name: "End shift" }).click();
   await page.getByRole("combobox", { name: "Shift" }).selectOption("NIGHT");
   await page
     .getByRole("combobox", { name: "Incoming driller" })
@@ -130,7 +130,7 @@ test("Workflow 3 — Correction amendment preserves close snapshot", async ({
   });
 
   await openCloseShift(page);
-  await page.getByRole("button", { name: "Close and hand over" }).click();
+  await page.getByRole("button", { name: "End shift" }).click();
   await page.getByRole("combobox", { name: "Shift" }).selectOption("NIGHT");
   await page
     .getByRole("combobox", { name: "Incoming driller" })
@@ -251,7 +251,7 @@ test("Workflow 7 — Responsive close, handover, detail", async ({ page }) => {
   });
   await openCloseShift(page);
   const closeUrl = page.url();
-  await page.getByRole("button", { name: "Close and hand over" }).click();
+  await page.getByRole("button", { name: "End shift" }).click();
   await expect(
     page.getByRole("heading", { name: /DAY SHIFT HANDOVER/i }),
   ).toBeVisible();

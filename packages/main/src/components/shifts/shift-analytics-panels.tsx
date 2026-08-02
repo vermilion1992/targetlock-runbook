@@ -21,8 +21,8 @@ export function ShiftBreakdownPanel({
 }) {
   return (
     <SectionPanel
-      title="SHIFT BREAKDOWN"
-      description="Derived from effective completed Runs for this Shift."
+      title="Shift summary"
+      description="From completed runs this shift."
     >
       <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
         <MetricDisplay
@@ -50,24 +50,6 @@ export function ShiftBreakdownPanel({
           label="Median Run"
           value={formatOptionalMetres(analytics.medianRunLengthDm)}
         />
-        <MetricDisplay
-          label="Core recovered"
-          value={formatMetres(analytics.totalRecoveredDm)}
-        />
-        <MetricDisplay
-          label="Weighted recovery"
-          value={formatRecoveryTenths(analytics.weightedRecoveryTenths)}
-        />
-        <MetricDisplay
-          label="Core loss"
-          value={formatMetres(analytics.totalCoreLossDm)}
-        />
-        {analytics.totalCoreGainDm > 0 ? (
-          <MetricDisplay
-            label="Core gain"
-            value={formatMetres(analytics.totalCoreGainDm)}
-          />
-        ) : null}
       </div>
     </SectionPanel>
   );
@@ -442,17 +424,8 @@ export function CloseShiftAnalyticsPreview({
   analytics: ShiftAnalytics;
 }) {
   return (
-    <div className="space-y-5" data-testid="shift-close-analytics">
+    <div data-testid="shift-close-analytics">
       <ShiftBreakdownPanel analytics={analytics} />
-      <RodActivityPanel analytics={analytics} />
-      <ShiftRecordsPanel analytics={analytics} />
-      <CollapsibleFieldSection
-        title="Run charts"
-        description="Optional metres and recovery by Run"
-      >
-        <ShiftRunCharts analytics={analytics} />
-      </CollapsibleFieldSection>
-      <ShiftTimeMetricsPanel analytics={analytics} />
     </div>
   );
 }

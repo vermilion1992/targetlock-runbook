@@ -43,6 +43,51 @@ test.beforeEach(async ({ page }) => {
   await reset(page);
 });
 
+test("restores the phone viewport after closing the core camera", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/holes/DDH041/trays/new");
+  const before = await page.evaluate(() => ({
+    bodyStyle: document.body.getAttribute("style") ?? "",
+    rootStyle: document.documentElement.getAttribute("style") ?? "",
+    scrollWidth: document.documentElement.scrollWidth,
+  }));
+
+  await page.getByRole("button", { name: "TAKE CORE PHOTO" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Take core photo" }),
+  ).toBeVisible();
+  await expect
+    .poll(() =>
+      page.evaluate(() => document.body.dataset.tlCameraLock ?? null),
+    )
+    .toBe("1");
+
+  await page.getByRole("button", { name: "Close camera" }).click();
+  await expect(
+    page.getByRole("dialog", { name: "Take core photo" }),
+  ).toHaveCount(0);
+  await expect
+    .poll(() =>
+      page.evaluate(() => ({
+        bodyStyle: document.body.getAttribute("style") ?? "",
+        rootStyle: document.documentElement.getAttribute("style") ?? "",
+        lock: document.body.dataset.tlCameraLock ?? null,
+      })),
+    )
+    .toEqual({
+      bodyStyle: before.bodyStyle,
+      rootStyle: before.rootStyle,
+      lock: null,
+    });
+  await expectNoHorizontalOverflow(page, "tray form after camera");
+  await expect(
+    page.getByRole("textbox", { name: "Tray number" }),
+  ).toBeInViewport();
+  expect(before.scrollWidth).toBeLessThanOrEqual(390);
+});
+
 test("photographs the suggested next tray and persists image metadata", async ({
   page,
 }) => {

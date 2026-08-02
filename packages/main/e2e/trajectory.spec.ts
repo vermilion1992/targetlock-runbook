@@ -25,10 +25,10 @@ test("Workflow 1 — Trajectory cockpit and next-survey KPIs", async ({
   await expect(
     page.getByTestId("trajectory-metric-required-azimuth"),
   ).toBeVisible();
-  await expect(
-    page.getByTestId("trajectory-metric-projected-miss"),
-  ).toBeVisible();
-  await expect(page.getByTestId("trajectory-metric-target")).toBeVisible();
+  await expect(page.getByTestId("trajectory-metric-projected-miss")).toHaveCount(
+    0,
+  );
+  await expect(page.getByTestId("trajectory-metric-target")).toHaveCount(0);
   await page.reload();
   await expect(page.getByTestId("trajectory-dashboard")).toBeVisible();
 });

@@ -62,7 +62,7 @@ test("continues one unfinished run across Day and Night Shift", async ({
   await page.getByRole("textbox", { name: "Handover note" }).fill(
     "Core slightly broken near the end of the last run.",
   );
-  await page.getByRole("button", { name: "Close and hand over" }).click();
+  await page.getByRole("button", { name: "End shift" }).click();
 
   await expect(
     page.getByRole("heading", { name: "DAY SHIFT HANDOVER" }),

@@ -5,6 +5,7 @@ import type { HoleTrajectoryComparison, TrajectoryTrackingPoint } from "@/domain
 import {
   buildActualVsPlanStatus,
   buildPlanToTargetStatus,
+  classifyTargetProjectionAlert,
   mapTrackingStatusLabel,
 } from "./trajectory-status-model";
 
@@ -117,5 +118,48 @@ describe("trajectory status presentation mapper", () => {
     );
     expect(status.kind).toBe("NO_TOLERANCE");
     expect(status.detail).toContain("28.5 m");
+  });
+});
+
+describe("classifyTargetProjectionAlert", () => {
+  it("returns green when the projection intersects the target", () => {
+    expect(
+      classifyTargetProjectionAlert({
+        hasTarget: true,
+        intersectsTarget: true,
+        endpointMissOutsideTargetM: 0,
+        nearMissOutsideTargetM: 3,
+      }),
+    ).toMatchObject({ kind: "ON_TARGET", tone: "success", title: "On target" });
+  });
+
+  it("returns amber for a near miss within the configured band", () => {
+    expect(
+      classifyTargetProjectionAlert({
+        hasTarget: true,
+        intersectsTarget: false,
+        endpointMissOutsideTargetM: 2.4,
+        nearMissOutsideTargetM: 3,
+      }),
+    ).toMatchObject({
+      kind: "NEAR_MISS",
+      tone: "warning",
+      title: "Near miss",
+    });
+  });
+
+  it("returns red when miss exceeds the near-miss band", () => {
+    expect(
+      classifyTargetProjectionAlert({
+        hasTarget: true,
+        intersectsTarget: false,
+        endpointMissOutsideTargetM: 12.1,
+        nearMissOutsideTargetM: 3,
+      }),
+    ).toMatchObject({
+      kind: "PROJECTED_MISS",
+      tone: "danger",
+      title: "Projected miss",
+    });
   });
 });

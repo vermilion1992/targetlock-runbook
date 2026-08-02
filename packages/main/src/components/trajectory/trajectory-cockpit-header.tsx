@@ -5,37 +5,41 @@ import { Crosshair, Target } from "lucide-react";
 import type { MiniTargetLockResult } from "@/domain";
 
 import { formatMetresValue } from "./trajectory-format";
+import { classifyTargetProjectionAlert } from "./trajectory-status-model";
 
-function ProjectionStatusChip({ result }: { result: MiniTargetLockResult }) {
-  if (!result.projection || !result.target) {
-    return (
-      <div className="inline-flex items-center gap-2 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] px-3 py-2">
-        <Target aria-hidden className="size-4 text-[var(--tl-ink-muted)]" />
-        <p className="text-sm font-bold">No target configured</p>
-      </div>
-    );
-  }
-  const intersects = result.projection.intersectsTarget;
-  const tone = intersects
-    ? "border-[var(--tl-success)] bg-[var(--tl-success-soft)] text-[var(--tl-success)]"
-    : "border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] text-[var(--tl-warning)]";
+function ProjectionStatusBanner({ result }: { result: MiniTargetLockResult }) {
+  const alert = classifyTargetProjectionAlert({
+    hasTarget: Boolean(result.target),
+    intersectsTarget: result.projection?.intersectsTarget,
+    endpointMissOutsideTargetM: result.projection?.endpointMissOutsideTargetM,
+    nearMissOutsideTargetM: result.nearMissOutsideTargetM,
+  });
+
+  const toneClass =
+    alert.tone === "success"
+      ? "border-[var(--tl-success)] bg-[var(--tl-success-soft)] text-[var(--tl-success)]"
+      : alert.tone === "warning"
+        ? "border-[var(--tl-warning)] bg-[var(--tl-warning-soft)] text-[var(--tl-warning)]"
+        : alert.tone === "danger"
+          ? "border-[var(--tl-danger)] bg-[var(--tl-danger-soft)] text-[var(--tl-danger)]"
+          : "border-[var(--tl-border)] bg-[var(--tl-surface-sunken)] text-[var(--tl-ink)]";
+
+  const Icon = alert.kind === "NO_TARGET" ? Target : Crosshair;
+
   return (
     <div
-      className={`inline-flex items-center gap-2 rounded-[var(--tl-radius-md)] border px-3 py-2 ${tone}`}
+      className={`flex w-full items-center gap-3 rounded-[var(--tl-radius-md)] border px-4 py-3 ${toneClass}`}
       data-testid="trajectory-target-status"
+      data-alert-kind={alert.kind}
     >
-      <Crosshair aria-hidden className="size-4" />
-      <div>
-        <p className="text-sm font-bold">
-          {intersects
-            ? "Projected to intersect target"
-            : "Projected to miss target"}
-        </p>
-        <p className="text-[0.68rem] font-semibold opacity-80">
-          Hold miss{" "}
-          {formatMetresValue(result.projection.endpointMissOutsideTargetM)} ·
-          radius {(result.target.diameterM / 2).toFixed(1)} m
-        </p>
+      <Icon aria-hidden className="size-5 shrink-0" />
+      <div className="min-w-0 flex-1">
+        <p className="text-base font-bold sm:text-lg">{alert.title}</p>
+        {alert.detail ? (
+          <p className="mt-0.5 text-sm font-semibold opacity-90">
+            {alert.detail}
+          </p>
+        ) : null}
       </div>
     </div>
   );
@@ -59,7 +63,7 @@ export function TrajectoryCockpitHeader({
           : "Azimuth reference";
 
   return (
-    <header className="flex flex-col gap-4 lg:flex-row lg:items-end lg:justify-between">
+    <header className="space-y-4">
       <div className="min-w-0">
         <p className="text-xs font-bold uppercase tracking-[0.1em] text-[var(--tl-primary)]">
           {holeId} — TRAJECTORY
@@ -71,15 +75,10 @@ export function TrajectoryCockpitHeader({
           {latest
             ? `Latest Survey ${formatMetresValue(latest.measuredDepthM)}`
             : "No Survey yet"}
-          {result.target?.measuredDepthM !== undefined
-            ? ` · Target MD ${formatMetresValue(result.target.measuredDepthM)}`
-            : ""}
           {` · ${north}`}
         </p>
       </div>
-      <div className="flex flex-col items-start gap-3 lg:items-end">
-        <ProjectionStatusChip result={result} />
-      </div>
+      <ProjectionStatusBanner result={result} />
     </header>
   );
 }

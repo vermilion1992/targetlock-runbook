@@ -170,3 +170,71 @@ export function reviewItems(
 ): readonly TrajectoryWarning[] {
   return warnings.filter((warning) => warning.severity !== "info");
 }
+
+export type TargetProjectionAlertTone =
+  | "neutral"
+  | "success"
+  | "warning"
+  | "danger";
+
+export type TargetProjectionAlertKind =
+  | "NO_TARGET"
+  | "ON_TARGET"
+  | "NEAR_MISS"
+  | "PROJECTED_MISS";
+
+export interface TargetProjectionAlertView {
+  readonly kind: TargetProjectionAlertKind;
+  readonly tone: TargetProjectionAlertTone;
+  readonly title: string;
+  readonly detail?: string;
+}
+
+/**
+ * Traffic-light status for projected hold miss vs the configured near-miss band.
+ * Inside target → green; outside but ≤ near-miss limit → amber; worse → red.
+ */
+export function classifyTargetProjectionAlert(input: {
+  readonly hasTarget: boolean;
+  readonly intersectsTarget?: boolean;
+  readonly endpointMissOutsideTargetM?: number;
+  readonly nearMissOutsideTargetM: number;
+}): TargetProjectionAlertView {
+  if (!input.hasTarget) {
+    return {
+      kind: "NO_TARGET",
+      tone: "neutral",
+      title: "No target configured",
+    };
+  }
+  if (input.intersectsTarget === true) {
+    return {
+      kind: "ON_TARGET",
+      tone: "success",
+      title: "On target",
+    };
+  }
+  const miss = input.endpointMissOutsideTargetM;
+  if (miss === undefined || !Number.isFinite(miss)) {
+    return {
+      kind: "NO_TARGET",
+      tone: "neutral",
+      title: "Awaiting projection",
+    };
+  }
+  const nearMissLimit = Math.max(0, input.nearMissOutsideTargetM);
+  if (miss <= nearMissLimit) {
+    return {
+      kind: "NEAR_MISS",
+      tone: "warning",
+      title: "Near miss",
+      detail: `${formatMetresValue(miss)} outside`,
+    };
+  }
+  return {
+    kind: "PROJECTED_MISS",
+    tone: "danger",
+    title: "Projected miss",
+    detail: `${formatMetresValue(miss)} outside`,
+  };
+}

@@ -143,6 +143,7 @@ const actualSchema = z.object({
   maximumDropPer30mTenths: z.number().int().min(1).max(900).optional(),
   maximumTurnPer30mTenths: z.number().int().min(1).max(900).optional(),
   guidanceDeadbandTenths: z.number().int().min(0).max(50).optional(),
+  nearMissOutsideTargetDm: z.number().int().nonnegative().max(10_000).optional(),
 });
 
 const selectionSchema = z.object({
@@ -315,6 +316,8 @@ export interface SaveActualConfigurationInput {
   readonly maximumDropPer30mTenths?: number;
   readonly maximumTurnPer30mTenths?: number;
   readonly guidanceDeadbandTenths?: number;
+  /** Pass null to clear a previously saved near-miss limit. */
+  readonly nearMissOutsideTargetDm?: number | null;
   readonly occurredAt: string;
 }
 
@@ -442,6 +445,10 @@ function asActualConfiguration(
       value.preferredSurveyIntervalDm === undefined
         ? undefined
         : decimetres(value.preferredSurveyIntervalDm),
+    nearMissOutsideTargetDm:
+      value.nearMissOutsideTargetDm === undefined
+        ? undefined
+        : decimetres(value.nearMissOutsideTargetDm),
   };
 }
 
@@ -972,6 +979,14 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
             : existing?.preferredSurveyIntervalDm === undefined
               ? undefined
               : Number(existing.preferredSurveyIntervalDm);
+      const nearMissOutsideTargetDm =
+        input.nearMissOutsideTargetDm === null
+          ? undefined
+          : input.nearMissOutsideTargetDm !== undefined
+            ? input.nearMissOutsideTargetDm
+            : existing?.nearMissOutsideTargetDm === undefined
+              ? undefined
+              : Number(existing.nearMissOutsideTargetDm);
       const next: z.infer<typeof actualSchema> = {
         localId:
           existing?.localId ??
@@ -1008,6 +1023,9 @@ export class LocalTrajectoryRepository implements TrajectoryRepository {
         ...(preferredSurveyIntervalDm === undefined
           ? {}
           : { preferredSurveyIntervalDm }),
+        ...(nearMissOutsideTargetDm === undefined
+          ? {}
+          : { nearMissOutsideTargetDm }),
       };
       return {
         envelope: {

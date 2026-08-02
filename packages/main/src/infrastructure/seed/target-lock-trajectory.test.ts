@@ -13,8 +13,9 @@ describe("DDH041 trajectory seed guidance", () => {
     const result = calculateMiniTargetLock({
       holeId: "DDH041",
       surveys: [...ddh041MidholeSurveys],
-      coordinateConfiguration: ddh041TrajectorySeed.coordinateConfiguration,
-      actualConfiguration: ddh041TrajectorySeed.actualConfiguration,
+      coordinateConfiguration:
+        ddh041TrajectorySeed.coordinateConfiguration ?? null,
+      actualConfiguration: ddh041TrajectorySeed.actualConfiguration ?? null,
       selections: [],
       referenceConfiguration: undefined,
       target: ddh041TrajectorySeed.target,
