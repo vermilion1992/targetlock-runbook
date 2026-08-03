@@ -21,8 +21,8 @@ import {
   type ViewRect,
 } from "@/infrastructure/media/tray-camera";
 
-const CAPTURE_JPEG_QUALITY = 0.8;
-const CAPTURE_MAX_LONG_EDGE = 2000;
+const CAPTURE_JPEG_QUALITY = 0.9;
+const CAPTURE_MAX_LONG_EDGE = 2400;
 
 interface BrowserImageCapture {
   takePhoto(): Promise<Blob>;
@@ -359,13 +359,12 @@ export function TrayCameraCapture({
 
         {frame ? (
           <>
-            {/* Dim outside the full-tray guide while keeping the feed visible. */}
+            {/* Invisible bounds for layout tests; corners alone define the guide. */}
             <div
               aria-hidden="true"
-              data-testid="tray-guide-aperture"
+              data-testid="tray-guide-frame"
               className="pointer-events-none absolute"
               style={{
-                boxShadow: `0 0 0 9999px rgb(8 14 24 / 58%)`,
                 left: frame.left,
                 top: frame.top,
                 width: frame.width,
@@ -375,10 +374,10 @@ export function TrayCameraCapture({
 
             <CornerBrackets frame={frame} />
 
-            {/* Keep the vertical start marker outside the top-right bracket. */}
+            {/* Vertical start marker outside the top-right bracket. */}
             <div
               data-testid="tray-start-marker"
-              className="pointer-events-none absolute z-10 origin-top-left rotate-90 text-[0.65rem] font-bold uppercase tracking-[0.18em] text-[#60a5fa] [text-shadow:0_1px_3px_rgb(0_0_0_/_90%)]"
+              className="pointer-events-none absolute z-10 origin-top-left rotate-90 bg-transparent text-[0.65rem] font-bold uppercase tracking-[0.18em] text-[#60a5fa]"
               style={{
                 left: frame.left + frame.width + 24,
                 top: frame.top + 8,

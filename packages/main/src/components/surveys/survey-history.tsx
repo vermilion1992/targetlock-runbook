@@ -1,6 +1,6 @@
 "use client";
 
-import { Compass, Plus, Search } from "lucide-react";
+import { Compass, Plus } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useMemo, useState } from "react";
 
@@ -22,20 +22,51 @@ import {
   type Survey,
 } from "@/domain";
 
+const SURVEY_TABLE_HEADERS = [
+  "Depth",
+  "Dip",
+  "Azimuth",
+  "Reference",
+  "Tool",
+  "Recorded",
+] as const;
+
+const SURVEY_MOBILE_HEADERS = [
+  { key: "depth", label: "Depth", title: "Depth" },
+  { key: "dip", label: "Dip", title: "Dip" },
+  { key: "az", label: "Az", title: "Azimuth" },
+  { key: "tool", label: "Tool", title: "Tool" },
+] as const;
+
 function referenceLabel(reference: Survey["northReference"]): string {
   return reference === "NOT_SPECIFIED"
     ? "Not specified"
     : `${reference[0]}${reference.slice(1).toLocaleLowerCase("en-AU")}`;
 }
 
+function referenceShort(reference: Survey["northReference"]): string {
+  switch (reference) {
+    case "MAGNETIC":
+      return "Mag";
+    case "TRUE":
+      return "True";
+    case "GRID":
+      return "Grid";
+    default:
+      return "—";
+  }
+}
+
+function sortSurveysShallowToDeep(surveys: readonly Survey[]): Survey[] {
+  return [...surveys].sort((left, right) => {
+    if (left.depthDm !== right.depthDm) return left.depthDm - right.depthDm;
+    return Date.parse(left.recordedAt) - Date.parse(right.recordedAt);
+  });
+}
+
 export function SurveyHistory({ holeId }: { holeId: string }) {
   const [surveys, setSurveys] = useState<readonly Survey[]>([]);
   const [currentDepth, setCurrentDepth] = useState<Decimetres | null>(null);
-  const [correctedIds, setCorrectedIds] = useState<ReadonlySet<string>>(
-    new Set(),
-  );
-  const [search, setSearch] = useState("");
-  const [reference, setReference] = useState("");
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -49,18 +80,10 @@ export function SurveyHistory({ holeId }: { holeId: string }) {
     void Promise.all([
       services.surveys.listByHole(holeId),
       getCurrentHoleState(holeId, services.currentState),
-      services.audits.listByHole(holeId),
     ])
-      .then(([records, state, audits]) => {
+      .then(([records, state]) => {
         setSurveys(records);
         setCurrentDepth(state.currentDepthDm);
-        setCorrectedIds(
-          new Set(
-            audits
-              .filter(({ action }) => action === "survey_corrected")
-              .map(({ entityId }) => entityId),
-          ),
-        );
       })
       .catch((caught: unknown) =>
         setError(
@@ -71,53 +94,41 @@ export function SurveyHistory({ holeId }: { holeId: string }) {
       );
   }, [holeId]);
 
-  const filtered = useMemo(() => {
-    const query = search.trim().toLocaleLowerCase("en-AU");
-    return surveys.filter((survey) => {
-      const matchesSearch =
-        query.length === 0 ||
-        formatMetres(survey.depthDm).toLocaleLowerCase("en-AU").includes(query) ||
-        survey.toolNameSnapshot?.toLocaleLowerCase("en-AU").includes(query) ||
-        survey.toolSerialSnapshot?.toLocaleLowerCase("en-AU").includes(query);
-      return (
-        matchesSearch &&
-        (reference.length === 0 || survey.northReference === reference)
-      );
-    });
-  }, [reference, search, surveys]);
+  const ordered = useMemo(() => sortSurveysShallowToDeep(surveys), [surveys]);
 
   const statistics =
     currentDepth === null
       ? null
-      : calculateSurveyStatistics(surveys, currentDepth, correctedIds);
+      : calculateSurveyStatistics(surveys, currentDepth, new Set());
+
+  const depthRangeLabel =
+    ordered.length === 0
+      ? "No surveys yet"
+      : `${formatMetres(ordered[0]!.depthDm)}–${formatMetres(ordered.at(-1)!.depthDm)}`;
 
   return (
     <div className="space-y-5 sm:space-y-6">
       <StagePageHeader
         eyebrow="Surveys"
         title={`${holeId} surveys`}
-        description="Repository-backed manual survey records, ordered deepest and latest first."
+        description="Manual survey records ordered from collar toward current depth."
         backTarget={namedBackTarget(runbookRoutes.more(holeId), "More")}
-        action={
-          <Link
-            href={runbookRoutes.addSurvey(holeId)}
-            className="tl-action-primary inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] px-4 font-bold text-white no-underline"
-          >
-            <Plus aria-hidden="true" className="size-5" />
-            Add survey
-          </Link>
-        }
       />
       {error ? <p role="alert">{error}</p> : null}
+
       <Link
-        href={runbookRoutes.surveyTools(holeId)}
-        className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]"
+        href={runbookRoutes.addSurvey(holeId)}
+        className="tl-action-primary flex min-h-14 w-full items-center justify-center gap-2 rounded-[var(--tl-radius-md)] px-5 font-bold text-white no-underline"
       >
-        Manage survey tools
+        <Plus aria-hidden="true" className="size-5" />
+        Add survey
       </Link>
 
       {statistics ? (
-        <section aria-label="Survey statistics" className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <section
+          aria-label="Survey statistics"
+          className="grid grid-cols-2 gap-3"
+        >
           <MetricDisplay label="Total surveys" value={statistics.totalSurveys} />
           <MetricDisplay
             label="Latest depth"
@@ -128,155 +139,151 @@ export function SurveyHistory({ holeId }: { holeId: string }) {
             }
             emphasis="strong"
           />
-          <MetricDisplay
-            label="Distance since"
-            value={
-              statistics.distanceSinceLatestDm === undefined
-                ? "—"
-                : formatMetres(statistics.distanceSinceLatestDm)
-            }
-          />
-          <MetricDisplay
-            label="Average spacing"
-            value={
-              statistics.averageSpacingDm === undefined
-                ? "—"
-                : formatMetres(statistics.averageSpacingDm)
-            }
-          />
-          <MetricDisplay
-            label="Largest gap"
-            value={
-              statistics.largestGapDm === undefined
-                ? "—"
-                : formatMetres(statistics.largestGapDm)
-            }
-          />
-          <MetricDisplay label="Tools used" value={statistics.toolsUsed} />
-          <MetricDisplay
-            label="With photos"
-            value={statistics.surveysWithPhotographs}
-          />
-          <MetricDisplay
-            label="Corrections / repeats"
-            value={`${statistics.correctedSurveys} / ${statistics.duplicateDepthSurveys}`}
-          />
         </section>
       ) : null}
 
       <section
-        aria-labelledby="survey-filter-heading"
-        className="grid gap-3 rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 sm:grid-cols-2"
+        aria-labelledby="survey-records-heading"
+        className="overflow-hidden rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] shadow-[var(--tl-shadow-sm)]"
       >
-        <h2 id="survey-filter-heading" className="sr-only">
-          Search survey history
-        </h2>
-        <label>
-          <span className="text-sm font-bold">Depth, tool or serial</span>
-          <span className="relative mt-2 block">
-            <Search aria-hidden="true" className="absolute left-3 top-3.5 size-4 text-[var(--tl-ink-muted)]" />
-            <input
-              type="search"
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              className="min-h-11 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] pl-10 pr-3"
-            />
-          </span>
-        </label>
-        <label>
-          <span className="text-sm font-bold">North reference</span>
-          <select
-            value={reference}
-            onChange={(event) => setReference(event.target.value)}
-            className="mt-2 min-h-11 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3"
-          >
-            <option value="">All references</option>
-            <option value="MAGNETIC">Magnetic North</option>
-            <option value="TRUE">True North</option>
-            <option value="GRID">Grid North</option>
-            <option value="NOT_SPECIFIED">Not specified</option>
-          </select>
-        </label>
-      </section>
-
-      <section aria-labelledby="survey-records-heading">
-        <div className="mb-3 flex items-center justify-between gap-3">
-          <h2 id="survey-records-heading" className="text-lg font-bold">
-            Survey records
-          </h2>
+        <header className="flex items-start justify-between gap-3 border-b border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-4 py-3 sm:px-5">
+          <div className="min-w-0">
+            <h2 id="survey-records-heading" className="font-bold">
+              Survey records
+            </h2>
+            <p className="mt-0.5 text-sm text-[var(--tl-ink-muted)]">
+              {depthRangeLabel}
+            </p>
+          </div>
           <StatusPill tone="info">
             <Compass aria-hidden="true" className="size-4" />
-            {filtered.length}
+            {ordered.length}
           </StatusPill>
-        </div>
-        <div className="space-y-3 md:hidden">
-          {filtered.map((survey) => (
-            <Link
-              key={survey.localId}
-              href={runbookRoutes.surveyDetail(holeId, survey.localId)}
-              className="block rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 no-underline shadow-[var(--tl-shadow-sm)]"
-            >
-              <strong className="tl-tabular text-xl text-[var(--tl-ink)]">
-                {formatMetres(survey.depthDm)}
-              </strong>
-              <p className="mt-2 font-bold text-[var(--tl-ink)]">
-                Dip {formatTenths(survey.dipTenths)}° · Azimuth{" "}
-                {formatTenths(survey.azimuthTenths)}°{" "}
-                {referenceLabel(survey.northReference)}
-              </p>
-              <p className="mt-2 text-sm text-[var(--tl-ink-muted)]">
-                {survey.toolNameSnapshot ?? "No tool specified"}
-                {survey.toolSerialSnapshot
-                  ? ` · ${survey.toolSerialSnapshot}`
-                  : ""}
-              </p>
-              <p className="mt-1 text-xs text-[var(--tl-ink-muted)]">
-                {formatFieldDateTime(survey.recordedAt)}
-              </p>
-            </Link>
-          ))}
-        </div>
-        <div className="hidden overflow-x-auto rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] md:block">
-          <table className="w-full border-collapse bg-[var(--tl-surface)] text-left">
-            <thead className="bg-[var(--tl-surface-raised)] text-xs uppercase text-[var(--tl-ink-muted)]">
-              <tr>
-                {["Depth", "Dip", "Azimuth", "Reference", "Tool", "Recorded"].map(
-                  (heading) => (
-                    <th key={heading} className="px-4 py-3">
-                      {heading}
-                    </th>
-                  ),
-                )}
-              </tr>
-            </thead>
-            <tbody>
-              {filtered.map((survey) => (
-                <tr key={survey.localId} className="border-t border-[var(--tl-border)]">
-                  <td className="px-4 py-3 font-bold">
-                    <Link href={runbookRoutes.surveyDetail(holeId, survey.localId)}>
-                      {formatMetres(survey.depthDm)}
-                    </Link>
-                  </td>
-                  <td className="px-4 py-3">{formatTenths(survey.dipTenths)}°</td>
-                  <td className="px-4 py-3">{formatTenths(survey.azimuthTenths)}°</td>
-                  <td className="px-4 py-3">{referenceLabel(survey.northReference)}</td>
-                  <td className="px-4 py-3">
-                    {survey.toolNameSnapshot ?? "Not specified"}
-                  </td>
-                  <td className="px-4 py-3 text-sm">
-                    {formatFieldDateTime(survey.recordedAt)}
-                  </td>
-                </tr>
-              ))}
-            </tbody>
-          </table>
-        </div>
-        {filtered.length === 0 ? (
-          <p className="rounded-[var(--tl-radius-md)] border border-dashed border-[var(--tl-border-strong)] p-6 text-center text-[var(--tl-ink-muted)]">
-            No surveys match this search.
+        </header>
+
+        {ordered.length === 0 ? (
+          <p className="p-6 text-center text-[var(--tl-ink-muted)]">
+            No surveys recorded yet.
           </p>
-        ) : null}
+        ) : (
+          <>
+            <div className="md:hidden">
+              <table
+                className="w-full table-fixed border-collapse text-left text-sm"
+                data-testid="survey-records-table-mobile"
+              >
+                <colgroup>
+                  <col className="w-[26%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[18%]" />
+                  <col className="w-[38%]" />
+                </colgroup>
+                <thead className="text-[0.65rem] font-bold uppercase tracking-wide text-[var(--tl-ink-muted)]">
+                  <tr>
+                    {SURVEY_MOBILE_HEADERS.map((header) => (
+                      <th
+                        key={header.key}
+                        title={header.title}
+                        scope="col"
+                        className="px-3 py-2"
+                      >
+                        {header.label}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordered.map((survey) => (
+                    <tr
+                      key={survey.localId}
+                      className="border-t border-[var(--tl-border)]"
+                    >
+                      <th scope="row" className="px-3 py-2.5 font-bold">
+                        <Link
+                          href={runbookRoutes.surveyDetail(
+                            holeId,
+                            survey.localId,
+                          )}
+                          className="tl-tabular text-[var(--tl-primary)] no-underline"
+                        >
+                          {formatMetres(survey.depthDm)}
+                        </Link>
+                        <span className="mt-0.5 block text-[0.65rem] font-semibold text-[var(--tl-ink-muted)]">
+                          {referenceShort(survey.northReference)}
+                        </span>
+                      </th>
+                      <td className="px-3 py-2.5 tl-tabular">
+                        {formatTenths(survey.dipTenths)}°
+                      </td>
+                      <td className="px-3 py-2.5 tl-tabular">
+                        {formatTenths(survey.azimuthTenths)}°
+                      </td>
+                      <td className="truncate px-3 py-2.5 text-[var(--tl-ink-muted)]">
+                        {survey.toolNameSnapshot ?? "—"}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            <div className="hidden overflow-x-auto md:block">
+              <table
+                className="w-full border-collapse text-left"
+                data-testid="survey-records-table"
+              >
+                <thead className="text-xs uppercase text-[var(--tl-ink-muted)]">
+                  <tr>
+                    {SURVEY_TABLE_HEADERS.map((heading) => (
+                      <th key={heading} className="px-4 py-3">
+                        {heading}
+                      </th>
+                    ))}
+                  </tr>
+                </thead>
+                <tbody>
+                  {ordered.map((survey) => (
+                    <tr
+                      key={survey.localId}
+                      className="border-t border-[var(--tl-border)]"
+                    >
+                      <th className="px-4 py-3">
+                        <Link
+                          href={runbookRoutes.surveyDetail(
+                            holeId,
+                            survey.localId,
+                          )}
+                          className="tl-tabular font-bold text-[var(--tl-primary)] no-underline"
+                        >
+                          {formatMetres(survey.depthDm)}
+                        </Link>
+                      </th>
+                      <td className="px-4 py-3 tl-tabular">
+                        {formatTenths(survey.dipTenths)}°
+                      </td>
+                      <td className="px-4 py-3 tl-tabular">
+                        {formatTenths(survey.azimuthTenths)}°
+                      </td>
+                      <td className="px-4 py-3">
+                        {referenceLabel(survey.northReference)}
+                      </td>
+                      <td className="px-4 py-3">
+                        {survey.toolNameSnapshot ?? "Not specified"}
+                        {survey.toolSerialSnapshot
+                          ? ` · ${survey.toolSerialSnapshot}`
+                          : ""}
+                      </td>
+                      <td className="px-4 py-3 text-sm text-[var(--tl-ink-muted)]">
+                        {formatFieldDateTime(survey.recordedAt)}
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </section>
-</div>
+    </div>
   );
 }

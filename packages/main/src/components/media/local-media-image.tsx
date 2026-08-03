@@ -18,16 +18,23 @@ export function LocalMediaImage({
   alt,
   className = "h-full w-full object-cover",
   priority = false,
+  preferOriginal = false,
 }: {
   photo: Photo | null | undefined;
   alt: string;
   className?: string;
   priority?: boolean;
+  /** Prefer the full-resolution original when reviewing tray/survey photos. */
+  preferOriginal?: boolean;
 }) {
-  const bundled =
-    bundledPath(photo?.previewStorageKey) ??
-    bundledPath(photo?.originalStorageKey);
-  const mediaKey = photo?.previewStorageKey ?? photo?.originalStorageKey;
+  const bundled = preferOriginal
+    ? (bundledPath(photo?.originalStorageKey) ??
+      bundledPath(photo?.previewStorageKey))
+    : (bundledPath(photo?.previewStorageKey) ??
+      bundledPath(photo?.originalStorageKey));
+  const mediaKey = preferOriginal
+    ? (photo?.originalStorageKey ?? photo?.previewStorageKey)
+    : (photo?.previewStorageKey ?? photo?.originalStorageKey);
   const [loaded, setLoaded] = useState<{
     readonly key: string;
     readonly source: string;
@@ -49,7 +56,9 @@ export function LocalMediaImage({
       void Promise.resolve().then(() => setFailedKey(mediaKey ?? null));
       return;
     }
-    const key = photo.previewStorageKey ?? photo.originalStorageKey;
+    const key = preferOriginal
+      ? (photo.originalStorageKey ?? photo.previewStorageKey)
+      : (photo.previewStorageKey ?? photo.originalStorageKey);
     void services.media
       .getBlob(key)
       .then((blob) => {
@@ -64,7 +73,7 @@ export function LocalMediaImage({
       active = false;
       if (objectUrl !== undefined) URL.revokeObjectURL(objectUrl);
     };
-  }, [bundled, mediaKey, photo]);
+  }, [bundled, mediaKey, photo, preferOriginal]);
 
   if (source === undefined || failed) {
     return (

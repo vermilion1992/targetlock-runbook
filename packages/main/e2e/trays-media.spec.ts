@@ -66,10 +66,12 @@ test("restores the phone viewport after closing the core camera", async ({
       page.evaluate(() => document.body.dataset.tlCameraLock ?? null),
     )
     .toBe("1");
-  const guide = page.getByTestId("tray-guide-aperture");
+  await expect(page.getByTestId("tray-guide-aperture")).toHaveCount(0);
+  const guide = page.getByTestId("tray-guide-frame");
   const startMarker = page.getByTestId("tray-start-marker");
-  await expect(guide).toHaveCSS("border-top-width", "0px");
+  await expect(guide).toBeVisible();
   await expect(startMarker).toBeVisible();
+  await expect(startMarker).toHaveCSS("background-color", "rgba(0, 0, 0, 0)");
   const guideBox = await guide.boundingBox();
   const markerBox = await startMarker.boundingBox();
   if (!guideBox || !markerBox) {
@@ -77,6 +79,10 @@ test("restores the phone viewport after closing the core camera", async ({
   }
   expect(markerBox.x).toBeGreaterThan(guideBox.x + guideBox.width);
   expect(markerBox.height).toBeGreaterThan(markerBox.width);
+  expect(guideBox.width / guideBox.height).toBeCloseTo(
+    (1 / 2) * (0.85 / 1.15),
+    2,
+  );
 
   await page.getByRole("button", { name: "Close camera" }).click();
   await expect(
@@ -123,7 +129,7 @@ test("photographs the suggested next tray and persists image metadata", async ({
   page,
 }) => {
   await page.goto("/holes/DDH041/trays/new");
-  await expect(page.getByRole("textbox", { name: "Tray number" })).toHaveValue("112");
+  await expect(page.getByRole("textbox", { name: "Tray number" })).toHaveValue("106");
   await expect(page.getByRole("textbox", { name: "Start depth" })).toHaveCount(0);
   await expect(page.getByRole("textbox", { name: "End depth" })).toHaveCount(0);
   await expect(page.getByText("Final partial tray")).toHaveCount(0);
@@ -131,57 +137,63 @@ test("photographs the suggested next tray and persists image metadata", async ({
   await page.getByRole("button", { name: "SAVE TRAY" }).click();
   await expect(page.getByText("Tray photograph verified and saved locally.")).toBeVisible();
   const trayCard = page.locator("article").filter({ hasText: "Current tray" });
-  await expect(trayCard).toContainText("112");
+  await expect(trayCard).toContainText("106");
 
   await page.goto("/holes/DDH041/trays");
-  const trayLink = page.getByRole("link", { name: /Tray 112/ });
+  const trayLink = page.getByRole("link", { name: /Tray 106/ });
   await expect(trayLink).toBeVisible();
   await page.reload();
-  await expect(page.getByRole("link", { name: /Tray 112/ })).toBeVisible();
-  await expect(page.getByAltText(/Completed core tray 112/)).toBeVisible();
+  await expect(page.getByRole("link", { name: /Tray 106/ })).toBeVisible();
+  await expect(page.getByAltText(/Completed core tray 106/)).toBeVisible();
 });
 
 test("searches the tray library, opens detail and navigates adjacent trays", async ({
   page,
 }) => {
   await page.goto("/holes/DDH041/trays");
-  await page.getByRole("searchbox", { name: "Search tray number or depth" }).fill("110");
-  await page.getByRole("link", { name: /Tray 110/ }).click();
-  await expect(page.getByRole("heading", { name: "Tray 110" })).toBeVisible();
-  await expect(page.getByAltText(/Completed core tray 110/)).toBeVisible();
-  await expect(page.getByText(/Run|No completed run overlap/).first()).toBeVisible();
-  await page.getByRole("link", { name: "Tray 109" }).click();
-  await expect(page.getByRole("heading", { name: "Tray 109" })).toBeVisible();
-  await page.getByRole("link", { name: "Tray 110" }).click();
-  await expect(page.getByRole("heading", { name: "Tray 110" })).toBeVisible();
+  await page.getByRole("searchbox", { name: "Search tray number or depth" }).fill("104");
+  await page.getByRole("link", { name: /Tray 104/ }).click();
+  await expect(page.getByRole("heading", { name: "Tray 104" })).toBeVisible();
+  await expect(page.getByAltText(/core tray 104/i)).toBeVisible();
+  await expect(page.getByText("Recorded by")).toBeVisible();
+  await expect(page.getByText("Date / time")).toBeVisible();
+  await expect(page.getByRole("link", { name: "Edit details" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Replace photograph" })).toBeVisible();
+  await page.getByRole("link", { name: "Tray 103" }).click();
+  await expect(page.getByRole("heading", { name: "Tray 103" })).toBeVisible();
+  await page.getByRole("link", { name: "Tray 104" }).click();
+  await expect(page.getByRole("heading", { name: "Tray 104" })).toBeVisible();
 });
 
 test("replaces a tray photograph only after safe media storage", async ({
   page,
 }) => {
-  await page.goto("/holes/DDH041/trays/tray-ddh041-110");
-  await expect(page.getByAltText("Completed core tray 110")).toBeVisible();
+  await page.goto("/holes/DDH041/trays/tray-ddh041-104");
+  await expect(page.getByAltText(/core tray 104/i)).toBeVisible();
   await page.getByRole("link", { name: "Replace photograph" }).click();
-  await expect(page.getByRole("heading", { name: /Replace tray 110 photograph/ })).toBeVisible();
-  await expect(page.getByAltText(/Current photograph for completed core tray 110/)).toBeVisible();
+  await expect(page.getByRole("heading", { name: /Replace tray 104 photograph/ })).toBeVisible();
+  await expect(page.getByAltText(/Current photograph for completed core tray 104/)).toBeVisible();
   await uploadTrayPhoto(page, "replacement.png");
   await page
     .getByRole("textbox", { name: "Replacement reason" })
     .fill("First photograph was blurred");
   await page.getByRole("button", { name: "REPLACE PHOTOGRAPH" }).click();
-  await expect(page.getByRole("heading", { name: "Tray 110" })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Tray 104" })).toBeVisible();
   await expect(page.getByText("First photograph was blurred")).toBeVisible();
   await page.reload();
-  await expect(page.getByAltText(/Replacement photograph for completed core tray 110/)).toBeVisible();
+  await expect(page.getByAltText(/Replacement photograph for completed core tray 104/)).toBeVisible();
 });
 
-test("shows a crossing run without metre allocation", async ({ page }) => {
-  await page.goto("/holes/DDH041/trays/tray-ddh041-111");
-  await expect(page.getByRole("heading", { name: "Tray 111" })).toBeVisible();
-  const overlap = page.getByRole("region", { name: "Run overlap" });
-  await expect(overlap).toContainText("Run");
-  await expect(overlap).toContainText("No recovered metres are allocated");
-  await expect(overlap).not.toContainText(/allocated \d/);
+test("shows tray photograph provenance without depth KPIs", async ({ page }) => {
+  await page.goto("/holes/DDH041/trays/tray-ddh041-105");
+  await expect(page.getByRole("heading", { name: "Tray 105" })).toBeVisible();
+  await expect(page.getByText("Recorded by", { exact: true })).toBeVisible();
+  await expect(page.getByText("Shift", { exact: true })).toBeVisible();
+  await expect(page.getByText("Date / time", { exact: true })).toBeVisible();
+  await expect(page.getByText("Depth range")).toHaveCount(0);
+  await expect(page.getByText("Related runs")).toHaveCount(0);
+  await expect(page.getByText("Final partial")).toHaveCount(0);
+  await expect(page.getByRole("region", { name: "Run overlap" })).toHaveCount(0);
 });
 
 test("Stage 4 screens fit approved widths in light and dark modes", async ({
@@ -198,9 +210,9 @@ test("Stage 4 screens fit approved widths in light and dark modes", async ({
     "/holes/DDH041/surveys/tools",
     "/holes/DDH041/trays",
     "/holes/DDH041/trays/new",
-    "/holes/DDH041/trays/tray-ddh041-110",
-    "/holes/DDH041/trays/tray-ddh041-110/correct",
-    "/holes/DDH041/trays/tray-ddh041-110/replace-photo",
+    "/holes/DDH041/trays/tray-ddh041-104",
+    "/holes/DDH041/trays/tray-ddh041-104/correct",
+    "/holes/DDH041/trays/tray-ddh041-104/replace-photo",
   ] as const;
   for (const colorScheme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme });

@@ -10,9 +10,9 @@ import {
 } from "./tray-camera";
 
 describe("tray camera framing", () => {
-  it("uses a vertical 1:2 full-tray photograph aspect", () => {
-    expect(TRAY_FRAME_ASPECT).toBeCloseTo(0.5, 9);
-    expect(TRAY_FRAME_ASPECT).toBeLessThan(1);
+  it("uses a taller, narrower vertical full-tray photograph aspect", () => {
+    expect(TRAY_FRAME_ASPECT).toBeCloseTo((1 / 2) * (0.85 / 1.15), 9);
+    expect(TRAY_FRAME_ASPECT).toBeLessThan(0.5);
   });
 
   it("fits a tall tray frame inside a portrait phone viewport", () => {
@@ -37,7 +37,7 @@ describe("tray camera framing", () => {
     expect(frame.top + frame.height).toBeLessThanOrEqual(
       preview.top + preview.height,
     );
-    expect(frame.width / frame.height).toBeCloseTo(0.5, 3);
+    expect(frame.width / frame.height).toBeCloseTo(TRAY_FRAME_ASPECT, 3);
   });
 
   it("maps a centered cover frame back into video pixels", () => {

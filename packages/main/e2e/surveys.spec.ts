@@ -24,6 +24,34 @@ test.beforeEach(async ({ page }) => {
   await reset(page);
 });
 
+test("lists surveys in one card ordered from shallow to deep", async ({
+  page,
+}) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/holes/DDH041/surveys");
+  await expect(page.getByRole("heading", { name: "DDH041 surveys" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Add survey" })).toBeVisible();
+  await expect(page.getByRole("link", { name: "Manage survey tools" })).toHaveCount(0);
+  await expect(page.getByText("Distance since")).toHaveCount(0);
+  await expect(page.getByText("Average spacing")).toHaveCount(0);
+  await expect(page.getByLabel("Depth, tool or serial")).toHaveCount(0);
+  await expect(page.getByRole("heading", { name: "Survey records" })).toBeVisible();
+
+  const depths = page
+    .getByTestId("survey-records-table-mobile")
+    .getByRole("row")
+    .locator("th a");
+  await expect(depths.first()).toBeVisible();
+  const count = await depths.count();
+  expect(count).toBeGreaterThan(1);
+  const values: number[] = [];
+  for (let index = 0; index < count; index += 1) {
+    const text = (await depths.nth(index).innerText()).replace(/[^\d.]/g, "");
+    values.push(Number(text));
+  }
+  expect(values).toEqual([...values].sort((left, right) => left - right));
+});
+
 test("adds a survey and updates dashboard, history and timeline after refresh", async ({
   page,
 }) => {

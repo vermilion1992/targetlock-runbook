@@ -7,11 +7,11 @@ export const TRAY_FRAME_WIDTH_CM = TRAY_FRAME_LONG_CM;
 export const TRAY_FRAME_HEIGHT_CM = TRAY_FRAME_SHORT_CM;
 
 /**
- * Photograph guide width/height with the phone upright. The guide deliberately
- * includes breathing room around the physical tray, matching a clear full-tray
- * field photograph rather than cropping tightly to the nominal 35 × 110 cm.
+ * Photograph guide width/height with the phone upright. Tuned from a 1:2
+ * full-tray guide after field photos: 15% narrower and 15% taller so the
+ * corner brackets track a completed core tray more closely.
  */
-export const TRAY_FRAME_ASPECT = 1 / 2;
+export const TRAY_FRAME_ASPECT = (1 / 2) * (0.85 / 1.15);
 
 export interface ViewRect {
   readonly left: number;

@@ -1,8 +1,8 @@
 import { MediaRepositoryError } from "./media-repository";
 
 export const MAX_ORIGINAL_IMAGE_BYTES = 25 * 1024 * 1024;
-export const PREVIEW_MAX_DIMENSION = 1_600;
-export const PREVIEW_JPEG_QUALITY = 0.82;
+export const PREVIEW_MAX_DIMENSION = 2_000;
+export const PREVIEW_JPEG_QUALITY = 0.88;
 
 export interface GeneratedPreview {
   readonly blob: Blob;
