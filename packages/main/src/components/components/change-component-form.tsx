@@ -21,6 +21,7 @@ import {
   getCurrentHoleState,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { MetreInput } from "@/components/field/metre-input";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
@@ -502,11 +503,14 @@ export function ChangeComponentForm({
           ) : null}
 
           <div className="mt-5">
-            <label htmlFor="removal-comment" className="mb-2 block text-sm font-bold text-[var(--tl-ink)]">
-              Removal comment
-              {reason === "OTHER" || assessment?.boundaryRun ? (
-                <span className="ml-1 text-[var(--tl-danger)]">*</span>
-              ) : null}
+            <label htmlFor="removal-comment" className="mb-2 block">
+              <FieldNoteLabel
+                label="Removal note"
+                required={
+                  reason === "OTHER" ||
+                  assessment?.boundaryRun !== undefined
+                }
+              />
             </label>
             <Textarea
               id="removal-comment"
@@ -517,10 +521,10 @@ export function ChangeComponentForm({
               rows={4}
               placeholder={
                 reason === "OTHER"
-                  ? "Describe the removal reason."
+                  ? "Example: Removed after an unlisted component failure."
                   : assessment?.boundaryRun
-                    ? "Explain the exact within-run change."
-                    : "Optional field note."
+                    ? "Example: Change occurred at 426.4 m within Run 72."
+                    : "Example: Wear was concentrated on the outer cutting edge."
               }
               className="min-h-28 border-[var(--tl-border-strong)] bg-[var(--tl-surface)] text-base"
             />

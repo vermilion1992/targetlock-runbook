@@ -9,6 +9,7 @@ import {
   createBrowserRunbookServices,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { MetreInput } from "@/components/field/metre-input";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
@@ -347,12 +348,13 @@ export function CasingCorrectionForm({
                   placeholder="Describe what was wrong and how the correct value was established"
                 />
               </label>
-              <label className="block text-sm font-bold text-[var(--tl-ink)]">
-                Additional comment
+              <label className="block">
+                <FieldNoteLabel />
                 <Textarea
                   value={comment}
                   onChange={(event) => setComment(event.target.value)}
                   className="mt-2 min-h-20 border-[var(--tl-border-strong)] text-base"
+                  placeholder="Example: Verified against the casing tally and shift record."
                 />
               </label>
             </div>

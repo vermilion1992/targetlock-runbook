@@ -8,6 +8,7 @@ import {
   createBrowserRunbookServices,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { MetreInput } from "@/components/field/metre-input";
 import { Textarea } from "@/components/ui/textarea";
 import {
@@ -208,12 +209,13 @@ export function AssignmentCorrectionForm({
                   ))}
                 </select>
               </label>
-              <label className="text-sm font-bold text-[var(--tl-ink)]">
-                Removal comment
+              <label>
+                <FieldNoteLabel label="Removal note" />
                 <Textarea
                   value={removalComment}
                   onChange={(event) => setRemovalComment(event.target.value)}
                   className="mt-2 border-[var(--tl-border-strong)]"
+                  placeholder="Example: Removed after excessive wear was confirmed at surface."
                 />
               </label>
             </div>

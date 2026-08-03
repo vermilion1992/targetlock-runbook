@@ -11,6 +11,7 @@ import {
   getCurrentHoleState,
   TrayWarningConfirmationRequired,
 } from "@/application/runbook";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { PhotoInput } from "@/components/media/photo-input";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
@@ -282,11 +283,12 @@ export function TrayForm({ holeId }: { holeId: string }) {
           />
         </div>
         <label className="min-w-0 md:col-span-2">
-          <span className="text-sm font-bold">Comment (optional)</span>
+          <FieldNoteLabel />
           <textarea
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             rows={3}
+            placeholder="Example: Broken core near the tray end; metre marks are clearly visible."
             className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
           />
         </label>

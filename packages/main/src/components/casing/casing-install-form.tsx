@@ -296,14 +296,17 @@ export function CasingInstallForm({ holeId }: { holeId: string }) {
           </SectionPanel>
         ) : null}
 
-        <SectionPanel title="Install note" description="Optional operational context.">
-          <label className="block text-sm font-bold text-[var(--tl-ink)]">
-            Comment
+        <SectionPanel
+          title="Field note"
+          description="Optional installation context."
+        >
+          <label className="block">
+            <span className="sr-only">Field note</span>
             <Textarea
               value={comment}
               onChange={(event) => setComment(event.target.value)}
-              className="mt-2 min-h-24 border-[var(--tl-border-strong)] text-base"
-              placeholder="Installation method, ground conditions, or handover note"
+              className="min-h-24 border-[var(--tl-border-strong)] text-base"
+              placeholder="Example: Washed to depth; minor resistance near the casing shoe."
             />
           </label>
         </SectionPanel>

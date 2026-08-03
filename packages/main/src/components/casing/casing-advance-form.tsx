@@ -329,13 +329,17 @@ export function CasingAdvanceForm({
             </SectionPanel>
           ) : null}
 
-          <SectionPanel title="Event note" description="Optional shift or handover context.">
-            <label className="block text-sm font-bold text-[var(--tl-ink)]">
-              Comment
+          <SectionPanel
+            title="Field note"
+            description="Optional shift or handover context."
+          >
+            <label className="block">
+              <span className="sr-only">Field note</span>
               <Textarea
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
-                className="mt-2 min-h-24 border-[var(--tl-border-strong)] text-base"
+                className="min-h-24 border-[var(--tl-border-strong)] text-base"
+                placeholder="Example: Advanced cleanly; circulation remained stable."
               />
             </label>
           </SectionPanel>

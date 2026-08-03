@@ -8,6 +8,7 @@ import {
   correctSurvey,
   createBrowserRunbookServices,
 } from "@/application/runbook";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
@@ -167,8 +168,14 @@ export function SurveyCorrectionForm({
             </select>
           </label>
           <label className="sm:col-span-2">
-            <span className="text-sm font-bold">Comment</span>
-            <textarea value={comment} onChange={(event) => setComment(event.target.value)} rows={3} className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3" />
+            <FieldNoteLabel />
+            <textarea
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              rows={3}
+              placeholder="Example: Corrected after checking the original survey sheet."
+              className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
+            />
           </label>
           <label className="sm:col-span-2">
             <span className="text-sm font-bold">Correction reason *</span>

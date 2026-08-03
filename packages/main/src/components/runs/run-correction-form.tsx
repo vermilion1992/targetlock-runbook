@@ -472,6 +472,7 @@ export function RunCorrectionForm({
               value={comment}
               onChange={(event) => setComment(event.target.value)}
               maxLength={500}
+              placeholder="Example: Broken ground from 426.0–427.5 m; recovery checked at the tray."
             />
           </label>
         ) : null}

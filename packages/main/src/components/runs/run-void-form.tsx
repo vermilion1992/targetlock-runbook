@@ -9,6 +9,7 @@ import {
   previewVoidRunForHole,
   voidRun,
 } from "@/application/runbook";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
@@ -276,14 +277,17 @@ export function RunVoidForm({
         </fieldset>
 
         <label className="block space-y-2">
-          <span className="font-bold">
-            Comment{reason === "OTHER" ? " (required)" : ""}
-          </span>
+          <FieldNoteLabel required={reason === "OTHER"} />
           <textarea
             className="min-h-24 w-full rounded-[var(--tl-radius-md)] border border-[var(--tl-border)] bg-[var(--tl-surface)] px-3 py-2"
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             maxLength={500}
+            placeholder={
+              reason === "OTHER"
+                ? "Example: Run was created during offline recovery and does not represent field work."
+                : "Example: Duplicate entry confirmed against the driller's sheet."
+            }
           />
         </label>
 

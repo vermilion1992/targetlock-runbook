@@ -10,6 +10,7 @@ import {
   reopenHole,
 } from "@/application/runbook";
 import { FieldActionButton } from "@/components/field/field-action-button";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
@@ -179,12 +180,13 @@ export function HoleReopenForm({ holeId }: { holeId: string }) {
                 onChange={(event) => setReason(event.target.value)}
               />
             </label>
-            <label className="mt-3 block text-sm font-bold">
-              Comment (optional)
+            <label className="mt-3 block">
+              <FieldNoteLabel />
               <textarea
                 className="mt-1 min-h-20 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
                 value={comment}
                 onChange={(event) => setComment(event.target.value)}
+                placeholder="Example: Reopened to deepen the hole following a revised target."
               />
             </label>
           </SectionPanel>

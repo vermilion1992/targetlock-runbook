@@ -970,14 +970,14 @@ export function RecordRunForm({
         </SectionPanel>
 
         <SectionPanel
-          title="Comment"
-          description="Add optional field context that should remain with this run."
+          title="Field note"
+          description="Optional operational context that should remain with this run."
         >
           <label
             htmlFor="run-comment"
-            className="mb-2 block text-sm font-bold text-[var(--tl-ink)]"
+            className="sr-only"
           >
-            Run comment
+            Field note
           </label>
           <Controller
             name="comment"
@@ -994,7 +994,7 @@ export function RecordRunForm({
                     ? "run-comment-help run-comment-error"
                     : "run-comment-help"
                 }
-                placeholder="Optional notes for this run"
+                placeholder="Example: Broken ground from 426.0–427.5 m; recovery checked at the tray."
                 className="min-h-28 border-[var(--tl-border-strong)] bg-[var(--tl-surface)] text-base text-[var(--tl-ink)]"
               />
             )}

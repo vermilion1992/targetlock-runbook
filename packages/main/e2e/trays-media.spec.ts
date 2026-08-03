@@ -114,6 +114,12 @@ test("keeps a full-size tray preview within the phone viewport", async ({
   await page.setViewportSize({ width: 360, height: 844 });
   await page.goto("/holes/DDH041/trays/new");
   await expectNoHorizontalOverflow(page, "tray form before photo preview");
+  await expect(
+    page.getByRole("textbox", { name: /Field note/i }),
+  ).toHaveAttribute(
+    "placeholder",
+    "Example: Broken core near the tray end; metre marks are clearly visible.",
+  );
   await page.locator('input[type="file"]').setInputFiles({
     name: "tray-2026-08-02T14-09-41-952Z.svg",
     mimeType: "image/svg+xml",

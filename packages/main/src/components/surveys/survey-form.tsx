@@ -1,6 +1,6 @@
 "use client";
 
-import { AlertTriangle, Save } from "lucide-react";
+import { AlertTriangle, LockKeyhole, Save } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState, type FormEvent } from "react";
@@ -11,6 +11,7 @@ import {
   recordSurvey,
   SurveyWarningConfirmationRequired,
 } from "@/application/runbook";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { PhotoInput } from "@/components/media/photo-input";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
@@ -333,49 +334,34 @@ export function SurveyForm({ holeId }: { holeId: string }) {
             <span className="pointer-events-none absolute right-3 top-3">°</span>
           </span>
         </label>
-        <label className="block">
-          <span className="text-sm font-bold">North reference</span>
-          <select
-            value={northReference}
-            onChange={(event) =>
-              setNorthReference(event.target.value as NorthReference)
-            }
-            className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3"
-          >
-            {Object.entries(referenceLabels).map(([value, label]) => (
-              <option key={value} value={value}>
-                {label}
-              </option>
-            ))}
-          </select>
-        </label>
-        <label className="block">
-          <span className="text-sm font-bold">Survey tool</span>
-          <select
-            value={toolId}
-            onChange={(event) => setToolId(event.target.value)}
-            className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3"
-          >
-            <option value="">No tool specified</option>
-            {tools.map((tool) => (
-              <option key={tool.localId} value={tool.localId}>
-                {tool.name}
-              </option>
-            ))}
-          </select>
-        </label>
-        <div>
-          <span className="text-sm font-bold">Tool serial</span>
-          <p className="mt-2 flex min-h-12 items-center rounded-[var(--tl-radius-sm)] bg-[var(--tl-surface-raised)] px-3">
-            {selectedTool?.serialNumber ?? "Not specified"}
-          </p>
+        <div className="md:col-span-2">
+          <span className="text-sm font-bold">Survey settings</span>
+          <div className="mt-2 flex min-h-14 items-start gap-3 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border)] bg-[var(--tl-surface-raised)] px-3 py-2.5">
+            <LockKeyhole
+              aria-hidden="true"
+              className="mt-0.5 size-4 shrink-0 text-[var(--tl-ink-muted)]"
+            />
+            <div className="min-w-0">
+              <p className="font-bold text-[var(--tl-ink)]">
+                {referenceLabels[northReference]} ·{" "}
+                {selectedTool?.name ?? "No tool configured"}
+              </p>
+              <p className="mt-0.5 text-xs text-[var(--tl-ink-muted)]">
+                {selectedTool?.serialNumber
+                  ? `Serial ${selectedTool.serialNumber} · `
+                  : ""}
+                Inherited from configured survey settings.
+              </p>
+            </div>
+          </div>
         </div>
         <label className="block md:col-span-2">
-          <span className="text-sm font-bold">Comment (optional)</span>
+          <FieldNoteLabel />
           <textarea
             value={comment}
             onChange={(event) => setComment(event.target.value)}
             rows={3}
+            placeholder="Example: Reading repeated after moving away from magnetic interference."
             className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
           />
         </label>

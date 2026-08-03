@@ -22,6 +22,7 @@ import {
 } from "@/application/runbook";
 import type { HoleLifecycleState } from "@/infrastructure/completion";
 import { FieldActionButton } from "@/components/field/field-action-button";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
@@ -647,12 +648,17 @@ export function HoleCompletionReview({
             ))}
           </select>
         </label>
-        <label className="mt-3 block text-sm font-bold">
-          Comment{reason === "OTHER" ? " (required)" : " (optional)"}
+        <label className="mt-3 block">
+          <FieldNoteLabel required={reason === "OTHER"} />
           <textarea
             className="mt-1 min-h-24 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
             value={comment}
             onChange={(event) => setComment(event.target.value)}
+            placeholder={
+              reason === "OTHER"
+                ? "Example: Hole stopped after revised geological interpretation."
+                : "Example: Final depth confirmed with the supervisor at shift handover."
+            }
           />
         </label>
         <div className="mt-3">

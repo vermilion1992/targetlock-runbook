@@ -8,6 +8,7 @@ import {
   correctTrayDetails,
   createBrowserRunbookServices,
 } from "@/application/runbook";
+import { FieldNoteLabel } from "@/components/field/field-note-label";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
 import { useDiscardLeaveGuard } from "@/components/navigation/discard-leave-guard";
 import { cancelBackTarget } from "@/components/navigation/runbook-page-back";
@@ -167,8 +168,14 @@ export function TrayCorrectionForm({
             <input inputMode="decimal" value={endDepth} onChange={(event) => setEndDepth(event.target.value)} className="mt-2 min-h-12 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3" />
           </label>
           <label className="sm:col-span-2">
-            <span className="text-sm font-bold">Comment</span>
-            <textarea rows={3} value={comment} onChange={(event) => setComment(event.target.value)} className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3" />
+            <FieldNoteLabel />
+            <textarea
+              rows={3}
+              value={comment}
+              onChange={(event) => setComment(event.target.value)}
+              placeholder="Example: Updated after checking the tray tag and metre blocks."
+              className="mt-2 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] p-3"
+            />
           </label>
           <label className="flex min-h-12 items-center gap-3 sm:col-span-2">
             <input type="checkbox" checked={isFinalPartial} onChange={(event) => setIsFinalPartial(event.target.checked)} className="size-5" />
