@@ -14,6 +14,7 @@ import { useState, type FormEvent } from "react";
 import { ThemeModeControl } from "@/components/app-shell/theme-mode-control";
 import type { OperatorRole } from "@/infrastructure/session";
 import { useOperatorSession } from "./operator-session-provider";
+import { parsePilotLoginInput } from "./pilot-login-input";
 
 const roleOptions: readonly {
   value: OperatorRole;
@@ -92,10 +93,28 @@ export function SignInScreen({
   async function handlePilotSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (submitting) return;
+    const formData = new FormData(event.currentTarget);
+    const parsed = parsePilotLoginInput({
+      organisation: formData.get("organisation"),
+      email: formData.get("email"),
+      password: formData.get("password"),
+    });
+    if (!parsed.ok) {
+      setFormError(parsed.message);
+      return;
+    }
+    const submitted = parsed.input;
+    setOrganisation(submitted.organisation);
+    setEmail(submitted.email);
+    setPassword(submitted.password);
     setSubmitting("pilot");
     setFormError(null);
     try {
-      await pilotSignIn(organisation, email, password);
+      await pilotSignIn(
+        submitted.organisation,
+        submitted.email,
+        submitted.password,
+      );
       router.replace(destination);
     } catch (cause) {
       setFormError(
@@ -281,7 +300,10 @@ export function SignInScreen({
                   id="organisation"
                   name="organisation"
                   value={organisation}
-                  onChange={(event) => setOrganisation(event.target.value)}
+                  onChange={(event) => {
+                    setOrganisation(event.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   autoComplete="organization"
                   maxLength={80}
                   required
@@ -299,7 +321,10 @@ export function SignInScreen({
                   name="email"
                   type="email"
                   value={email}
-                  onChange={(event) => setEmail(event.target.value)}
+                  onChange={(event) => {
+                    setEmail(event.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   autoComplete="username"
                   maxLength={320}
                   required
@@ -316,7 +341,10 @@ export function SignInScreen({
                   name="password"
                   type="password"
                   value={password}
-                  onChange={(event) => setPassword(event.target.value)}
+                  onChange={(event) => {
+                    setPassword(event.target.value);
+                    if (formError) setFormError(null);
+                  }}
                   autoComplete="current-password"
                   minLength={10}
                   maxLength={200}
