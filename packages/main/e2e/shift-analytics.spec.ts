@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import { readFile } from "node:fs/promises";
+import { PDFDocument } from "pdf-lib";
 
 import {
   expectNoHorizontalOverflow,
@@ -15,7 +17,7 @@ test.beforeEach(async ({ page }) => {
 
 async function completeLocalRun(
   page: Page,
-  runNumber: number,
+  runNumber: number | undefined,
   options: {
     readonly rod: "3.0" | "6.0";
     readonly stickUp: string;
@@ -25,7 +27,10 @@ async function completeLocalRun(
   await page.goto("/holes/DDH041/current");
   await page.getByRole("link", { name: "RECORD NEXT RUN" }).click();
   await expect(
-    page.getByRole("heading", { name: `Record run ${runNumber}` }),
+    page.getByRole("heading", {
+      name:
+        runNumber === undefined ? /Record run \d+/ : `Record run ${runNumber}`,
+    }),
   ).toBeVisible();
   await page.getByRole("button", { name: `Add ${options.rod} m` }).click();
   await page
@@ -79,6 +84,33 @@ test("Workflow 1 — Shift close summary", async ({ page }) => {
   await page.reload();
   await expect(page.getByText("Completed work")).toBeVisible();
   await expect(page.getByText("Metres completed")).toBeVisible();
+});
+
+test("Workflow 1b — Latest pending shift can be reopened after refresh", async ({
+  page,
+}) => {
+  await openCloseShift(page);
+  await page.getByRole("button", { name: "End shift" }).click();
+  await expect(
+    page.getByRole("heading", { name: /DAY SHIFT HANDOVER/i }),
+  ).toBeVisible();
+
+  await page.goto("/holes/DDH041/shifts");
+  const pendingCard = page
+    .getByTestId("shift-history-card")
+    .filter({ hasText: "HANDOVER PENDING" })
+    .first();
+  await pendingCard.getByRole("link", { name: "View shift detail" }).click();
+  await page.getByRole("link", { name: "Reopen shift" }).click();
+  await expect(
+    page.getByRole("heading", { name: "Reopen shift" }),
+  ).toBeVisible();
+  await page.getByRole("button", { name: "Reopen shift" }).click();
+  await expect(page.getByRole("link", { name: "Close shift" })).toBeVisible();
+
+  await page.reload();
+  await expect(page.getByRole("link", { name: "Close shift" })).toBeVisible();
+  await expect(page.getByText("OPEN", { exact: true }).first()).toBeVisible();
 });
 
 test("Workflow 2 — Shared Run credited to completing Shift", async ({
@@ -205,18 +237,17 @@ test("Workflow 4 — Recovery correction updates recovery not metres", async ({
   }
 });
 
-test("Workflow 5 — Current-Shift report includes analytics", async ({
+test("Workflow 5 — Shift Report includes analytics", async ({
   page,
-}) => {
-  await startDayShift(page);
-  await completeLocalRun(page, 246, {
+}, testInfo) => {
+  await completeLocalRun(page, undefined, {
     rod: "3.0",
     stickUp: "0.1",
     recovered: "2.9",
   });
 
   await page.goto("/holes/DDH041/reports");
-  await page.getByRole("radio", { name: "Current-Shift Runbook" }).check();
+  await page.getByRole("radio", { name: "Shift Report" }).check();
   await selectOnlyFormat(page, "PDF");
   await page.getByRole("button", { name: "Generate report" }).click();
   await expect(page.getByText(/Report generated/i)).toBeVisible({
@@ -225,7 +256,43 @@ test("Workflow 5 — Current-Shift report includes analytics", async ({
   await expect(
     page.getByRole("button", { name: /Download PDF|Open PDF/i }).first(),
   ).toBeVisible();
-  await expect(page.getByText(/Current_Shift|Current-Shift|v001/i).first()).toBeVisible();
+  await expect(page.getByText(/Shift_Report|Shift Report|v001/i).first()).toBeVisible();
+
+  const downloadPromise = page.waitForEvent("download");
+  await page.getByRole("button", { name: /Download PDF/i }).first().click();
+  const download = await downloadPromise;
+  const reportPath = testInfo.outputPath("current-shift-report.pdf");
+  await download.saveAs(reportPath);
+  const bytes = await readFile(reportPath);
+  expect(bytes.subarray(0, 5).toString("ascii")).toBe("%PDF-");
+  const document = await PDFDocument.load(bytes);
+  expect(document.getPageCount()).toBe(4);
+  for (const reportPage of document.getPages()) {
+    expect(reportPage.getWidth()).toBeCloseTo(841.89, 1);
+    expect(reportPage.getHeight()).toBeCloseTo(595.28, 1);
+  }
+});
+
+test("Workflow 5b — Historical shift opens the matching report selection", async ({
+  page,
+}) => {
+  await page.goto("/holes/DDH041/shifts");
+  const card = page.getByTestId("shift-history-card").first();
+  await expect(card).toBeVisible();
+  const link = card.getByRole("link", { name: "Generate PDF" });
+  const href = await link.getAttribute("href");
+  expect(href).toMatch(/\/reports\?shiftId=/);
+  const selectedShiftId = new URL(href!, "http://localhost").searchParams.get(
+    "shiftId",
+  );
+
+  await link.click();
+  await expect(page.getByRole("radio", { name: "Shift Report" })).toBeChecked();
+  await expect(page.getByRole("combobox", { name: "Shift" })).toHaveValue(
+    selectedShiftId!,
+  );
+  await expect(page.getByRole("checkbox", { name: "PDF" })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "XLSX" })).not.toBeChecked();
 });
 
 test("Workflow 6 — Empty Shift close shows Not available averages", async ({

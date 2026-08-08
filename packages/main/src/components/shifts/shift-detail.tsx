@@ -1,6 +1,6 @@
 "use client";
 
-import { Share2, UserRound } from "lucide-react";
+import { FileText, RotateCcw, Share2, UserRound } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -33,6 +33,7 @@ export function ShiftDetail({
   const [group, setGroup] = useState<ShiftRunGroup | null>(null);
   const [audits, setAudits] = useState<readonly AuditEntry[]>([]);
   const [analytics, setAnalytics] = useState<ShiftAnalytics | null>(null);
+  const [canReopen, setCanReopen] = useState(false);
   const [message, setMessage] = useState("Loading shift…");
 
   useEffect(() => {
@@ -65,6 +66,21 @@ export function ShiftDetail({
           localRuns: runs.snapshots,
         }).find(({ shift }) => shift.localId === shiftId);
         if (next === undefined) throw new Error("The shift was not found.");
+        setCanReopen(
+          next.shift.status !== "OPEN" &&
+            next.shift.handoverAcceptedAt === undefined &&
+            !shifts.some(
+              (item) =>
+                item.localId !== next.shift.localId &&
+                item.startedAt > next.shift.startedAt,
+            ) &&
+            !shifts.some(
+              (item) =>
+                item.localId !== next.shift.localId &&
+                (item.status === "OPEN" ||
+                  item.status === "HANDOVER_PENDING"),
+            ),
+        );
         setGroup(next);
         setAudits(entries);
         setAnalytics(nextAnalytics);
@@ -104,8 +120,16 @@ export function ShiftDetail({
         }
       />
 
-      {shift.status === "OPEN" || shift.status === "HANDOVER_PENDING" ? (
-        <div className="flex flex-wrap gap-2">
+      <div className="flex flex-wrap gap-2">
+        <Link
+          href={runbookRoutes.reportForShift(holeId, shift.localId)}
+          className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] bg-[var(--tl-primary)] px-4 font-bold text-white no-underline"
+        >
+          <FileText aria-hidden="true" className="size-5" />
+          Generate shift PDF
+        </Link>
+        {shift.status === "OPEN" || shift.status === "HANDOVER_PENDING" ? (
+          <>
           {shift.status === "OPEN" ? (
             <Link
               href={runbookRoutes.closeShift(holeId, shift.localId)}
@@ -122,8 +146,18 @@ export function ShiftDetail({
               Accept handover
             </Link>
           ) : null}
-        </div>
-      ) : null}
+          </>
+        ) : null}
+        {canReopen ? (
+          <Link
+            href={runbookRoutes.reopenShift(holeId, shift.localId)}
+            className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-4 font-bold no-underline"
+          >
+            <RotateCcw aria-hidden="true" className="size-5" />
+            Reopen shift
+          </Link>
+        ) : null}
+      </div>
 
       {analytics ? (
         <ShiftDetailAnalyticsSections analytics={analytics} />

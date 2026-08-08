@@ -27,6 +27,21 @@ function startsWithBytes(bytes: Uint8Array, expected: readonly number[]): boolea
   return expected.every((value, index) => bytes[index] === value);
 }
 
+function includesBytes(bytes: Uint8Array, expected: readonly number[]): boolean {
+  if (expected.length === 0) return true;
+  for (let offset = 0; offset <= bytes.length - expected.length; offset += 1) {
+    let matches = true;
+    for (let index = 0; index < expected.length; index += 1) {
+      if (bytes[offset + index] !== expected[index]) {
+        matches = false;
+        break;
+      }
+    }
+    if (matches) return true;
+  }
+  return false;
+}
+
 async function readPrefix(blob: Blob, length: number): Promise<Uint8Array> {
   const slice = blob.slice(0, length);
   const buffer = await slice.arrayBuffer();
@@ -69,9 +84,8 @@ export async function assertValidReportBlob(input: {
     }
     // Minimal structure check: require an EOF marker somewhere in the payload.
     const sample = await readPrefix(input.blob, Math.min(input.blob.size, 256_000));
-    const asText = String.fromCharCode(...sample);
     const hasEof =
-      asText.includes("%%EOF") ||
+      includesBytes(sample, [0x25, 0x25, 0x45, 0x4f, 0x46]) ||
       (await input.blob.slice(Math.max(0, input.blob.size - 1024)).text()).includes(
         "%%EOF",
       );

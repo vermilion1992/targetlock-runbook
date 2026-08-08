@@ -234,6 +234,14 @@ const shiftResultSchema = z
   })
   .passthrough();
 
+const reopenShiftResultSchema = z
+  .object({
+    shift: shiftSchema,
+    previousStatus: z.enum(["HANDOVER_PENDING", "CLOSED"]),
+    status: z.enum(["reopened", "already-open"]),
+  })
+  .passthrough();
+
 const handoverResultSchema = z
   .object({
     outgoingShift: shiftSchema,
@@ -334,6 +342,7 @@ const CORE_OPERATION_TYPES = new Set([
   "shifts.startShift.v1",
   "shifts.closeForHandover.v1",
   "shifts.closeFinalShift.v1",
+  "shifts.reopenShift.v1",
   "shifts.acceptHandover.v1",
   "runs.saveCompletedRun.v1",
   "run-corrections.apply.v1",
@@ -814,6 +823,44 @@ export function planCoreOperation(
             outgoingShiftId: value.shift.localId,
             incomingShiftId: null,
             status: "FINAL_CLOSE",
+            acceptedAt: null,
+          },
+        }),
+      ],
+      "HOLE",
+      value.shift.holeId,
+    );
+  }
+
+  if (envelope.operationType === "shifts.reopenShift.v1") {
+    const value = parsed(
+      reopenShiftResultSchema,
+      result,
+      "Reopened shift result",
+    );
+    const handoverId =
+      value.previousStatus === "HANDOVER_PENDING"
+        ? `handover:${value.shift.localId}`
+        : `final:${value.shift.localId}`;
+    return plan(
+      envelope,
+      [
+        shiftProjection(value.shift, envelope),
+        projection({
+          kind: "HANDOVER",
+          localId: handoverId,
+          projectRef: envelope.projectRef ?? null,
+          rigRef: value.shift.rigId,
+          holeRef: value.shift.holeId,
+          version: value.shift.version,
+          lifecycleStatus: "CANCELLED",
+          clientCreatedAt: value.shift.updatedAt,
+          clientUpdatedAt: value.shift.updatedAt,
+          actorNameSnapshot: value.shift.primaryDrillerNameSnapshot,
+          state: {
+            outgoingShiftId: value.shift.localId,
+            incomingShiftId: null,
+            status: "CANCELLED",
             acceptedAt: null,
           },
         }),

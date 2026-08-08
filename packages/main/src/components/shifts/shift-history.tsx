@@ -1,6 +1,13 @@
 "use client";
 
-import { History, Moon, Sun, UsersRound } from "lucide-react";
+import {
+  FileText,
+  History,
+  Moon,
+  RotateCcw,
+  Sun,
+  UsersRound,
+} from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 
@@ -16,6 +23,7 @@ import { MetricDisplay } from "@/components/field/metric-display";
 import { SectionPanel } from "@/components/field/section-panel";
 import { StatusPill } from "@/components/field/status-pill";
 import { StagePageHeader } from "@/components/holes/stage-page-header";
+import { formatFieldDateTime } from "@/components/holes/prototype-format";
 import { namedBackTarget } from "@/components/navigation/runbook-page-back";
 import { runbookRoutes } from "@/components/navigation/runbook-routes";
 import { formatMetres, type ShiftAnalytics } from "@/domain";
@@ -109,10 +117,20 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
       <section aria-labelledby="shift-list-heading">
         <h2 id="shift-list-heading" className="mb-3 text-lg font-bold">Shift history</h2>
         <div className="grid gap-4 lg:grid-cols-2">
-          {groups.map((group) => {
+          {groups.map((group, groupIndex) => {
             const shift = group.shift;
             const Icon = shift.shiftType === "DAY" ? Sun : Moon;
             const analytics = analyticsByShift.get(shift.localId);
+            const canReopen =
+              groupIndex === 0 &&
+              shift.status !== "OPEN" &&
+              shift.handoverAcceptedAt === undefined &&
+              !groups.some(
+                (item) =>
+                  item.shift.localId !== shift.localId &&
+                  (item.shift.status === "OPEN" ||
+                    item.shift.status === "HANDOVER_PENDING"),
+              );
             return (
               <article key={shift.localId} className="rounded-[var(--tl-radius-lg)] border border-[var(--tl-border)] bg-[var(--tl-surface)] p-4 shadow-[var(--tl-shadow-sm)]" data-testid="shift-history-card">
                 <header className="flex items-start justify-between gap-3">
@@ -133,6 +151,20 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
                   </div>
                 </header>
                 <dl className="mt-4 grid grid-cols-2 gap-3">
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Start</dt>
+                    <dd className="font-bold">
+                      {formatFieldDateTime(shift.startedAt)}
+                    </dd>
+                  </div>
+                  <div>
+                    <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Finish</dt>
+                    <dd className="font-bold">
+                      {shift.closedAt
+                        ? formatFieldDateTime(shift.closedAt)
+                        : "In progress"}
+                    </dd>
+                  </div>
                   <div>
                     <dt className="text-xs font-bold text-[var(--tl-ink-muted)]">Depth</dt>
                     <dd className="font-bold">
@@ -178,7 +210,19 @@ export function ShiftHistory({ holeId }: { holeId: string }) {
                   </div>
                 </dl>
                 {shift.handoverNote ? <p className="mt-4 border-t border-[var(--tl-border)] pt-3 text-sm text-[var(--tl-ink-muted)]">{shift.handoverNote}</p> : null}
-                <Link href={runbookRoutes.shiftDetail(holeId, shift.localId)} className="mt-4 inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">View shift detail</Link>
+                <div className="mt-4 flex flex-wrap gap-2">
+                  <Link href={runbookRoutes.shiftDetail(holeId, shift.localId)} className="inline-flex min-h-11 items-center font-bold text-[var(--tl-primary)]">View shift detail</Link>
+                  <Link href={runbookRoutes.reportForShift(holeId, shift.localId)} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 font-bold no-underline">
+                    <FileText aria-hidden="true" className="size-4" />
+                    Generate PDF
+                  </Link>
+                  {canReopen ? (
+                    <Link href={runbookRoutes.reopenShift(holeId, shift.localId)} className="inline-flex min-h-11 items-center gap-2 rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 font-bold no-underline">
+                      <RotateCcw aria-hidden="true" className="size-4" />
+                      Reopen
+                    </Link>
+                  ) : null}
+                </div>
               </article>
             );
           })}

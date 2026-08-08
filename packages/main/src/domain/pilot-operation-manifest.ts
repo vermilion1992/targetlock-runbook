@@ -95,6 +95,7 @@ export const PILOT_OPERATION_MANIFEST = {
     startShift: mutation(null, true, "SHIFT"),
     closeForHandover: mutation(null, true, "HANDOVER"),
     closeFinalShift: mutation(null, true, "HANDOVER"),
+    reopenShift: mutation(null, true, "HANDOVER"),
     acceptHandover: mutation(null, true, "HANDOVER"),
     recoverInterruptedAcceptance: mutation(),
   },

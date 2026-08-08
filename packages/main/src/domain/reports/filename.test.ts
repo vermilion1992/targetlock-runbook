@@ -15,7 +15,7 @@ describe("buildReportFilename", () => {
     ).toBe("DDH041_Full_Runbook_v003_2026-07-22.pdf");
   });
 
-  it("builds Current-Shift names with shift label", () => {
+  it("builds Shift Report names with shift label", () => {
     expect(
       buildReportFilename({
         holeId: "DDH041",
@@ -25,7 +25,7 @@ describe("buildReportFilename", () => {
         generatedAt: "2026-07-21T18:00:00.000Z",
         shiftLabel: "Night 2026-07-21",
       }),
-    ).toBe("DDH041_Current_Shift_Night_2026-07-21_2026-07-21.pdf");
+    ).toBe("DDH041_Shift_Report_Night_2026-07-21_2026-07-21.pdf");
   });
 
   it("builds Excel workbook names", () => {

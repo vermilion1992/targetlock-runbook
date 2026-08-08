@@ -31,11 +31,17 @@ import {
   type ReportAnalyticsGraphicsModel,
 } from "./report-analytics-pdf-graphics";
 import {
+  buildCurrentShiftCoverModel,
   buildReportCoverModel,
   drawReportCoverHero,
   drawReportKpiGrid,
   type ReportCoverModel,
 } from "./report-cover-pdf";
+import {
+  currentShiftReportPageCount,
+  drawCurrentShiftReport,
+  type CurrentShiftTrayPhotoAsset,
+} from "./current-shift-pdf";
 
 const MARGIN = PDF_PAGE.margin;
 const LINE = PDF_PAGE.lineHeight;
@@ -67,12 +73,19 @@ export function buildPdfLayoutModel(snapshot: ReportSnapshot): PdfLayoutModel {
     runCount: shift.runIds.length,
   }));
   const runRows = data.runsheet.length;
-  const landscapePages = Math.max(1, Math.ceil(runRows / 28) + (shiftGroups.length > 0 ? 1 : 0));
+  const landscapePages =
+    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
+      ? currentShiftReportPageCount(snapshot)
+      : Math.max(
+          1,
+          Math.ceil(runRows / 28) + (shiftGroups.length > 0 ? 1 : 0),
+        );
   const sections = sectionsFor(snapshot.reportType, data);
   const portraitPages = Math.max(1, Math.ceil(sections.length / 4));
   const hasCover =
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
-    snapshot.reportType === "HOLE_SUMMARY";
+    snapshot.reportType === "HOLE_SUMMARY" ||
+    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK";
   return {
     reportType: snapshot.reportType,
     holeId: snapshot.holeId,
@@ -84,7 +97,11 @@ export function buildPdfLayoutModel(snapshot: ReportSnapshot): PdfLayoutModel {
     hasCorrections: data.corrections.length > 0 || data.disclosures.length > 0,
     sections,
     oneDecimalSamples: data.runsheet.slice(0, 5).map((row) => formatMetres(row.holeDepthDm)),
-    cover: hasCover ? buildReportCoverModel(snapshot) : undefined,
+    cover: hasCover
+      ? snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
+        ? buildCurrentShiftCoverModel(snapshot)
+        : buildReportCoverModel(snapshot)
+      : undefined,
     analyticsGraphics: buildReportAnalyticsGraphicsModel(data),
   };
 }
@@ -120,17 +137,10 @@ function sectionsFor(reportType: ReportType, data: ReportDocumentData): string[]
       });
     case "CURRENT_SHIFT_RUNBOOK":
       return [
-        "Hole",
-        "Project",
-        "Rig",
-        "Shift",
-        "Runs",
-        "Rod state",
-        "Components",
-        "Casing",
-        "Latest survey",
-        "Current tray",
-        "Handover",
+        "Executive overview",
+        ...(data.runsheet.length > 0 ? ["Shift runbook"] : []),
+        ...(data.surveys.length > 0 ? ["Surveys"] : []),
+        ...(data.trays.length > 0 ? ["Core photography"] : []),
       ];
     case "HOLE_SUMMARY":
       return [
@@ -340,6 +350,7 @@ export interface ReportPdfAssets {
     readonly mediaType: "image/png" | "image/jpeg";
     readonly attribution: string;
   };
+  readonly trayPhotos?: readonly CurrentShiftTrayPhotoAsset[];
 }
 
 export async function generateReportPdf(
@@ -367,15 +378,24 @@ export async function generateReportPdf(
     snapshot.holeId,
     reportTypeLabel(snapshot.reportType),
   ]);
+  if (snapshot.reportType === "CURRENT_SHIFT_RUNBOOK") {
+    await drawCurrentShiftReport({
+      doc,
+      font,
+      bold,
+      snapshot,
+      trayPhotos: assets?.trayPhotos,
+    });
+    const bytes = await doc.save();
+    return new Blob([new Uint8Array(bytes)], { type: "application/pdf" });
+  }
   const locationMap =
     assets?.locationMap === undefined
       ? undefined
       : assets.locationMap.mediaType === "image/png"
         ? await doc.embedPng(assets.locationMap.bytes)
         : await doc.embedJpg(assets.locationMap.bytes);
-  const landscape =
-    snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK";
+  const landscape = snapshot.reportType === "FULL_HOLE_RUNBOOK";
   const writer = new PdfWriter(doc, font, bold, landscape, {
     holeId: snapshot.holeId,
     version: snapshot.version,
@@ -494,8 +514,7 @@ export async function generateReportPdf(
   if (
     data.trajectorySummary &&
     (snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
-      snapshot.reportType === "HOLE_SUMMARY" ||
-      snapshot.reportType === "CURRENT_SHIFT_RUNBOOK")
+      snapshot.reportType === "HOLE_SUMMARY")
   ) {
     const trajectory = data.trajectorySummary;
     writer.heading("Trajectory tracking summary");
@@ -656,7 +675,6 @@ export async function generateReportPdf(
 
   if (
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK" ||
     snapshot.reportType === "HOLE_SUMMARY"
   ) {
     writer.heading("Shift sections");
@@ -665,46 +683,6 @@ export async function generateReportPdf(
         `${shift.label} · ${shift.primaryDrillerName} · ${formatMetres(shift.startingDepthDm)} -> ${formatMetres(shift.endingDepthDm)} · shared runs ${shift.sharedRunIds.length}`,
       );
       if (shift.handoverNote) writer.line(`Handover: ${shift.handoverNote}`);
-    }
-
-    if (
-      snapshot.reportType === "CURRENT_SHIFT_RUNBOOK" &&
-      data.shiftAnalytics
-    ) {
-      const analytics = data.shiftAnalytics;
-      writer.heading("Shift analytics");
-      writer.line(
-        `Starting depth ${formatMetres(analytics.startingDepthDm)} · Ending depth ${formatMetres(analytics.endingDepthDm)} · Metres completed ${formatMetres(analytics.metresCompletedDm)}`,
-      );
-      writer.line(
-        `Runs completed ${analytics.completedRunCount} · Shared ${analytics.sharedRunCount} · Voided ${analytics.voidedRunCount} · Corrections ${analytics.runCorrectionCount}`,
-      );
-      writer.line(
-        `Average Run ${analytics.averageRunLengthDm === undefined ? "Not available" : formatMetres(analytics.averageRunLengthDm)} · Median Run ${analytics.medianRunLengthDm === undefined ? "Not available" : formatMetres(analytics.medianRunLengthDm)}`,
-      );
-      writer.line(
-        `Recovered ${formatMetres(analytics.totalRecoveredDm)} · Weighted recovery ${analytics.weightedRecoveryTenths === undefined ? "Not available" : percent(analytics.weightedRecoveryTenths)} · Core loss ${formatMetres(analytics.totalCoreLossDm)} · Core gain ${formatMetres(analytics.totalCoreGainDm)}`,
-      );
-      writer.line(
-        `Rods +3.0 m ${analytics.rodsAdded3m} · +6.0 m ${analytics.rodsAdded6m} · removed ${analytics.rodsRemoved} · Rod ${analytics.startingRodNumber} → ${analytics.endingRodNumber}`,
-      );
-      writer.line(
-        `R/S ${formatMetres(analytics.startingRodStringDm)} → ${formatMetres(analytics.endingRodStringDm)}`,
-      );
-      writer.line(
-        `Surveys ${analytics.surveyCount} · Trays ${analytics.trayCount} · Casing ${analytics.casingEventCount} · Bit changes ${analytics.bitChangeCount} · Reamer changes ${analytics.reamerChangeCount}`,
-      );
-      if (analytics.grossMetresPerElapsedHourTenths !== undefined) {
-        writer.line(
-          `Gross metres per elapsed Shift hour ${(analytics.grossMetresPerElapsedHourTenths / 10).toFixed(1)} m/h (elapsed Shift time includes all recorded activity)`,
-        );
-      }
-      if (analytics.unresolvedItems.length > 0) {
-        writer.line("Unresolved handover items:");
-        for (const item of analytics.unresolvedItems) {
-          writer.line(`- ${item}`);
-        }
-      }
     }
 
     writer.heading("Runsheet");
@@ -734,10 +712,7 @@ export async function generateReportPdf(
     );
   }
 
-  if (
-    snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
-  ) {
+  if (snapshot.reportType === "FULL_HOLE_RUNBOOK") {
     writer.heading("Rod history");
     writer.line(data.rodConfigurationSummary);
     writer.line(data.currentRodState);
@@ -751,8 +726,7 @@ export async function generateReportPdf(
   if (
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
     snapshot.reportType === "HOLE_SUMMARY" ||
-    snapshot.reportType === "CASING_HISTORY" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
+    snapshot.reportType === "CASING_HISTORY"
   ) {
     writer.heading("Casing history");
     writer.line(data.casingSummary);
@@ -777,8 +751,7 @@ export async function generateReportPdf(
   if (
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
     snapshot.reportType === "COMPONENT_HISTORY" ||
-    snapshot.reportType === "HOLE_SUMMARY" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
+    snapshot.reportType === "HOLE_SUMMARY"
   ) {
     writer.heading("Bit history");
     writer.table(
@@ -815,8 +788,7 @@ export async function generateReportPdf(
   if (
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
     snapshot.reportType === "SURVEY_HISTORY" ||
-    snapshot.reportType === "HOLE_SUMMARY" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
+    snapshot.reportType === "HOLE_SUMMARY"
   ) {
     writer.heading("Survey history");
     writer.line(
@@ -844,8 +816,7 @@ export async function generateReportPdf(
   if (
     snapshot.reportType === "FULL_HOLE_RUNBOOK" ||
     snapshot.reportType === "TRAY_REGISTER" ||
-    snapshot.reportType === "HOLE_SUMMARY" ||
-    snapshot.reportType === "CURRENT_SHIFT_RUNBOOK"
+    snapshot.reportType === "HOLE_SUMMARY"
   ) {
     writer.heading("Tray register");
     writer.table(

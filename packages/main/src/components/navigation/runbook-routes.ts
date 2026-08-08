@@ -49,6 +49,8 @@ export const runbookRoutes = {
     `${holeBase(holeId)}/shifts/${encodeURIComponent(shiftId)}`,
   closeShift: (holeId: string, shiftId: string) =>
     `${holeBase(holeId)}/shifts/${encodeURIComponent(shiftId)}/close`,
+  reopenShift: (holeId: string, shiftId: string) =>
+    `${holeBase(holeId)}/shifts/${encodeURIComponent(shiftId)}/reopen`,
   handover: (holeId: string) => `${holeBase(holeId)}/handover`,
   casing: (holeId: string) => `${holeBase(holeId)}/casing`,
   addCasing: (holeId: string) => `${holeBase(holeId)}/casing/new`,
@@ -103,6 +105,8 @@ export const runbookRoutes = {
   reopenHole: (holeId: string) => `${holeBase(holeId)}/reopen`,
   completedHoles: () => "/holes/completed",
   reports: (holeId: string) => `${holeBase(holeId)}/reports`,
+  reportForShift: (holeId: string, shiftId: string) =>
+    `${holeBase(holeId)}/reports?shiftId=${encodeURIComponent(shiftId)}`,
   reportHistory: (holeId: string) => `${holeBase(holeId)}/reports/history`,
 } as const;
 

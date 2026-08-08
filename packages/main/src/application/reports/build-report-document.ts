@@ -20,6 +20,7 @@ import {
   type ReportTrajectorySummary,
   type ReportType,
   type Run,
+  type RunbookShift,
   type ShiftAnalyticsRun,
   buildTrajectoryViewModel,
 } from "@/domain";
@@ -301,20 +302,25 @@ export async function buildReportDocumentData(
     .filter((shift) => shift.holeId === input.holeId)
     .slice()
     .sort((left, right) => left.startedAt.localeCompare(right.startedAt));
+  let selectedShift: RunbookShift | undefined;
 
   if (input.reportType === "CURRENT_SHIFT_RUNBOOK") {
-    const currentShift =
+    selectedShift =
       (input.shiftId
         ? shifts.find((shift) => shift.localId === input.shiftId)
         : null) ??
       shifts.find((shift) => shift.status === "OPEN" || shift.status === "HANDOVER_PENDING") ??
       shifts.at(-1);
-    if (currentShift) {
-      shifts = [currentShift];
+    if (input.shiftId && selectedShift?.localId !== input.shiftId) {
+      throw new Error("The selected shift was not found for this hole.");
+    }
+    if (selectedShift) {
+      const selectedShiftId = selectedShift.localId;
+      shifts = [selectedShift];
       runsForReport = completedRuns.filter(
         (run) =>
-          run.startedShiftId === currentShift.localId ||
-          run.completedShiftId === currentShift.localId,
+          run.startedShiftId === selectedShiftId ||
+          run.completedShiftId === selectedShiftId,
       );
     } else {
       shifts = [];
@@ -338,6 +344,8 @@ export async function buildReportDocumentData(
       label: `${shiftTypeLabel(shift.shiftType)} ${shift.shiftDate}`,
       primaryDrillerName: shift.primaryDrillerNameSnapshot,
       crewNames: shift.crewMembers.map((member) => member.name),
+      startedAt: shift.startedAt,
+      closedAt: shift.closedAt,
       startingDepthDm: shift.startingDepthDm,
       endingDepthDm:
         shift.endingDepthDm ??
@@ -428,24 +436,66 @@ export async function buildReportDocumentData(
       };
     });
 
+  const selectedShiftEndDepthDm =
+    selectedShift?.endingDepthDm ??
+    context.currentState.currentDepthDm ??
+    selectedShift?.startingDepthDm;
+  const surveysForReport = context.surveys.filter((survey) => {
+    if (survey.holeId !== input.holeId) return false;
+    if (
+      input.reportType !== "CURRENT_SHIFT_RUNBOOK" ||
+      selectedShift === undefined
+    ) {
+      return true;
+    }
+    if (survey.shiftId !== undefined) {
+      return survey.shiftId === selectedShift.localId;
+    }
+    return (
+      selectedShiftEndDepthDm !== undefined &&
+      survey.depthDm >= selectedShift.startingDepthDm &&
+      survey.depthDm <= selectedShiftEndDepthDm
+    );
+  });
+  const traysForReport = context.trays.filter((tray) => {
+    if (tray.holeId !== input.holeId) return false;
+    if (
+      input.reportType !== "CURRENT_SHIFT_RUNBOOK" ||
+      selectedShift === undefined
+    ) {
+      return true;
+    }
+    if (tray.shiftId !== undefined) {
+      return tray.shiftId === selectedShift.localId;
+    }
+    if (selectedShiftEndDepthDm === undefined) return false;
+    const trayStartDepthDm = tray.startDepthDm ?? tray.endDepthDm;
+    const trayEndDepthDm = tray.endDepthDm ?? tray.startDepthDm;
+    return (
+      trayStartDepthDm !== undefined &&
+      trayEndDepthDm !== undefined &&
+      trayEndDepthDm >= selectedShift.startingDepthDm &&
+      trayStartDepthDm <= selectedShiftEndDepthDm
+    );
+  });
+
   const surveyCorrections = (
     await Promise.all(
-      context.surveys.map((survey) =>
+      surveysForReport.map((survey) =>
         dependencies.surveys.listCorrections(survey.localId, input.holeId),
       ),
     )
   ).flat();
 
   const depthCounts = new Map<number, number>();
-  for (const survey of context.surveys) {
+  for (const survey of surveysForReport) {
     depthCounts.set(survey.depthDm, (depthCounts.get(survey.depthDm) ?? 0) + 1);
   }
   const duplicateDepthCount = [...depthCounts.values()].filter(
     (count) => count > 1,
   ).length;
 
-  const orderedSurveys = context.surveys
-    .filter((survey) => survey.holeId === input.holeId)
+  const orderedSurveys = surveysForReport
     .slice()
     .sort((left, right) => left.depthDm - right.depthDm);
   const gaps: number[] = [];
@@ -484,6 +534,12 @@ export async function buildReportDocumentData(
   const totalGainDm = decimetres(totalGain);
 
   const holeDepthSnapshotDm =
+    (input.reportType === "CURRENT_SHIFT_RUNBOOK"
+      ? selectedShift?.endingDepthDm ??
+        (selectedShift?.status === "OPEN"
+          ? context.currentState.currentDepthDm
+          : selectedShift?.startingDepthDm)
+      : undefined) ??
     completionSnapshot?.finalDepthDm ??
     context.currentState.currentDepthDm ??
     decimetres(0);
@@ -516,7 +572,7 @@ export async function buildReportDocumentData(
           casingEvents,
           componentAssignments: context.componentAssignments,
           corrections: [],
-          nowIso: new Date().toISOString(),
+          nowIso: input.generation?.generatedAt ?? new Date().toISOString(),
           liveEndingDepthDm: context.currentState.currentDepthDm,
           liveEndingRodNumber: context.currentState.currentRodNumber,
           liveEndingRodStringDm: context.currentState.currentRodStringDm,
@@ -575,7 +631,7 @@ export async function buildReportDocumentData(
     );
   }
   const latestSurvey = orderedSurveys.at(-1);
-  const currentTray = context.trays
+  const currentTray = traysForReport
     .slice()
     .sort((left, right) => right.trayNumber - left.trayNumber)[0];
 
@@ -734,6 +790,53 @@ export async function buildReportDocumentData(
     } catch {
       trajectorySummary = undefined;
     }
+  }
+
+  if (
+    input.reportType === "CURRENT_SHIFT_RUNBOOK" &&
+    selectedShiftEndDepthDm !== undefined &&
+    trajectorySummary !== undefined
+  ) {
+    const shiftEndDepthM = Number(selectedShiftEndDepthDm) / 10;
+    const actualStations = trajectorySummary.actualStations.filter(
+      (station) => station.measuredDepthM <= shiftEndDepthM,
+    );
+    const actualRenderPath = (trajectorySummary.actualRenderPath ?? []).filter(
+      (station) => station.measuredDepthM <= shiftEndDepthM,
+    );
+    const trackingRows = trajectorySummary.trackingRows.filter(
+      (station) => station.measuredDepthM <= shiftEndDepthM,
+    );
+    const endpoint = actualStations.at(-1);
+    trajectorySummary = {
+      ...trajectorySummary,
+      latestSurveyDepthM: endpoint?.measuredDepthM,
+      actualEastingM: endpoint?.eastingM,
+      actualNorthingM: endpoint?.northingM,
+      actualRlM: endpoint?.rlM,
+      actualStations,
+      actualRenderPath,
+      trackingRows,
+      nextSurveyMeasuredDepthM: undefined,
+      nextSurveyDipDegrees: undefined,
+      nextSurveyAzimuthDegrees: undefined,
+      curvedRecoveryPath: undefined,
+    };
+
+    const historicalSurveyIds = new Set(
+      context.surveys
+        .filter(
+          (survey) =>
+            survey.holeId === input.holeId &&
+            Number(survey.depthDm) <= Number(selectedShiftEndDepthDm),
+        )
+        .map((survey) => survey.localId),
+    );
+    trajectorySourceVersions = trajectorySourceVersions.filter(
+      (version) =>
+        version.entityType !== "survey" ||
+        historicalSurveyIds.has(version.entityId),
+    );
   }
 
   const activeBit = context.componentAssignments.find(
@@ -912,13 +1015,13 @@ export async function buildReportDocumentData(
       duplicateDepthCount,
       correctionCount: surveyCorrections.length,
     },
-    trays: context.trays
-      .filter((tray) => tray.holeId === input.holeId)
+    trays: traysForReport
       .map((tray) => {
         const startDepthDm = tray.startDepthDm ?? decimetres(0);
         const endDepthDm = tray.endDepthDm ?? startDepthDm;
         return {
           trayId: tray.localId,
+          shiftId: tray.shiftId,
           trayNumber: tray.trayNumber,
           startDepthDm,
           endDepthDm,
@@ -928,6 +1031,7 @@ export async function buildReportDocumentData(
                 run.holeDepth > startDepthDm && run.startDepth < endDepthDm,
             )
             .map((run) => run.runNumber),
+          primaryPhotoId: tray.primaryPhotoId,
           photoDate: tray.recordedAt,
           finalPartial: tray.isFinalPartial,
         };
@@ -966,7 +1070,7 @@ export async function buildReportDocumentData(
       totalLossDm,
       totalGainDm,
       surveyCount: orderedSurveys.length,
-      trayCount: context.trays.length,
+      trayCount: traysForReport.length,
       shiftCount: context.shifts.length,
     },
     activeBitSummary: activeBit
@@ -994,6 +1098,7 @@ export async function buildReportDocumentData(
   const reopenHistory = await dependencies.completion.getReopenHistory(
     input.holeId,
   );
+  const reportRunIds = new Set(runsForReport.map((run) => run.localId));
 
   const sourceVersions: ReportSourceVersion[] = [
     {
@@ -1019,21 +1124,25 @@ export async function buildReportDocumentData(
             version: context.rigVersion,
           },
         ]),
-    ...completedRuns.map((run) => ({
+    ...runsForReport.map((run) => ({
       entityType: "run",
       entityId: run.localId,
       version: run.version,
     })),
     ...context.rodEvents
-      .filter((event) => event.holeId === input.holeId)
+      .filter(
+        (event) =>
+          event.holeId === input.holeId &&
+          (selectedShift === undefined ||
+            event.shiftId === selectedShift.localId ||
+            (event.runId !== null && reportRunIds.has(event.runId))),
+      )
       .map((event) => ({
         entityType: "rod_event",
         entityId: event.localId,
         version: event.version,
       })),
-    ...context.shifts
-      .filter((shift) => shift.holeId === input.holeId)
-      .map((shift) => ({
+    ...shifts.map((shift) => ({
         entityType: "shift",
         entityId: shift.localId,
         version: shift.version,
@@ -1046,29 +1155,36 @@ export async function buildReportDocumentData(
         version: casing.version,
       })),
     ...casingEvents
-      .filter((event) => event.holeId === input.holeId)
+      .filter(
+        (event) =>
+          event.holeId === input.holeId &&
+          (selectedShift === undefined ||
+            event.shiftId === selectedShift.localId),
+      )
       .map((event) => ({
         entityType: "casing_event",
         entityId: event.localId,
         version: event.version,
       })),
     ...context.componentAssignments
-      .filter((assignment) => assignment.holeId === input.holeId)
+      .filter(
+        (assignment) =>
+          assignment.holeId === input.holeId &&
+          (selectedShift === undefined ||
+            assignment.installedShiftId === selectedShift.localId ||
+            assignment.removedShiftId === selectedShift.localId),
+      )
       .map((assignment) => ({
         entityType: "component_assignment",
         entityId: assignment.localId,
         version: assignment.version,
       })),
-    ...context.surveys
-      .filter((survey) => survey.holeId === input.holeId)
-      .map((survey) => ({
+    ...surveysForReport.map((survey) => ({
         entityType: "survey",
         entityId: survey.localId,
         version: survey.version,
       })),
-    ...context.trays
-      .filter((tray) => tray.holeId === input.holeId)
-      .map((tray) => ({
+    ...traysForReport.map((tray) => ({
         entityType: "tray",
         entityId: tray.localId,
         version: tray.version,

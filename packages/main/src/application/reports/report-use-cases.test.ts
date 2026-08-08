@@ -29,6 +29,7 @@ import {
 import type { HoleCompletionContext } from "@/application/runbook/hole-completion-use-cases";
 
 import {
+  evaluateGeneratedReportCurrency,
   generateReport,
   prepareEmailDraft,
   shareReport,
@@ -296,11 +297,15 @@ function makeContext(status: Hole["status"] = "ACTIVE"): HoleCompletionContext {
 function makeServices(
   status: Hole["status"] = "ACTIVE",
   completionSnapshot = false,
-): ReportServices & { readonly audits: MemoryAudits; readonly share: MemoryReportShareAdapter } {
+): ReportServices & {
+  readonly audits: MemoryAudits;
+  readonly share: MemoryReportShareAdapter;
+  setContext(next: HoleCompletionContext): void;
+} {
   const audits = new MemoryAudits();
   const share = new MemoryReportShareAdapter();
   const reports = new LocalReportMetadataRepository(new MemoryStorage(), "org-1");
-  const context = makeContext(status);
+  let context = makeContext(status);
   const casingEvents: CasingEvent[] = [
     {
       ...metadata("casing-event-1"),
@@ -424,6 +429,9 @@ function makeServices(
     reportFiles: new MemoryReportFileRepository(),
     share,
     audits,
+    setContext(next) {
+      context = next;
+    },
   };
 }
 
@@ -461,6 +469,77 @@ describe("generateReport", () => {
       );
     });
   }
+
+  it("freezes shift times and shift-scoped survey and photograph references", async () => {
+    const services = makeServices("ACTIVE");
+    const result = await generateReport(
+      {
+        operationId: "op-current-shift-snapshot",
+        holeId: "DDH041",
+        reportType: "CURRENT_SHIFT_RUNBOOK",
+        format: "PDF",
+        generatedByUserId: "user-1",
+        generatedByNameSnapshot: "Hoffman",
+        generatedAt: NOW,
+      },
+      services,
+    );
+    const saved = await services.reports.getSnapshot(
+      result.report.snapshotId,
+      "DDH041",
+    );
+
+    expect(saved?.documentData.currentShift).toMatchObject({
+      shiftId: "shift-1",
+      startedAt: NOW,
+    });
+    expect(saved?.documentData.surveys.map((survey) => survey.surveyId)).toEqual([
+      "survey-1",
+    ]);
+    expect(saved?.documentData.trays).toEqual([
+      expect.objectContaining({
+        trayId: "tray-1",
+        primaryPhotoId: "photo-1",
+      }),
+    ]);
+  });
+
+  it("evaluates a historical Shift Report against its original shift", async () => {
+    const services = makeServices("ACTIVE");
+    const generated = await generateReport(
+      {
+        operationId: "op-historical-shift",
+        holeId: "DDH041",
+        shiftId: "shift-1",
+        reportType: "CURRENT_SHIFT_RUNBOOK",
+        format: "PDF",
+        generatedByUserId: "user-1",
+        generatedByNameSnapshot: "Hoffman",
+        generatedAt: NOW,
+      },
+      services,
+    );
+    const current = makeContext("ACTIVE");
+    services.setContext({
+      ...current,
+      shifts: [
+        ...current.shifts,
+        {
+          ...current.shifts[0]!,
+          ...metadata("shift-2"),
+          shiftType: "NIGHT",
+          shiftDate: "2026-07-22",
+          startedAt: "2026-07-22T18:00:00.000Z",
+          endingDepthDm: undefined,
+          status: "OPEN",
+        },
+      ],
+    });
+
+    await expect(
+      evaluateGeneratedReportCurrency(generated.report, services),
+    ).resolves.toMatchObject({ status: "current" });
+  });
 
   it("uses completion snapshot for completed holes and keeps versions", async () => {
     const services = makeServices("COMPLETED", true);

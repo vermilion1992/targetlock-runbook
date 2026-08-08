@@ -21,6 +21,7 @@ import {
   type SavedReportRecipient,
 } from "@/domain";
 import type { AuditRepository } from "@/infrastructure/audit";
+import type { MediaRepository } from "@/infrastructure/media";
 import { generateCsvBundle } from "@/infrastructure/reports/csv-generator";
 import { generateExcelWorkbook } from "@/infrastructure/reports/excel-generator";
 import { generateReportPdf } from "@/infrastructure/reports/pdf-generator";
@@ -30,10 +31,12 @@ import type {
   ReportShareAdapter,
   ShareReportResult,
 } from "@/infrastructure/reports/report-share-adapter";
+import type { PhotoRepository } from "@/infrastructure/trays";
 import {
   buildReportDocumentData,
   type ReportDocumentBuilderDependencies,
 } from "./build-report-document";
+import { resolveReportPdfAssets } from "./report-pdf-assets";
 
 export class ReportApplicationError extends Error {
   constructor(
@@ -59,6 +62,8 @@ export interface ReportServices extends ReportDocumentBuilderDependencies {
   readonly reportFiles: ReportFileRepository;
   readonly share: ReportShareAdapter;
   readonly audits: AuditRepository;
+  readonly photos?: PhotoRepository;
+  readonly media?: MediaRepository;
 }
 
 export type ReportGenerationProgress =
@@ -183,9 +188,17 @@ async function generateBlob(
   snapshot: ReportSnapshot,
   format: ReportFormat,
   csvDataset?: CsvDatasetName,
+  services?: ReportServices,
 ): Promise<{ readonly blob: Blob; readonly csvDataset?: CsvDatasetName }> {
   if (format === "PDF") {
-    return { blob: await generateReportPdf(snapshot) };
+    const assets =
+      services?.photos && services.media
+        ? await resolveReportPdfAssets(snapshot, {
+            photos: services.photos,
+            media: services.media,
+          })
+        : undefined;
+    return { blob: await generateReportPdf(snapshot, assets) };
   }
   if (format === "XLSX") {
     return { blob: await generateExcelWorkbook(snapshot) };
@@ -358,6 +371,7 @@ export async function generateReport(
         snapshot,
         input.format,
         input.csvDataset,
+        services,
       );
       blob = generated.blob;
       usedCsvDataset = generated.csvDataset;
@@ -418,6 +432,7 @@ export async function generateReport(
             snapshot,
             input.format,
             input.csvDataset,
+            services,
           );
           blob = generated.blob;
           usedCsvDataset = generated.csvDataset;
@@ -1051,6 +1066,7 @@ export async function evaluateGeneratedReportCurrency(
     {
       holeId: report.holeId,
       reportType: report.reportType,
+      shiftId: snapshot.shiftId,
     },
     services,
   );

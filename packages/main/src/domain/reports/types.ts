@@ -115,7 +115,7 @@ export const REPORT_DISPATCH_STATUSES = [
 export type ReportDispatchStatus = (typeof REPORT_DISPATCH_STATUSES)[number];
 
 export const REPORT_TYPE_LABELS: Readonly<Record<ReportType, string>> = {
-  CURRENT_SHIFT_RUNBOOK: "Current-Shift Runbook",
+  CURRENT_SHIFT_RUNBOOK: "Shift Report",
   FULL_HOLE_RUNBOOK: "Full-Hole Runbook",
   HOLE_SUMMARY: "Hole Summary",
   SURVEY_HISTORY: "Survey History",
@@ -153,6 +153,8 @@ export interface ReportShiftSection {
   readonly label: string;
   readonly primaryDrillerName: string;
   readonly crewNames: readonly string[];
+  readonly startedAt?: IsoTimestamp;
+  readonly closedAt?: IsoTimestamp;
   readonly startingDepthDm: Decimetres;
   readonly endingDepthDm: Decimetres;
   readonly handoverNote?: string;
@@ -174,10 +176,12 @@ export interface ReportSurveyRow {
 
 export interface ReportTrayRow {
   readonly trayId: LocalId;
+  readonly shiftId?: LocalId;
   readonly trayNumber: number;
   readonly startDepthDm: Decimetres;
   readonly endDepthDm: Decimetres;
   readonly relatedRunNumbers: readonly number[];
+  readonly primaryPhotoId?: LocalId;
   readonly photoDate?: IsoTimestamp;
   readonly finalPartial: boolean;
 }

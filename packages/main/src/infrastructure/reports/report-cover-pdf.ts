@@ -1,6 +1,7 @@
 import type { PDFFont, PDFImage, PDFPage } from "pdf-lib";
 
 import {
+  decimetres,
   formatMetres,
   formatReportVersion,
   reportTypeLabel,
@@ -49,6 +50,19 @@ export interface ReportCoverModel {
 
 function percent(tenths: number | undefined): string {
   return tenths === undefined ? "Not available" : `${(tenths / 10).toFixed(1)}%`;
+}
+
+function formatDuration(minutes: number | undefined): string {
+  if (minutes === undefined || !Number.isFinite(minutes) || minutes < 0) {
+    return "In progress";
+  }
+  const rounded = Math.round(minutes);
+  const hours = Math.floor(rounded / 60);
+  const remainingMinutes = rounded % 60;
+  if (hours === 0) return `${remainingMinutes} min`;
+  return remainingMinutes === 0
+    ? `${hours} h`
+    : `${hours} h ${remainingMinutes} min`;
 }
 
 export function buildReportCoverModel(
@@ -166,6 +180,77 @@ export function buildReportCoverModel(
       {
         label: "BITS / REAMERS",
         value: `${analytics?.bitsUsed ?? data.bits.length} / ${analytics?.reamersUsed ?? data.reamers.length}`,
+      },
+    ],
+  };
+}
+
+export function buildCurrentShiftCoverModel(
+  snapshot: ReportSnapshot,
+): ReportCoverModel {
+  const base = buildReportCoverModel(snapshot);
+  const data = snapshot.documentData;
+  const analytics = data.shiftAnalytics;
+  const shift = data.currentShift;
+  const elapsedMinutes =
+    shift?.closedAt === undefined
+      ? undefined
+      : analytics?.elapsedMinutes ??
+        (shift.startedAt
+          ? Math.max(
+              0,
+              (Date.parse(shift.closedAt) - Date.parse(shift.startedAt)) /
+                60_000,
+            )
+          : undefined);
+
+  return {
+    ...base,
+    eyebrow: "SHIFT REPORT",
+    rigLine: shift ? `${data.rigName} | ${shift.label}` : data.rigName,
+    kpis: [
+      {
+        label: "METRES DRILLED",
+        value: formatMetres(analytics?.metresCompletedDm ?? decimetres(0)),
+      },
+      {
+        label: "STARTING DEPTH",
+        value: formatMetres(
+          analytics?.startingDepthDm ??
+            shift?.startingDepthDm ??
+            decimetres(0),
+        ),
+      },
+      {
+        label: "ENDING DEPTH",
+        value: formatMetres(
+          analytics?.endingDepthDm ??
+            shift?.endingDepthDm ??
+            data.currentOrFinalDepthDm,
+        ),
+      },
+      {
+        label: "RUNS COMPLETED",
+        value: String(analytics?.completedRunCount ?? data.runsheet.length),
+      },
+      {
+        label: "AVERAGE RUN",
+        value:
+          analytics?.averageRunLengthDm === undefined
+            ? "Not available"
+            : formatMetres(analytics.averageRunLengthDm),
+      },
+      {
+        label: "SHIFT DURATION",
+        value: formatDuration(elapsedMinutes),
+      },
+      {
+        label: "SURVEYS RECORDED",
+        value: String(data.surveys.length),
+      },
+      {
+        label: "TRAYS PHOTOGRAPHED",
+        value: String(data.trays.length),
       },
     ],
   };

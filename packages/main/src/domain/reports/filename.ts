@@ -28,7 +28,7 @@ function typeSlug(reportType: ReportType): string {
     case "FULL_HOLE_RUNBOOK":
       return "Full_Runbook";
     case "CURRENT_SHIFT_RUNBOOK":
-      return "Current_Shift";
+      return "Shift_Report";
     case "HOLE_SUMMARY":
       return "Hole_Summary";
     case "SURVEY_HISTORY":

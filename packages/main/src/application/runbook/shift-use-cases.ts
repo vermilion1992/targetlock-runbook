@@ -292,6 +292,50 @@ export async function closeRunbookShift(
   return shift;
 }
 
+export interface ReopenRunbookShiftInput {
+  readonly operationId: string;
+  readonly holeId: string;
+  readonly shiftId: string;
+  readonly expectedVersion: number;
+  readonly reopenedAt: string;
+  readonly actor: Actor;
+}
+
+export async function reopenRunbookShift(
+  input: ReopenRunbookShiftInput,
+  services: ShiftServices,
+): Promise<RunbookShift> {
+  const existing = await services.shifts.getById(input.shiftId, input.holeId);
+  if (existing === null) {
+    throw new Error("The shift was not found.");
+  }
+  const result = await services.shifts.reopenShift({
+    operationId: input.operationId,
+    holeId: input.holeId,
+    shiftId: input.shiftId,
+    expectedVersion: input.expectedVersion,
+    reopenedAt: input.reopenedAt,
+  });
+  await services.audits.append(
+    auditEntry({
+      id: `audit-${input.operationId}-reopened`,
+      holeId: input.holeId,
+      entityType: "shift",
+      entityId: result.shift.localId,
+      action: "shift_reopened",
+      actor: input.actor,
+      timestamp: input.reopenedAt,
+      depthDm: existing.endingDepthDm ?? existing.startingDepthDm,
+      metadata: {
+        previousStatus: result.previousStatus,
+        previousClosedAt: existing.closedAt ?? null,
+        version: result.shift.version,
+      },
+    }),
+  );
+  return result.shift;
+}
+
 export async function acceptShiftHandover(
   input: AcceptHandoverInput,
   services: ShiftServices,

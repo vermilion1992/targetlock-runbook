@@ -197,6 +197,20 @@ export interface CloseFinalShiftInput {
   readonly closeAnalyticsSnapshot?: ShiftAnalyticsCloseSnapshot;
 }
 
+export interface ReopenShiftInput {
+  readonly operationId: string;
+  readonly holeId: string;
+  readonly shiftId: string;
+  readonly expectedVersion: number;
+  readonly reopenedAt: string;
+}
+
+export interface ReopenShiftResult {
+  readonly shift: RunbookShift;
+  readonly previousStatus: "HANDOVER_PENDING" | "CLOSED";
+  readonly status: "reopened" | "already-open";
+}
+
 export interface AcceptHandoverInput {
   readonly operationId: string;
   readonly holeId: string;
@@ -229,6 +243,7 @@ export type ShiftRepositoryErrorCode =
   | "HANDOVER_NOT_PENDING"
   | "NOT_FOUND"
   | "OPERATION_CONFLICT"
+  | "REOPEN_NOT_ALLOWED"
   | "STALE_VERSION"
   | "STORAGE_UNAVAILABLE";
 
@@ -250,6 +265,7 @@ export interface ShiftRepository {
   startShift(input: StartShiftInput): Promise<RunbookShift>;
   closeForHandover(input: CloseShiftInput): Promise<RunbookShift>;
   closeFinalShift(input: CloseFinalShiftInput): Promise<FinalShiftCloseResult>;
+  reopenShift(input: ReopenShiftInput): Promise<ReopenShiftResult>;
   acceptHandover(input: AcceptHandoverInput): Promise<HandoverResult>;
   hasPendingHandoverOperation(holeId: string): Promise<boolean>;
   recoverInterruptedAcceptance(holeId: string): Promise<HandoverResult | null>;
@@ -587,6 +603,97 @@ export class LocalShiftRepository implements ShiftRepository {
       envelope.revision,
     );
     return updated;
+  }
+
+  async reopenShift(input: ReopenShiftInput): Promise<ReopenShiftResult> {
+    this.mutationGuard?.assertHoleMutable(input.holeId);
+    const envelope = this.readEnvelope(input.holeId);
+    const shiftIndex = envelope.shifts.findIndex(
+      (shift) => shift.localId === input.shiftId,
+    );
+    const existing = envelope.shifts[shiftIndex];
+    if (existing === undefined) {
+      throw new ShiftRepositoryError("NOT_FOUND", "The shift was not found.");
+    }
+    if (existing.status === "OPEN") {
+      throw new ShiftRepositoryError(
+        "REOPEN_NOT_ALLOWED",
+        "This shift is already open.",
+      );
+    }
+    if (existing.version !== input.expectedVersion) {
+      throw new ShiftRepositoryError(
+        "STALE_VERSION",
+        "The shift changed in another view. Reload before reopening it.",
+      );
+    }
+    if (
+      existing.handoverAcceptedAt !== undefined ||
+      envelope.shifts.slice(shiftIndex + 1).length > 0
+    ) {
+      throw new ShiftRepositoryError(
+        "REOPEN_NOT_ALLOWED",
+        "This shift cannot be reopened because a later shift has already started.",
+      );
+    }
+    const otherActive = envelope.shifts.find(
+      (shift) =>
+        shift.localId !== existing.localId &&
+        isActiveShiftStatus(shift.status),
+    );
+    if (otherActive !== undefined) {
+      throw new ShiftRepositoryError(
+        "ACTIVE_SHIFT_EXISTS",
+        "Another shift is active. Close it before reopening this shift.",
+      );
+    }
+    const acceptance = this.readOperation(input.holeId);
+    if (
+      acceptance?.outgoingShiftId === existing.localId &&
+      acceptance.status === "PREPARED"
+    ) {
+      throw new ShiftRepositoryError(
+        "OPERATION_CONFLICT",
+        "An interrupted handover acceptance must be recovered before this shift can be reopened.",
+      );
+    }
+
+    const updated: RunbookShift = {
+      localId: existing.localId,
+      serverId: existing.serverId,
+      syncStatus: existing.syncStatus,
+      createdAt: existing.createdAt,
+      updatedAt: input.reopenedAt,
+      deviceId: existing.deviceId,
+      version: existing.version + 1,
+      holeId: existing.holeId,
+      rigId: existing.rigId,
+      shiftType: existing.shiftType,
+      shiftDate: existing.shiftDate,
+      primaryDrillerId: existing.primaryDrillerId,
+      primaryDrillerNameSnapshot: existing.primaryDrillerNameSnapshot,
+      crewMembers: existing.crewMembers,
+      startedAt: existing.startedAt,
+      startingDepthDm: existing.startingDepthDm,
+      startingRodNumber: existing.startingRodNumber,
+      startingRodStringDm: existing.startingRodStringDm,
+      startingMeasuredStickUpDm: existing.startingMeasuredStickUpDm,
+      startingRunNumber: existing.startingRunNumber,
+      status: "OPEN",
+    };
+    this.writeEnvelope(
+      input.holeId,
+      envelope.shifts.map((shift) =>
+        shift.localId === updated.localId ? updated : shift,
+      ),
+      input.reopenedAt,
+      envelope.revision,
+    );
+    return {
+      shift: updated,
+      previousStatus: existing.status,
+      status: "reopened",
+    };
   }
 
   async closeFinalShift(

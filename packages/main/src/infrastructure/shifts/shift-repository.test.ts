@@ -194,6 +194,62 @@ describe("local shift repository", () => {
     ).rejects.toMatchObject({ code: "OPERATION_CONFLICT" });
   });
 
+  it("reopens the latest pending or final shift and clears its closing state", async () => {
+    const { repository, pending } = await pendingRepository();
+
+    const reopened = await repository.reopenShift({
+      operationId: "reopen-pending-1",
+      holeId: day.holeId,
+      shiftId: pending.localId,
+      expectedVersion: pending.version,
+      reopenedAt: "2026-07-21T18:05:00.000Z",
+    });
+
+    expect(reopened).toMatchObject({
+      previousStatus: "HANDOVER_PENDING",
+      status: "reopened",
+      shift: {
+        status: "OPEN",
+        version: 3,
+        updatedAt: "2026-07-21T18:05:00.000Z",
+      },
+    });
+    expect(reopened.shift).not.toHaveProperty("closedAt");
+    expect(reopened.shift).not.toHaveProperty("endingDepthDm");
+    expect(reopened.shift).not.toHaveProperty("handoverNote");
+
+    const finalRepository = new LocalShiftRepository(new MemoryStorage());
+    await finalRepository.startShift(day);
+    const closed = await finalRepository.closeFinalShift(finalClose);
+    await expect(
+      finalRepository.reopenShift({
+        operationId: "reopen-final-1",
+        holeId: day.holeId,
+        shiftId: closed.shift.localId,
+        expectedVersion: closed.shift.version,
+        reopenedAt: "2026-07-21T18:10:00.000Z",
+      }),
+    ).resolves.toMatchObject({
+      previousStatus: "CLOSED",
+      shift: { status: "OPEN", version: 3 },
+    });
+  });
+
+  it("does not reopen an outgoing shift after its incoming shift starts", async () => {
+    const { repository } = await pendingRepository();
+    const accepted = await repository.acceptHandover(acceptance);
+
+    await expect(
+      repository.reopenShift({
+        operationId: "reopen-conflict-1",
+        holeId: day.holeId,
+        shiftId: accepted.outgoingShift.localId,
+        expectedVersion: accepted.outgoingShift.version,
+        reopenedAt: "2026-07-21T18:10:00.000Z",
+      }),
+    ).rejects.toMatchObject({ code: "REOPEN_NOT_ALLOWED" });
+  });
+
   it("accepts a handover atomically and inherits the exact state", async () => {
     const { repository } = await pendingRepository();
     const result = await repository.acceptHandover(acceptance);

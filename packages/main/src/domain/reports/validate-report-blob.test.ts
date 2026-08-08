@@ -19,6 +19,21 @@ describe("assertValidReportBlob", () => {
     ).resolves.toBeUndefined();
   });
 
+  it("validates large PDFs without spreading the payload onto the call stack", async () => {
+    const body = new Uint8Array(300_000);
+    const blob = new Blob(["%PDF-1.7\n", body, "\n%%EOF\n"], {
+      type: "application/pdf",
+    });
+    await expect(
+      assertValidReportBlob({
+        blob,
+        format: "PDF",
+        filename: "DDH041_Hole_Summary_v001_2026-07-24.pdf",
+        mimeType: "application/pdf",
+      }),
+    ).resolves.toBeUndefined();
+  });
+
   it("rejects empty blobs", async () => {
     await expect(
       assertValidReportBlob({

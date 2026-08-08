@@ -139,9 +139,9 @@ function fitSection(
 function fitIsometric(
   model: TrajectoryViewModel,
   box: { x: number; y: number; width: number; height: number },
+  yaw = Math.PI * 0.25,
+  pitch = Math.PI * 0.28,
 ) {
-  const yaw = Math.PI * 0.25;
-  const pitch = Math.PI * 0.28;
   const cosY = Math.cos(yaw);
   const sinY = Math.sin(yaw);
   const cosP = Math.cos(pitch);
@@ -371,6 +371,153 @@ export function drawTrajectoryGraphicsOnPdfPage(input: {
     },
   );
   return cursorY - 12;
+}
+
+function targetFocusModel(model: TrajectoryViewModel): TrajectoryViewModel {
+  const maximumDepth = Math.max(
+    0,
+    ...model.plannedPath.map((point) => point.measuredDepthM),
+    ...model.actualPath.map((point) => point.measuredDepthM),
+  );
+  const cutoff = Math.max(0, maximumDepth - Math.max(120, maximumDepth * 0.3));
+  const plannedPath = model.plannedPath.filter(
+    (point) => point.measuredDepthM >= cutoff,
+  );
+  const actualPath = model.actualPath.filter(
+    (point) => point.measuredDepthM >= cutoff,
+  );
+  if (plannedPath.length < 2 && actualPath.length < 2) return model;
+  return buildReportTrajectoryViewModel({
+    holeId: model.holeId,
+    engineVersion: model.engineVersion,
+    activePlanName: model.activePlanName,
+    plannedPath,
+    actualPath,
+    plannedStations: model.plannedStations.filter(
+      (point) => point.measuredDepthM >= cutoff,
+    ),
+    actualStations: model.surveyStations.filter(
+      (point) => point.measuredDepthM >= cutoff,
+    ),
+    target: model.target,
+    sectionBearingDegrees: model.sectionBearingDegrees,
+  });
+}
+
+export function drawShiftTrajectoryPair(input: {
+  readonly page: PDFPage;
+  readonly font: PDFFont;
+  readonly bold: PDFFont;
+  readonly model: TrajectoryViewModel;
+  readonly x: number;
+  readonly y: number;
+  readonly width: number;
+  readonly height: number;
+}): number {
+  const { page, font, bold, model } = input;
+  page.drawText("TRAJECTORY", {
+    x: input.x,
+    y: input.y,
+    size: 8,
+    font: bold,
+    color: MUTED,
+  });
+
+  const legend = "Planned dashed  |  Actual solid  |  Target";
+  page.drawText(legend, {
+    x: input.x + input.width - font.widthOfTextAtSize(legend, 7),
+    y: input.y,
+    size: 7,
+    font,
+    color: MUTED,
+  });
+
+  const gap = 10;
+  const panelTop = input.y - 12;
+  const panelHeight = input.height - 24;
+  const panelWidth = (input.width - gap) / 2;
+  const focusModel = targetFocusModel(model);
+  const panels = [
+    {
+      title: "PLANNED VS ACTUAL | ISOMETRIC",
+      model,
+      yaw: Math.PI * 0.25,
+      pitch: Math.PI * 0.28,
+      box: {
+        x: input.x,
+        y: panelTop - panelHeight,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    },
+    {
+      title: "TOE & TARGET | ALTERNATE VIEW",
+      model: focusModel,
+      yaw: Math.PI * -0.18,
+      pitch: Math.PI * 0.2,
+      box: {
+        x: input.x + panelWidth + gap,
+        y: panelTop - panelHeight,
+        width: panelWidth,
+        height: panelHeight,
+      },
+    },
+  ] as const;
+
+  for (const panel of panels) {
+    page.drawRectangle({
+      x: panel.box.x,
+      y: panel.box.y,
+      width: panel.box.width,
+      height: panel.box.height,
+      color: rgb(0.96, 0.975, 0.99),
+      borderColor: GRID,
+      borderWidth: 1,
+    });
+    page.drawText(panel.title, {
+      x: panel.box.x + 9,
+      y: panel.box.y + panel.box.height - 17,
+      size: 7.5,
+      font: bold,
+      color: INK,
+    });
+    const inner = {
+      x: panel.box.x + 12,
+      y: panel.box.y + 10,
+      width: panel.box.width - 24,
+      height: panel.box.height - 35,
+    };
+    for (let division = 1; division < 4; division += 1) {
+      page.drawLine({
+        start: {
+          x: inner.x + (inner.width * division) / 4,
+          y: inner.y,
+        },
+        end: {
+          x: inner.x + (inner.width * division) / 4,
+          y: inner.y + inner.height,
+        },
+        thickness: 0.35,
+        color: GRID,
+      });
+      page.drawLine({
+        start: {
+          x: inner.x,
+          y: inner.y + (inner.height * division) / 4,
+        },
+        end: {
+          x: inner.x + inner.width,
+          y: inner.y + (inner.height * division) / 4,
+        },
+        thickness: 0.35,
+        color: GRID,
+      });
+    }
+    const map = fitIsometric(panel.model, inner, panel.yaw, panel.pitch);
+    drawPaths(page, panel.model, map);
+  }
+
+  return panelTop - panelHeight - 8;
 }
 
 /**

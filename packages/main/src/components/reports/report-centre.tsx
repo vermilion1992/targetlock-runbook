@@ -45,6 +45,7 @@ import {
   type ReportFormat,
   type ReportGenerationTransaction,
   type ReportType,
+  type RunbookShift,
   type SavedReportRecipient,
 } from "@/domain";
 import { useOperatorSession } from "@/components/session";
@@ -67,18 +68,28 @@ function relativeGeneratedLabel(iso: string): string {
   return `Generated ${formatFieldDateTime(iso)}`;
 }
 
-export function ReportCentre({ holeId }: { holeId: string }) {
+export function ReportCentre({
+  holeId,
+  initialShiftId,
+}: {
+  holeId: string;
+  initialShiftId?: string;
+}) {
   const { session } = useOperatorSession();
   const progressId = useId();
   const errorRef = useRef<HTMLDivElement>(null);
-  const [reportType, setReportType] = useState<ReportType>("FULL_HOLE_RUNBOOK");
+  const [reportType, setReportType] = useState<ReportType>(
+    initialShiftId ? "CURRENT_SHIFT_RUNBOOK" : "FULL_HOLE_RUNBOOK",
+  );
   const [formats, setFormats] = useState<ReadonlySet<ReportFormat>>(
-    new Set(["PDF", "XLSX"]),
+    new Set<ReportFormat>(initialShiftId ? ["PDF"] : ["PDF", "XLSX"]),
   );
   const [csvDataset, setCsvDataset] = useState<CsvDatasetName>(
     defaultCsvDatasetForReport("FULL_HOLE_RUNBOOK"),
   );
   const [reports, setReports] = useState<readonly GeneratedReportRecord[]>([]);
+  const [shifts, setShifts] = useState<readonly RunbookShift[]>([]);
+  const [selectedShiftId, setSelectedShiftId] = useState(initialShiftId ?? "");
   const [currencyById, setCurrencyById] = useState<
     ReadonlyMap<string, ReportCurrencyResult>
   >(new Map());
@@ -110,11 +121,15 @@ export function ReportCentre({ holeId }: { holeId: string }) {
       setError("Browser storage is unavailable.");
       return;
     }
-    const [list, lifecycle, failed] = await Promise.all([
+    const [list, lifecycle, failed, shiftList] = await Promise.all([
       listGeneratedReports(holeId, services),
       services.completion.getLifecycleState(holeId),
       services.reports.listFailedTransactions(holeId),
+      services.shifts.listByHole(holeId),
     ]);
+    const orderedShifts = [...shiftList].sort((left, right) =>
+      right.startedAt.localeCompare(left.startedAt),
+    );
     const recipientList = await services.reports.listRecipients({
       holeId,
       projectId: lifecycle?.hole.projectId,
@@ -122,6 +137,20 @@ export function ReportCentre({ holeId }: { holeId: string }) {
     setReports(list);
     setFailedOps(failed);
     setRecipients(recipientList);
+    setShifts(orderedShifts);
+    setSelectedShiftId((current) => {
+      if (current && orderedShifts.some((shift) => shift.localId === current)) {
+        return current;
+      }
+      return (
+        orderedShifts.find(
+          (shift) =>
+            shift.status === "OPEN" || shift.status === "HANDOVER_PENDING",
+        )?.localId ??
+        orderedShifts[0]?.localId ??
+        ""
+      );
+    });
     if (lifecycle) {
       setHoleStatus(lifecycle.hole.status);
       const completion = await services.completion.getLatestCompletion(holeId);
@@ -176,11 +205,13 @@ export function ReportCentre({ holeId }: { holeId: string }) {
     readonly type?: ReportType;
     readonly format?: ReportFormat;
     readonly csvDataset?: CsvDatasetName;
+    readonly shiftId?: string;
   }) {
     setError(null);
     setStatusMessage(null);
     setSuccessDismissed(false);
     const selectedType = options?.type ?? reportType;
+    const selectedShiftForReport = options?.shiftId ?? selectedShiftId;
     const selectedCsvDataset =
       options?.csvDataset ??
       (isCsvDatasetCompatible(selectedType, csvDataset)
@@ -191,6 +222,13 @@ export function ReportCentre({ holeId }: { holeId: string }) {
       : REPORT_FORMATS.filter((format) => formats.has(format));
     if (selectedFormats.length === 0) {
       setError("Select at least one format.");
+      return;
+    }
+    if (
+      selectedType === "CURRENT_SHIFT_RUNBOOK" &&
+      selectedShiftForReport.length === 0
+    ) {
+      setError("Choose a shift before generating a Shift Report.");
       return;
     }
     if (session === null) {
@@ -214,6 +252,10 @@ export function ReportCentre({ holeId }: { holeId: string }) {
             holeId,
             reportType: selectedType,
             format,
+            shiftId:
+              selectedType === "CURRENT_SHIFT_RUNBOOK"
+                ? selectedShiftForReport
+                : undefined,
             csvDataset: format === "CSV" ? selectedCsvDataset : undefined,
             generatedByUserId: session.operator.localId,
             generatedByNameSnapshot: session.operator.displayName,
@@ -384,6 +426,36 @@ export function ReportCentre({ holeId }: { holeId: string }) {
     }
   }
 
+  async function generateNewVersion(
+    report: GeneratedReportRecord,
+    csvDataset?: CsvDatasetName,
+  ) {
+    let shiftId: string | undefined;
+    if (report.reportType === "CURRENT_SHIFT_RUNBOOK") {
+      const services = createBrowserRunbookServices();
+      if (services === null) {
+        setError("Browser storage is unavailable.");
+        return;
+      }
+      const snapshot = await services.reports.getSnapshot(
+        report.snapshotId,
+        report.holeId,
+      );
+      shiftId = snapshot?.shiftId;
+      if (!shiftId) {
+        setError("The original shift selection is unavailable.");
+        return;
+      }
+      setSelectedShiftId(shiftId);
+    }
+    await onGenerate({
+      type: report.reportType,
+      format: report.format,
+      csvDataset,
+      shiftId,
+    });
+  }
+
   function reportActions(report: GeneratedReportRecord) {
     const priorCsvDataset = CSV_DATASET_NAMES.find(
       (dataset) => dataset === report.csvDataset,
@@ -442,11 +514,7 @@ export function ReportCentre({ holeId }: { holeId: string }) {
           type="button"
           className="inline-flex min-h-11 items-center rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] px-3 text-sm font-bold uppercase tracking-wide disabled:opacity-60"
           onClick={() =>
-            void onGenerate({
-              type: report.reportType,
-              format: report.format,
-              csvDataset: priorCsvDataset,
-            })
+            void generateNewVersion(report, priorCsvDataset)
           }
           disabled={busy}
         >
@@ -522,6 +590,36 @@ export function ReportCentre({ holeId }: { holeId: string }) {
               ))}
             </div>
           </div>
+
+          {reportType === "CURRENT_SHIFT_RUNBOOK" ? (
+            <label
+              htmlFor="report-shift"
+              className="block max-w-xl text-sm font-semibold text-[var(--tl-ink)]"
+            >
+              Shift
+              <select
+                id="report-shift"
+                value={selectedShiftId}
+                onChange={(event) => setSelectedShiftId(event.target.value)}
+                disabled={busy || shifts.length === 0}
+                className="mt-1 min-h-11 w-full rounded-[var(--tl-radius-sm)] border border-[var(--tl-border-strong)] bg-[var(--tl-surface)] px-3"
+              >
+                {shifts.length === 0 ? (
+                  <option value="">No shifts recorded</option>
+                ) : null}
+                {shifts.map((shift) => (
+                  <option key={shift.localId} value={shift.localId}>
+                    {shift.shiftType === "DAY" ? "Day Shift" : "Night Shift"}{" "}
+                    {shift.shiftDate} — {shift.primaryDrillerNameSnapshot} —{" "}
+                    {shift.status.replaceAll("_", " ")}
+                  </option>
+                ))}
+              </select>
+              <span className="mt-1 block font-normal text-[var(--tl-ink-muted)]">
+                Generate the active shift or select any historical shift.
+              </span>
+            </label>
+          ) : null}
 
           <fieldset>
             <legend className="text-base font-bold text-[var(--tl-ink)]">
